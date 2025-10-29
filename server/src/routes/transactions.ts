@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { prisma } from "../db/prisma";
-import { requireAuth, AuthRequest } from "../middleware/auth";
-import { parsePagination } from "../utils/pagination";
+import { prisma } from "../db/prisma.js";
+import { requireAuth, AuthRequest } from "../middleware/auth.js";
+import { parsePagination } from "../utils/pagination.js";
 import { z } from "zod";
 import dayjs from "dayjs";
-import customParseFormat from "dayjs/plugin/customParseFormat";
+import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import multer from "multer";
 
 export const transactionsRouter = Router();

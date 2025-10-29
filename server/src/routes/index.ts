@@ -1,11 +1,11 @@
-export { authRouter } from "./auth";
-export { dashboardRouter } from "./dashboard";
-export { accountsRouter } from "./accounts";
-export { categoriesRouter } from "./categories";
-export { transactionsRouter } from "./transactions";
-export { budgetsRouter } from "./budgets";
-export { reportsRouter } from "./reports";
-export { assetsRouter } from "./assets";
-export { settingsRouter } from "./settings";
+export { authRouter } from "./auth.js";
+export { dashboardRouter } from "./dashboard.js";
+export { accountsRouter } from "./accounts.js";
+export { categoriesRouter } from "./categories.js";
+export { transactionsRouter } from "./transactions.js";
+export { budgetsRouter } from "./budgets.js";
+export { reportsRouter } from "./reports.js";
+export { assetsRouter } from "./assets.js";
+export { settingsRouter } from "./settings.js";
 
 

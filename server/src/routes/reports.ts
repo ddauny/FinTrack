@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { prisma } from "../db/prisma";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { prisma } from "../db/prisma.js";
+import { requireAuth, AuthRequest } from "../middleware/auth.js";
 import dayjs from "dayjs";
-import customParseFormat from "dayjs/plugin/customParseFormat";
+import customParseFormat from "dayjs/plugin/customParseFormat.js";
 
 export const reportsRouter = Router();
 dayjs.extend(customParseFormat);

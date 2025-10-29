@@ -29,4 +29,13 @@ Thumbs.db
 server/prisma/dev.db*
 server/prisma/*.sqlite*
 
+.env
 
+env-raspberry-example.txt
+export-database.ps1
+nginx.conf
+docker-compose.yml
+docker-compose.prod.yml
+Dockerfile.client.prod
+Dockerfile.server.prod
+script-linux.md

@@ -1,0 +1,10 @@
+SERVICE NAMES:
+server
+client
+postgres
+
+RE-BUILD DOCKER SERVICE:
+docker compose -f docker-compose.prod.yml build --no-cache [SERVICE_NAME]
+
+START DEI SERVICES:
+docker compose -f docker-compose.prod.yml up -d
