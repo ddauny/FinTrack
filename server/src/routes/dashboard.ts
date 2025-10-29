@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { prisma } from "../db/prisma";
-import { requireAuth, AuthRequest } from "../middleware/auth";
-import { getMarketData } from "../services/marketData";
+import { prisma } from "../db/prisma.js";
+import { requireAuth, AuthRequest } from "../middleware/auth.js";
+import { getMarketData } from "../services/marketData.js";
 import dayjs from "dayjs";
 
 export const dashboardRouter = Router();

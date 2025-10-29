@@ -11,10 +11,11 @@ export default defineConfig({
     }
   },
   server: {
+    host: '0.0.0.0',
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:4000',
-      '/health': 'http://localhost:4000'
+      '/api': 'http://app:4000',
+      '/health': 'http://app:4000'
     },
 	allowedHosts: [
       'fintrack.dauny.org'

@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { prisma } from "../db/prisma";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { prisma } from "../db/prisma.js";
+import { requireAuth, AuthRequest } from "../middleware/auth.js";
 import { z } from "zod";
-import { getMarketData } from "../services/marketData";
+import { getMarketData } from "../services/marketData.js";
 import dayjs from "dayjs";
 
 export const assetsRouter = Router();
@@ -174,7 +174,7 @@ async function getDescendantIds(rootId: number): Promise<number[]> {
   while (frontier.length > 0) {
     const children = await prisma.assetItem.findMany({ where: { parentItemId: { in: frontier } }, select: { id: true } });
     if (children.length === 0) break;
-    const childIds = children.map((c) => c.id);
+    const childIds = children.map((c : any) => c.id);
     ids.push(...childIds);
     frontier = childIds;
   }
@@ -277,7 +277,7 @@ assetsRouter.post("/asset-valuations/apply-depreciation", requireAuth, async (re
     }
   });
   
-  const valuationsToCreate = [];
+  const valuationsToCreate: any[] = [];
   
   for (const item of itemsWithDepreciation) {
     if (item.valuations.length > 0) {

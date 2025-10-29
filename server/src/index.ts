@@ -2,9 +2,9 @@ import express from "express";
 import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
-import { env } from "./config/env";
-import { authRouter, dashboardRouter, accountsRouter, categoriesRouter, transactionsRouter, budgetsRouter, reportsRouter, assetsRouter, settingsRouter } from "./routes";
-import { refreshMarketData } from "./services/marketData";
+import { env } from "./config/env.js";
+import { authRouter, dashboardRouter, accountsRouter, categoriesRouter, transactionsRouter, budgetsRouter, reportsRouter, assetsRouter, settingsRouter } from "./routes/index.js";
+import { refreshMarketData } from "./services/marketData.js";
 
 const app = express();
 

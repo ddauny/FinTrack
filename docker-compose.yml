@@ -1,38 +1,60 @@
-version: '3.8'
-
 services:
-  # Database PostgreSQL
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: fintrack
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+  #################
+  # Database
+  #################
+  db:
+    image: postgres:15-alpine
+    container_name: fintrack-db
     ports:
       - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # App FinTrack
-  app:
-    build: .
-    ports:
-      - "4000:4000"
     environment:
-      NODE_ENV: production
-      DATABASE_URL: "postgresql://postgres:password@postgres:5432/fintrack"
-      JWT_SECRET: "your-super-secret-jwt-key"
-      PORT: 4000
-    depends_on:
-      postgres:
-        condition: service_healthy
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: fintrack
     volumes:
-      - ./server/prisma:/app/server/prisma
+      - fintrack-data:/var/lib/postgresql/data
+    healthcheck:
+      # Test per controllare che postgres sia pronto prima di avviare l'app
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fintrack"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  #################
+  # Backend (Server)
+  #################
+  app:
+    container_name: fintrack-app  
+    build: 
+      context: .
+      dockerfile: ./server/Dockerfile
+    ports:
+      - "4000:4000"      
+    env_file:
+      - .env
+    volumes:
+      - ./server:/app/server
+      - /app/server/node_modules
+    command: sh -c "npx prisma migrate deploy && npm run dev"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  #################
+  # Frontend (Client)
+  #################
+  client:
+    container_name: fintrack-client
+    build:
+      context: .
+      dockerfile: client/Dockerfile 
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client:/app/client
+      - /app/client/node_modules
+    depends_on:
+      - app 
 
 volumes:
-  postgres_data:
+  fintrack-data:

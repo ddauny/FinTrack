@@ -29,4 +29,7 @@ Thumbs.db
 server/prisma/dev.db*
 server/prisma/*.sqlite*
 
+# Local env files
+.env
+
 
