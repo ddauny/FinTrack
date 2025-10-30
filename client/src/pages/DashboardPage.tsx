@@ -8,6 +8,30 @@ import { usePrivacy } from '@/contexts/PrivacyContext'
 export function DashboardPage() {
   const { hideNumbers } = usePrivacy()
   const [data, setData] = useState<any>(null)
+  
+  // MODIFICA: Stato per il tema dei grafici ECharts
+  const [chartTheme, setChartTheme] = useState('light')
+
+  // MODIFICA: Effect per rilevare il tema (light/dark) dalla classe sull'elemento <html>
+  // e aggiornare lo stato per i grafici.
+  useEffect(() => {
+    const updateTheme = () => {
+      const isDark = document.documentElement.classList.contains('dark')
+      setChartTheme(isDark ? 'dark' : 'light')
+    }
+
+    updateTheme() // Imposta il tema iniziale
+
+    // Osserva le modifiche alla classe dell'elemento <html>
+    const observer = new MutationObserver(updateTheme)
+    observer.observe(document.documentElement, { 
+      attributes: true, 
+      attributeFilter: ['class'] 
+    })
+
+    return () => observer.disconnect()
+  }, [])
+
   useEffect(() => {
     api.dashboardSummary().then(setData).catch((error) => {
       console.error('Error loading dashboard data:', error);
@@ -21,7 +45,12 @@ export function DashboardPage() {
       });
     })
   }, [])
+
   if (!data) return <div>Loading...</div>
+
+  // Le opzioni dei grafici rimangono invariate, 
+  // ECharts gestirà i colori del testo (assi, tooltip)
+  // quando gli viene passato il `theme` prop.
   const lineOption = {
     xAxis: { type: 'category', data: data.netWorthHistory?.map((d:any)=> formatDateDMY(d.date)) ?? [] },
     yAxis: { 
@@ -54,6 +83,7 @@ export function DashboardPage() {
       })) ?? []
     }]
   }
+
   const donutOption = {
     tooltip: { 
       trigger: 'item',
@@ -68,6 +98,7 @@ export function DashboardPage() {
       }))
     }]
   }
+
   const barOption = {
     grid: {
       left: '15%',
@@ -112,93 +143,98 @@ export function DashboardPage() {
       }
     }]
   }
+
   return (
-      	<div className="p-2 sm:p-4">
-          {/* MODIFICA: Aggiunto 'lg:items-start' per allineare le colonne in alto */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 **lg:items-start**">
-            {/* Top row - Key metrics (invariato) */}
-          	<div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
-              {/* ... metriche ... */}
-              <div className="bg-white p-3 rounded shadow">
-                <div className="text-sm text-gray-600">Net Worth</div>
-                <div className="text-xl sm:text-2xl font-bold">
-                  <PrivacyNumber value={data.netWorth}>
-                    {formatEUR(data.netWorth)}
-                  </PrivacyNumber>
-                </div>
-              </div>
-              <div className="bg-white p-3 rounded shadow">
-                <div className="text-sm text-gray-600">Cash Flow (Current Month)</div>
-                <div className="text-xl sm:text-2xl font-bold">
-                  <PrivacyNumber value={data.cashFlowLast30Days||0}>
-                    {formatEUR(data.cashFlowLast30Days||0)}
-                  </PrivacyNumber>
-                </div>
-              </div>
-              <div className="bg-white p-3 rounded shadow sm:col-span-2 lg:col-span-1">
-                <div className="text-sm text-gray-600">Monthly Expenses</div>
-                <div className="text-xl sm:text-2xl font-bold">
-                  <PrivacyNumber value={data.monthlyExpenses || 0}>
-                    {formatEUR(data.monthlyExpenses || 0)}
-                  </PrivacyNumber>
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  Total spent this month
-                </div>
+      <div className="p-2 sm:p-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:items-start">
+          {/* Top row - Key metrics */}
+          <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
+            {/* MODIFICA: Aggiunte classi dark: */}
+            <div className="bg-white dark:bg-gray-800 p-3 rounded shadow">
+              <div className="text-sm text-gray-600 dark:text-gray-400">Net Worth</div>
+              <div className="text-xl sm:text-2xl font-bold dark:text-white">
+                <PrivacyNumber value={data.netWorth}>
+                  {formatEUR(data.netWorth)}
+                </PrivacyNumber>
               </div>
             </div>
-    
-            {/* Charts Grid - TORNATO ALLA STRUTTURA ORIGINALE, RIMOSSO flex-col */}
-            <div className="lg:col-span-3 grid grid-cols-1 xl:grid-cols-2 gap-4">
-              {/* Net Worth Over Time - RIMOSSO style={{ marginBottom:'auto' }} */}
-              <div className="xl:col-span-2 bg-white p-3 rounded shadow">
-                <div className="font-semibold mb-1">Net Worth Over Time</div>
-              	<ReactECharts option={lineOption} style={{height:250}} />
-              </div>
-              
-              {/* Asset Allocation - RIMOSSO style={{ marginBottom:'auto' }} */}
-              <div className="bg-white p-3 rounded shadow">
-                <div className="font-semibold mb-1">Asset Allocation</div>
-              	<ReactECharts option={donutOption} style={{height:250}} />
-              </div>
-              
-              {/* Monthly Expense Breakdown - RIMOSSO style={{ marginBottom:'auto' }} */}
-              <div className="bg-white p-3 rounded shadow">
-                <div className="font-semibold mb-1">Monthly Expense Breakdown</div>
-              	<ReactECharts option={barOption} style={{height:250}} />
+            {/* MODIFICA: Aggiunte classi dark: */}
+            <div className="bg-white dark:bg-gray-800 p-3 rounded shadow">
+              <div className="text-sm text-gray-600 dark:text-gray-400">Cash Flow (Current Month)</div>
+              <div className="text-xl sm:text-2xl font-bold dark:text-white">
+                <PrivacyNumber value={data.cashFlowLast30Days||0}>
+                  {formatEUR(data.cashFlowLast30Days||0)}
+                </PrivacyNumber>
               </div>
             </div>
-    
-            {/* Recent Transactions Sidebar - RIMOSSO h-full e flex-col */}
-            {/* Recent Transactions Sidebar */}
-            <div className="lg:col-span-1 bg-white p-3 rounded shadow">
-              <div className="font-semibold mb-2">Recent Transactions</div>
-              {/* Scrollable area for up to 30 transactions */}
-            	<div className="space-y-1 overflow-y-auto hide-scrollbar max-h-96 lg:max-h-[554px]">
-              {(data.recentTransactions || []).map((txn: any, index: number) => (
-                <div key={index} className="border-b pb-1 last:border-b-0">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{txn.notes || 'No notes'}</div>
-                  	<div className="text-xs text-gray-500">{formatDateDMY(new Date(txn.date))}</div>
-                  	<div className="text-xs text-gray-400 truncate">{txn.category?.name || 'Unknown'}</div>
+            {/* MODIFICA: Aggiunte classi dark: */}
+            <div className="bg-white dark:bg-gray-800 p-3 rounded shadow sm:col-span-2 lg:col-span-1">
+              <div className="text-sm text-gray-600 dark:text-gray-400">Monthly Expenses</div>
+              <div className="text-xl sm:text-2xl font-bold dark:text-white">
+                <PrivacyNumber value={data.monthlyExpenses || 0}>
+                  {formatEUR(data.monthlyExpenses || 0)}
+                </PrivacyNumber>
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Total spent this month
+              </div>
+            </div>
+          </div>
+  
+          {/* Charts Grid */}
+          <div className="lg:col-span-3 grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {/* MODIFICA: Aggiunte classi dark: e prop 'theme' */}
+            <div className="xl:col-span-2 bg-white dark:bg-gray-800 p-3 rounded shadow">
+              <div className="font-semibold mb-1 dark:text-white">Net Worth Over Time</div>
+              <ReactECharts option={lineOption} style={{height:250}} theme={chartTheme} />
+            </div>
+            
+            {/* MODIFICA: Aggiunte classi dark: e prop 'theme' */}
+            <div className="bg-white dark:bg-gray-800 p-3 rounded shadow">
+              <div className="font-semibold mb-1 dark:text-white">Asset Allocation</div>
+              <ReactECharts option={donutOption} style={{height:250}} theme={chartTheme} />
+            </div>
+            
+            {/* MODIFICA: Aggiunte classi dark: e prop 'theme' */}
+            <div className="bg-white dark:bg-gray-800 p-3 rounded shadow">
+              <div className="font-semibold mb-1 dark:text-white">Monthly Expense Breakdown</div>
+              <ReactECharts option={barOption} style={{height:250}} theme={chartTheme} />
+            </div>
+          </div>
+  
+          {/* Recent Transactions Sidebar */}
+          {/* MODIFICA: Aggiunte classi dark: */}
+          <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-3 rounded shadow">
+            <div className="font-semibold mb-2 dark:text-white">Recent Transactions</div>
+            {/* Scrollable area */}
+            <div className="space-y-1 overflow-y-auto hide-scrollbar max-h-96 lg:max-h-[554px]">
+            {(data.recentTransactions || []).map((txn: any, index: number) => (
+              // MODIFICA: Aggiunta classe dark: per il bordo
+              <div key={index} className="border-b dark:border-gray-700 pb-1 last:border-b-0">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1 min-w-0">
+                    {/* MODIFICA: Aggiunte classi dark: per i testi */}
+                    <div className="text-sm font-medium truncate dark:text-gray-100">{txn.notes || 'No notes'}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{formatDateDMY(new Date(txn.date))}</div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500 truncate">{txn.category?.name || 'Unknown'}</div>
                   </div>
-                    <div className={`text-sm font-medium ml-2 ${
-                  	  txn.category?.type === 'Income' ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                  	<PrivacyNumber value={txn.amount}>
-                  	  {txn.category?.type === 'Income' ? '+' : '-'}{formatEUR(Math.abs(txn.amount))}
-                  	</PrivacyNumber>
-                  </div>
+                  <div className={`text-sm font-medium ml-2 ${
+                    txn.category?.type === 'Income' ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    <PrivacyNumber value={txn.amount}>
+                      {txn.category?.type === 'Income' ? '+' : '-'}{formatEUR(Math.abs(txn.amount))}
+                    </PrivacyNumber>
                   </div>
                 </div>
-              ))}
-              {(!data.recentTransactions || data.recentTransactions.length === 0) && (
-                <div className="text-sm text-gray-500 text-center py-4">No recent transactions</div>
-              )}
-            </div>
+              </div>
+            ))}
+            {(!data.recentTransactions || data.recentTransactions.length === 0) && (
+              // MODIFICA: Aggiunta classe dark:
+              <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No recent transactions</div>
+            )}
           </div>
         </div>
       </div>
-      )
+    </div>
+    )
 }
