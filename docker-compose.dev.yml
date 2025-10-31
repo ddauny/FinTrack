@@ -1,55 +1,68 @@
 version: '3.8'
 
 services:
-  # Database PostgreSQL per sviluppo
-  postgres:
-    image: postgres:15
+  #################
+  # Database (Sviluppo)
+  #################
+  db:
+    image: postgres:15-alpine
+    container_name: fintrack-dev-db # Aggiunto -dev
+    ports:
+      - "5432:5432" # Esponiamo la porta per il debug
     environment:
-      POSTGRES_DB: fintrack_dev
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: fintrack
     volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
+      - fintrack-dev-data:/var/lib/postgresql/data # Volume separato
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fintrack"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  # Server per sviluppo
-  server:
+  #################
+  # Backend (Sviluppo)
+  #################
+  app:
+    container_name: fintrack-dev-app # Aggiunto -dev
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: ./server/Dockerfile # Usa il Dockerfile di sviluppo
     ports:
       - "4000:4000"
-    environment:
-      NODE_ENV: development
-      DATABASE_URL: "postgresql://postgres:password@postgres:5432/fintrack_dev"
-      JWT_SECRET: "dev-secret-key"
-      PORT: 4000
-      ALLOW_DEMO_SEED: "true"
+    env_file:
+      - .env.dev # Usa un file .env separato
     volumes:
+      # Hot-reloading: collega il tuo codice locale al container
       - ./server:/app/server
+      # Volume "anonimo" per node_modules per evitare conflitti
       - /app/server/node_modules
+    command: sh -c "npx prisma migrate deploy && npm run dev"
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
 
-  # Client per sviluppo
+  #################
+  # Frontend (Sviluppo)
+  #################
   client:
+    container_name: fintrack-dev-client # Aggiunto -dev
     build:
-      context: .
-      dockerfile: Dockerfile.client
+      context: ./client
+      dockerfile: Dockerfile # Usa il Dockerfile di sviluppo
     ports:
       - "5173:5173"
     volumes:
+      # Hot-reloading: collega il tuo codice locale al container
       - ./client:/app/client
+      # Volume "anonimo" per node_modules
       - /app/client/node_modules
+    depends_on:
+      - app
     environment:
-      VITE_API_URL: "http://localhost:4000"
+      # Necessario per far funzionare Vite/hot-reload
+      - CHOKIDAR_USEPOLLING=true
 
 volumes:
-  postgres_dev_data:
+  fintrack-dev-data: # Volume dati separato per lo sviluppo

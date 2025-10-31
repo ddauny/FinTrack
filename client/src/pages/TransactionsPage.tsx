@@ -294,7 +294,7 @@ export function TransactionsPage() {
   return (
     <div className="bg-white p-2 sm:p-4 rounded shadow">
       <div className="mb-4">
-        <div className="font-semibold mb-3">Transactions</div>
+        <div className="font-semibold mb-3">Transaasdasdasdctions</div>
         
         {/* Filter Controls */}
         <div className="space-y-4">
@@ -374,7 +374,7 @@ export function TransactionsPage() {
             <span>Import CSV</span>
           </button>
           <button 
-            title="Add Transaction" 
+            title="Add Transactioooooosdsn" 
             onClick={()=>setShowModal(true)} 
             className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500" 
             aria-label="Add Transaction"

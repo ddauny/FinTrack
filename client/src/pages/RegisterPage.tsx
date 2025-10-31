@@ -7,11 +7,19 @@ export function RegisterPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null) // Added state for password validation error
   const navigate = useNavigate()
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setPasswordError(null) // Reset password error
+
+    if (password.length < 8) {
+      setPasswordError('Password must be at least 8 characters long')
+      return
+    }
+
     setLoading(true)
     try {
       await api.register(email, password)
@@ -30,6 +38,7 @@ export function RegisterPage() {
       <form onSubmit={onSubmit} className="space-y-3">
         <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full border p-2 rounded" />
         <input type="password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" className="w-full border p-2 rounded" />
+        {passwordError && <div className="text-red-600 text-sm">{passwordError}</div>} {/* Display password error */}
         {error && <div className="text-red-600 text-sm">{error}</div>}
         <button type="submit" disabled={loading} className="w-full bg-blue-600 disabled:bg-blue-400 text-white py-2 rounded">
           {loading ? 'Creating...' : 'Create account'}
