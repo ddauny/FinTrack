@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '@/lib/api'
-import { formatEUR, formatDateDMY } from '@/lib/format'
+import { api } from '../lib/api'
+import { formatEUR, formatDateDMY } from '../lib/format'
 import { PrivacyNumber } from '@/components/PrivacyNumber'
 import { usePrivacy } from '@/contexts/PrivacyContext'
 import dayjs from 'dayjs'
@@ -199,7 +199,7 @@ export function MonthlySummaryPage() {
     return (
       <div className="flex flex-col justify-center items-center h-64 space-y-4">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <div className="text-gray-600">Loading monthly data...</div>
+        <div className="text-gray-600 dark:text-gray-300">Loading monthly data...</div>
       </div>
     )
   }
@@ -207,7 +207,7 @@ export function MonthlySummaryPage() {
   return (
     <div className="space-y-6">
       {/* Month Selector */}
-      <div className="bg-white p-4 rounded shadow">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
         <div className="flex items-center gap-4">
           <label className="text-sm font-medium">Select Month:</label>
           <input
@@ -216,7 +216,7 @@ export function MonthlySummaryPage() {
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="border rounded px-3 py-2"
           />
-          <div className="text-lg font-semibold">
+          <div className="text-lg font-semibold dark:text-gray-100">
             {formatMonthDisplay(selectedMonth)}
           </div>
         </div>
@@ -226,25 +226,25 @@ export function MonthlySummaryPage() {
         <>
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded shadow">
-              <div className="text-sm text-gray-600">Total Income</div>
-              <div className="text-2xl font-bold text-green-600">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+              <div className="text-sm text-gray-600 dark:text-gray-300">Total Income</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 <PrivacyNumber value={monthlyData.totalIncome}>
                   {formatEUR(monthlyData.totalIncome)}
                 </PrivacyNumber>
               </div>
             </div>
-            <div className="bg-white p-4 rounded shadow">
-              <div className="text-sm text-gray-600">Total Expenses</div>
-              <div className="text-2xl font-bold text-red-600">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+              <div className="text-sm text-gray-600 dark:text-gray-300">Total Expenses</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                 <PrivacyNumber value={monthlyData.totalExpenses}>
                   {formatEUR(monthlyData.totalExpenses)}
                 </PrivacyNumber>
               </div>
             </div>
-            <div className="bg-white p-4 rounded shadow">
-              <div className="text-sm text-gray-600">Net Result</div>
-              <div className={`text-2xl font-bold ${monthlyData.netResult >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+              <div className="text-sm text-gray-600 dark:text-gray-300">Net Result</div>
+              <div className={`text-2xl font-bold ${monthlyData.netResult >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                 <PrivacyNumber value={monthlyData.netResult}>
                   {formatEUR(monthlyData.netResult)}
                 </PrivacyNumber>
@@ -255,7 +255,7 @@ export function MonthlySummaryPage() {
           {/* Income and Expenses Tables with Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Income Section */}
-            <div className="bg-white p-4 rounded shadow">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-green-600">INCOME</h3>
                 <div className="text-sm font-medium">
@@ -305,7 +305,7 @@ export function MonthlySummaryPage() {
             </div>
 
             {/* Expenses Section */}
-            <div className="bg-white p-4 rounded shadow">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-red-600">EXPENSES</h3>
                 <div className="text-sm font-medium">
@@ -358,9 +358,9 @@ export function MonthlySummaryPage() {
       )}
 
       {!monthlyData && !loading && (
-        <div className="bg-white p-8 rounded shadow text-center">
-          <div className="text-gray-500 mb-4">No data available for the selected month</div>
-          <div className="text-sm text-gray-400">
+        <div className="bg-white dark:bg-gray-800 p-8 rounded shadow text-center">
+          <div className="text-gray-500 dark:text-gray-300 mb-4">No data available for the selected month</div>
+          <div className="text-sm text-gray-400 dark:text-gray-400">
             Make sure you have transactions in {formatMonthDisplay(selectedMonth)}
           </div>
         </div>

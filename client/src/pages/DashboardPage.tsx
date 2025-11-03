@@ -1,12 +1,14 @@
 import ReactECharts from 'echarts-for-react'
 import { useEffect, useState } from 'react'
-import { api } from '@/lib/api'
-import { formatEUR, formatDateDMY } from '@/lib/format'
+import { api } from '../lib/api'
+import { formatEUR, formatDateDMY } from '../lib/format'
 import { PrivacyNumber } from '@/components/PrivacyNumber'
 import { usePrivacy } from '@/contexts/PrivacyContext'
+import { useThemeContext } from '@/contexts/ThemeContext'
 
 export function DashboardPage() {
   const { hideNumbers } = usePrivacy()
+  const { resolved } = useThemeContext()
   const [data, setData] = useState<any>(null)
   useEffect(() => {
     api.dashboardSummary().then(setData).catch((error) => {
@@ -23,15 +25,31 @@ export function DashboardPage() {
   }, [])
   if (!data) return <div>Loading...</div>
   const lineOption = {
-    xAxis: { type: 'category', data: data.netWorthHistory?.map((d:any)=> formatDateDMY(d.date)) ?? [] },
+    backgroundColor: resolved === 'dark' ? '#1f2937' : '#ffffff',
+    textStyle: {
+      color: resolved === 'dark' ? '#f3f4f6' : '#111827'
+    },
+    xAxis: { 
+      type: 'category', 
+      data: data.netWorthHistory?.map((d:any)=> formatDateDMY(d.date)) ?? [],
+      axisLabel: {
+        color: resolved === 'dark' ? '#d1d5db' : '#6b7280'
+      }
+    },
     yAxis: { 
       type: 'value',
       axisLabel: {
-        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value)
+        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value),
+        color: resolved === 'dark' ? '#d1d5db' : '#6b7280'
       }
     },
     tooltip: { 
       trigger: 'axis',
+      backgroundColor: resolved === 'dark' ? '#374151' : '#ffffff',
+      borderColor: resolved === 'dark' ? '#4b5563' : '#d1d5db',
+      textStyle: {
+        color: resolved === 'dark' ? '#f3f4f6' : '#111827'
+      },
       formatter: (params: any) => {
         if (hideNumbers) {
           return `${params[0].name}<br/>Net Worth: ••••••`
@@ -42,6 +60,12 @@ export function DashboardPage() {
     series: [{
       type: 'line',
       symbolSize: 8,
+      lineStyle: {
+        color: resolved === 'dark' ? '#3b82f6' : '#2563eb'
+      },
+      itemStyle: {
+        color: resolved === 'dark' ? '#3b82f6' : '#2563eb'
+      },
       data: data.netWorthHistory?.map((d:any, index: number) => ({
         value: d.value,
         label: {
@@ -49,14 +73,25 @@ export function DashboardPage() {
           position: index % 2 === 0 ? 'top' : 'bottom',
           formatter: () => hideNumbers ? '••••••' : formatEUR(d.value),
           fontSize: 10,
+          color: resolved === 'dark' ? '#f3f4f6' : '#111827',
           distance: 5
         }
       })) ?? []
     }]
   }
   const donutOption = {
+    backgroundColor: resolved === 'dark' ? '#1f2937' : '#ffffff',
+    textStyle: {
+      color: resolved === 'dark' ? '#f3f4f6' : '#111827'
+    },
+    color: resolved === 'dark' ? ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'] : ['#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2'],
     tooltip: { 
       trigger: 'item',
+      backgroundColor: resolved === 'dark' ? '#374151' : '#ffffff',
+      borderColor: resolved === 'dark' ? '#4b5563' : '#d1d5db',
+      textStyle: {
+        color: resolved === 'dark' ? '#f3f4f6' : '#111827'
+      },
       formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`
     },
     series: [{
@@ -69,6 +104,10 @@ export function DashboardPage() {
     }]
   }
   const barOption = {
+    backgroundColor: resolved === 'dark' ? '#1f2937' : '#ffffff',
+    textStyle: {
+      color: resolved === 'dark' ? '#f3f4f6' : '#111827'
+    },
     grid: {
       left: '15%',
       right: '5%',
@@ -78,6 +117,11 @@ export function DashboardPage() {
     tooltip: { 
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
+      backgroundColor: resolved === 'dark' ? '#374151' : '#ffffff',
+      borderColor: resolved === 'dark' ? '#4b5563' : '#d1d5db',
+      textStyle: {
+        color: resolved === 'dark' ? '#f3f4f6' : '#111827'
+      },
       formatter: (params: any) => {
         const data = params[0]
         return hideNumbers ? `${data.name}: ••••••` : `${data.name}: ${formatEUR(data.value)}`
@@ -90,25 +134,30 @@ export function DashboardPage() {
         show: true,
         interval: 0, // Show all labels
         rotate: 45, // Rotate labels for better readability
-        fontSize: 10
+        fontSize: 10,
+        color: resolved === 'dark' ? '#d1d5db' : '#6b7280'
       }
     },
     yAxis: { 
       type: 'value',
       axisLabel: {
         formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value),
-        fontSize: 10
+        fontSize: 10,
+        color: resolved === 'dark' ? '#d1d5db' : '#6b7280'
       }
     },
     series: [{ 
       type: 'bar', 
       data: (data.expenseBreakdown||[]).map((e:any)=>e.total), 
-      itemStyle: { color: '#dc2626' },
+      itemStyle: { 
+        color: resolved === 'dark' ? '#ef4444' : '#dc2626'
+      },
       label: {
         show: true,
         position: 'top',
         formatter: (params: any) => hideNumbers ? '••••••' : formatEUR(params.value),
-        fontSize: 10
+        fontSize: 10,
+        color: resolved === 'dark' ? '#f3f4f6' : '#111827'
       }
     }]
   }
@@ -119,30 +168,30 @@ export function DashboardPage() {
             {/* Top row - Key metrics (invariato) */}
           	<div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
               {/* ... metriche ... */}
-              <div className="bg-white p-3 rounded shadow">
-                <div className="text-sm text-gray-600">Net Worth</div>
-                <div className="text-xl sm:text-2xl font-bold">
+              <div className="bg-white dark:bg-gray-800 p-3 rounded shadow">
+                <div className="text-sm text-gray-600 dark:text-gray-300">Net Worth</div>
+                <div className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
                   <PrivacyNumber value={data.netWorth}>
                     {formatEUR(data.netWorth)}
                   </PrivacyNumber>
                 </div>
               </div>
-              <div className="bg-white p-3 rounded shadow">
-                <div className="text-sm text-gray-600">Cash Flow (Current Month)</div>
-                <div className="text-xl sm:text-2xl font-bold">
+              <div className="bg-white dark:bg-gray-800 p-3 rounded shadow">
+                <div className="text-sm text-gray-600 dark:text-gray-300">Cash Flow (Current Month)</div>
+                <div className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
                   <PrivacyNumber value={data.cashFlowLast30Days||0}>
                     {formatEUR(data.cashFlowLast30Days||0)}
                   </PrivacyNumber>
                 </div>
               </div>
-              <div className="bg-white p-3 rounded shadow sm:col-span-2 lg:col-span-1">
-                <div className="text-sm text-gray-600">Monthly Expenses</div>
-                <div className="text-xl sm:text-2xl font-bold">
+              <div className="bg-white dark:bg-gray-800 p-3 rounded shadow sm:col-span-2 lg:col-span-1">
+                <div className="text-sm text-gray-600 dark:text-gray-300">Monthly Expenses</div>
+                <div className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
                   <PrivacyNumber value={data.monthlyExpenses || 0}>
                     {formatEUR(data.monthlyExpenses || 0)}
                   </PrivacyNumber>
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Total spent this month
                 </div>
               </div>
@@ -151,28 +200,28 @@ export function DashboardPage() {
             {/* Charts Grid - TORNATO ALLA STRUTTURA ORIGINALE, RIMOSSO flex-col */}
             <div className="lg:col-span-3 grid grid-cols-1 xl:grid-cols-2 gap-4">
               {/* Net Worth Over Time - RIMOSSO style={{ marginBottom:'auto' }} */}
-              <div className="xl:col-span-2 bg-white p-3 rounded shadow">
-                <div className="font-semibold mb-1">Net Worth Over Time</div>
+              <div className="xl:col-span-2 bg-white dark:bg-gray-800 p-3 rounded shadow">
+                <div className="font-semibold mb-1 text-gray-900 dark:text-gray-100">Net Worth Over Time</div>
               	<ReactECharts option={lineOption} style={{height:250}} />
               </div>
               
               {/* Asset Allocation - RIMOSSO style={{ marginBottom:'auto' }} */}
-              <div className="bg-white p-3 rounded shadow">
-                <div className="font-semibold mb-1">Asset Allocation</div>
+              <div className="bg-white dark:bg-gray-800 p-3 rounded shadow">
+                <div className="font-semibold mb-1 text-gray-900 dark:text-gray-100">Asset Allocation</div>
               	<ReactECharts option={donutOption} style={{height:250}} />
               </div>
               
               {/* Monthly Expense Breakdown - RIMOSSO style={{ marginBottom:'auto' }} */}
-              <div className="bg-white p-3 rounded shadow">
-                <div className="font-semibold mb-1">Monthly Expense Breakdown</div>
+              <div className="bg-white dark:bg-gray-800 p-3 rounded shadow">
+                <div className="font-semibold mb-1 text-gray-900 dark:text-gray-100">Monthly Expense Breakdown</div>
               	<ReactECharts option={barOption} style={{height:250}} />
               </div>
             </div>
     
             {/* Recent Transactions Sidebar - RIMOSSO h-full e flex-col */}
             {/* Recent Transactions Sidebar */}
-            <div className="lg:col-span-1 bg-white p-3 rounded shadow">
-              <div className="font-semibold mb-2">Recent Transactions</div>
+            <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-3 rounded shadow">
+              <div className="font-semibold mb-2 text-gray-900 dark:text-gray-100">Recent Transactions</div>
               {/* Scrollable area for up to 30 transactions */}
             	<div className="space-y-1 overflow-y-auto hide-scrollbar max-h-96 lg:max-h-[554px]">
               {(data.recentTransactions || []).map((txn: any, index: number) => (

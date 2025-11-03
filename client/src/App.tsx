@@ -30,7 +30,7 @@ function PrivateRoute({ children }: { children: JSX.Element }) {
 export default function App() {
   return (
     <PrivacyProvider>
-      <div className="min-h-full bg-gray-50">
+      <div className="min-h-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
         <TopNav />
         <div className="mx-auto max-w-7xl p-4">
           <Routes>

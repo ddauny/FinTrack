@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '@/lib/api'
-import { formatDateDMY, formatEUR } from '@/lib/format'
+import { api } from '../lib/api'
+import { formatDateDMY, formatEUR } from '../lib/format'
 import { usePrivacy } from '@/contexts/PrivacyContext'
 import dayjs from 'dayjs' // <-- AGGIUNTO
 
@@ -277,23 +277,23 @@ export function ReportsPage() {
 
   return (
     <div className="p-2 sm:p-4 space-y-4">
-      <div className="bg-white p-3 sm:p-4 rounded shadow">
+      <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded shadow">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
-          <div className="font-semibold">Cash Flow</div>
-          <button className="text-sm text-blue-700 whitespace-nowrap" onClick={()=>exportCsv('/api/reports/cashflow')}>Export CSV</button>
+          <div className="font-semibold text-gray-900 dark:text-gray-100">Cash Flow</div>
+          <button className="text-sm text-blue-700 dark:text-blue-300 whitespace-nowrap" onClick={()=>exportCsv('/api/reports/cashflow')}>Export CSV</button>
         </div>
         <ReactECharts option={cashflowOption} style={{height:300}} />
       </div>
-      <div className="bg-white p-3 sm:p-4 rounded shadow">
+  <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded shadow">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
-          <div className="font-semibold">Spending by Category</div>
+          <div className="font-semibold text-gray-900 dark:text-gray-100">Spending by Category</div>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">Start</label>
-              <select value={startMonth} onChange={e=>setStartMonth(Number(e.target.value))} className="border rounded p-1 text-sm">
+              <label className="text-sm text-gray-600 dark:text-gray-300">Start</label>
+              <select value={startMonth} onChange={e=>setStartMonth(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm">
                 {Array.from({length:12}).map((_,i)=> <option key={i} value={i}>{new Date(2000,i,1).toLocaleString(undefined,{month:'short'})}</option>)}
               </select>
-              <select value={startYear} onChange={e=>setStartYear(Number(e.target.value))} className="border rounded p-1 text-sm">
+              <select value={startYear} onChange={e=>setStartYear(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm">
                 {Array.from({length:11}).map((_,i)=>{
                   const y = now.year() - i
                   return <option key={y} value={y}>{y}</option>
@@ -301,11 +301,11 @@ export function ReportsPage() {
               </select>
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">End</label>
-              <select value={endMonth} onChange={e=>setEndMonth(Number(e.target.value))} className="border rounded p-1 text-sm">
+              <label className="text-sm text-gray-600 dark:text-gray-300">End</label>
+              <select value={endMonth} onChange={e=>setEndMonth(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm">
                 {Array.from({length:12}).map((_,i)=> <option key={i} value={i}>{new Date(2000,i,1).toLocaleString(undefined,{month:'short'})}</option>)}
               </select>
-              <select value={endYear} onChange={e=>setEndYear(Number(e.target.value))} className="border rounded p-1 text-sm">
+              <select value={endYear} onChange={e=>setEndYear(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm">
                 {Array.from({length:11}).map((_,i)=>{
                   const y = now.year() - i
                   return <option key={y} value={y}>{y}</option>
@@ -313,7 +313,7 @@ export function ReportsPage() {
               </select>
             </div>
           </div>
-          <button className="text-sm text-blue-700" onClick={()=>{
+          <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>{
             // [FIXED] Date corrette con dayjs
             const s = dayjs().year(startYear).month(startMonth).startOf('month')
             const e = dayjs().year(endYear).month(endMonth).endOf('month')
@@ -325,19 +325,19 @@ export function ReportsPage() {
         </div>
         <ReactECharts option={spendingOption} style={{height:300}} />
       </div>
-      <div className="bg-white p-4 rounded shadow">
+  <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
         <div className="flex justify-between items-center mb-2">
-          <div className="font-semibold">Income vs Expense Trend</div>
-          <button className="text-sm text-blue-700" onClick={()=>exportCsv('/api/reports/trends')}>Export CSV</button>
+          <div className="font-semibold text-gray-900 dark:text-gray-100">Income vs Expense Trend</div>
+          <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/trends')}>Export CSV</button>
         </div>
         <ReactECharts option={trendsOption} style={{height:300}} />
       </div>
       
       {/* New Charts */}
-      <div className="bg-white p-4 rounded shadow">
+  <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
         <div className="flex justify-between items-center mb-2">
-          <div className="font-semibold">Monthly Expenses Breakdown</div>
-          <button className="text-sm text-blue-700" onClick={()=>exportCsv('/api/reports/monthly-expenses')}>Export CSV</button>
+          <div className="font-semibold text-gray-900 dark:text-gray-100">Monthly Expenses Breakdown</div>
+          <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/monthly-expenses')}>Export CSV</button>
         </div>
         <ReactECharts 
           option={monthlyExpensesOption} 
@@ -352,20 +352,20 @@ export function ReportsPage() {
       {(categoryAnalysis && categoryAnalysis.length > 0) || (netWorthTrend && netWorthTrend.length > 0) ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {categoryAnalysis && categoryAnalysis.length > 0 && (
-            <div className="bg-white p-4 rounded shadow">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
               <div className="flex justify-between items-center mb-2">
-                <div className="font-semibold">Category Analysis</div>
-                <button className="text-sm text-blue-700" onClick={()=>exportCsv('/api/reports/category-analysis')}>Export CSV</button>
+                <div className="font-semibold text-gray-900 dark:text-gray-100">Category Analysis</div>
+                <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/category-analysis')}>Export CSV</button>
               </div>
               <ReactECharts option={categoryAnalysisOption} style={{height:300}} />
             </div>
           )}
           
           {netWorthTrend && netWorthTrend.length > 0 && (
-            <div className="bg-white p-4 rounded shadow">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
               <div className="flex justify-between items-center mb-2">
-                <div className="font-semibold">Net Worth Trend</div>
-                <button className="text-sm text-blue-700" onClick={()=>exportCsv('/api/reports/net-worth-trend')}>Export CSV</button>
+                <div className="font-semibold text-gray-900 dark:text-gray-100">Net Worth Trend</div>
+                <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/net-worth-trend')}>Export CSV</button>
               </div>
               <ReactECharts option={netWorthTrendOption} style={{height:300}} />
             </div>

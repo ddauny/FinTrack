@@ -1,7 +1,7 @@
 // PROVA FILE SYNC 12345
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { api } from '@/lib/api'
+import { api } from '../lib/api'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -22,15 +22,15 @@ export function LoginPage() {
   }
 
   return (
-    <div className="max-w-sm mx-auto mt-10 p-6 bg-white rounded shadow">
-      <h1 className="text-xl font-semibold mb-4">Login</h1>
+    <div className="max-w-sm mx-auto mt-10 p-6 bg-white dark:bg-gray-800 rounded shadow">
+      <h1 className="text-xl font-semibold mb-4 dark:text-gray-100">Login</h1>
       <form onSubmit={onSubmit} className="space-y-3">
         <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full border p-2 rounded" />
         <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" className="w-full border p-2 rounded" />
         {error && <div className="text-red-600 text-sm">{error}</div>}
         <button className="w-full bg-blue-600 text-white py-2 rounded">Sign in</button>
       </form>
-      <div className="text-sm mt-3">No account? <Link to="/register" className="text-blue-700">Register</Link></div>
+  <div className="text-sm mt-3">No account? <Link to="/register" className="text-blue-700 dark:text-blue-300">Register</Link></div>
     </div>
   )
 }

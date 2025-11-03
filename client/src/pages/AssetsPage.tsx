@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { formatEUR, formatDateDMY, formatDateMonthYear } from '@/lib/format'
+import { formatEUR, formatDateDMY, formatDateMonthYear } from '../lib/format'
 
 type Group = { id:number; name:string; items: Item[] }
 type Item = { id:number; name:string; description?:string; parentItemId?:number|null; hidden?: boolean; depreciationAmount?: number; valuations?: { month:string; value:number }[] }
@@ -246,7 +246,7 @@ export function AssetsPage() {
   }, [showFixedScrollbar, scrollContentWidth])
 
   return (
-    <div ref={wrapperRef} className="bg-white p-2 sm:p-4 rounded shadow -mx-2 sm:-mx-4 md:-mx-6 lg:-mx-8 relative">
+    <div ref={wrapperRef} className="bg-white dark:bg-gray-800 p-2 sm:p-4 rounded shadow -mx-2 sm:-mx-4 md:-mx-6 lg:-mx-8 relative">
       <div ref={scrollRef} className="overflow-y-auto overflow-x-auto" style={{ maxHeight: '85vh' }}>
         <table className="min-w-full text-sm">
           <thead className="sticky top-0" style={{ zIndex: 90 }}>
@@ -271,11 +271,11 @@ export function AssetsPage() {
                   } 
                 }} className="p-2 whitespace-nowrap text-center border-l border-gray-200 relative sticky top-0" style={{ zIndex: 95, minWidth: '140px', backgroundColor: '#10b981' }}>
                   {i===0 && (
-                    <button onClick={addNextMonth} className="absolute left-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-gray-600 hover:text-gray-900" title="Aggiungi mese successivo" aria-label="Aggiungi mese successivo">‹</button>
+                    <button onClick={addNextMonth} className="absolute left-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100" title="Aggiungi mese successivo" aria-label="Aggiungi mese successivo">‹</button>
                   )}
                   {formatDateMonthYear(new Date(m))}
                   {i===months.length-1 && (
-                    <button onClick={addPrevMonth} className="absolute right-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-gray-600 hover:text-gray-900" title="Aggiungi mese precedente" aria-label="Aggiungi mese precedente">›</button>
+                    <button onClick={addPrevMonth} className="absolute right-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100" title="Aggiungi mese precedente" aria-label="Aggiungi mese precedente">›</button>
                   )}
                 </th>
               ))}
@@ -283,8 +283,8 @@ export function AssetsPage() {
           </thead>
           <tbody>
             {rows.map((row, idx)=> (
-              <tr key={idx} className={`border-b ${row.isGroup? '' : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')}`}>
-                <td className={`p-2 sticky left-0 bg-white ${row.isGroup? 'font-semibold text-gray-900':''}`} style={{ zIndex: 80, paddingLeft: `${row.depth*26}px`, fontSize: row.isGroup? '0.95rem' : (row.depth>1? '0.85rem':'0.9rem') , minWidth: '340px', width: '380px', backgroundColor: row.isGroup ? '#FFE37A' : '#FFFFFF', textAlign: 'center', boxShadow: '2px 0 0 #d1d5db' }}>
+              <tr key={idx} className={`border-b ${row.isGroup? '' : (idx % 2 === 0 ? 'bg-white dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-700/50')}`}>
+                <td className={`p-2 sticky left-0 bg-white dark:bg-gray-800 ${row.isGroup? 'font-semibold text-gray-900 dark:text-gray-100':''}`} style={{ zIndex: 80, paddingLeft: `${row.depth*26}px`, fontSize: row.isGroup? '0.95rem' : (row.depth>1? '0.85rem':'0.9rem') , minWidth: '340px', width: '380px', backgroundColor: row.isGroup ? '#FFE37A' : '#FFFFFF', textAlign: 'center', boxShadow: '2px 0 0 #d1d5db' }}>
                   {row.isGroup ? (
                     row.name
                   ) : (
@@ -295,7 +295,7 @@ export function AssetsPage() {
                             const it = row.item!
                             if (hasVisibleChildren(it)) collapseItem(it); else expandItem(it)
                           }}
-                          className="bg-transparent border-0 p-0 text-gray-400 hover:text-gray-700 focus:outline-none cursor-pointer"
+                          className="bg-transparent border-0 p-0 text-gray-400 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none cursor-pointer"
                           title={hasVisibleChildren(row.item) ? 'Comprimi' : 'Espandi'}
                           aria-label={hasVisibleChildren(row.item) ? 'Comprimi' : 'Espandi'}
                         >

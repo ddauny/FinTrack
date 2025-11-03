@@ -4,6 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FinTrack</title>
+    <!-- Inline script to prevent FOUC: apply dark class before React mounts -->
+    <script>
+      (function () {
+        try {
+          var key = 'theme-preference';
+          var pref = null;
+          try { pref = localStorage.getItem(key); } catch(e) { pref = null }
+          if (!pref) pref = 'system';
+          var isDark = false;
+          if (pref === 'dark') isDark = true;
+          else if (pref === 'light') isDark = false;
+          else {
+            try { isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; } catch(e) { isDark = false }
+          }
+          if (isDark) document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark');
+        } catch (e) { /* ignore */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
