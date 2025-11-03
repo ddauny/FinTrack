@@ -38,3 +38,5 @@ docker-compose.prod.yml
 Dockerfile.client.prod
 Dockerfile.prod
 script-linux.md
+
+backup.sql
