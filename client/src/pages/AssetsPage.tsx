@@ -156,8 +156,11 @@ export function AssetsPage() {
       return
     }
     const oldest = new Date(months[months.length-1])
-    const prev = new Date(oldest)
-    prev.setMonth(prev.getMonth()-1)
+  const prev = new Date(oldest)
+  // Use UTC setters/getters to match monthKey (which uses UTC) and avoid
+  // timezone shifts that can move the local date to the previous day and
+  // cause an off-by-one-month when decrementing.
+  prev.setUTCMonth(prev.getUTCMonth()-1)
     const mk = monthKey(prev)
     if (!months.includes(mk)) {
       // Don't apply depreciation for past months - just add the month
@@ -175,8 +178,10 @@ export function AssetsPage() {
       return
     }
     const newest = new Date(months[0])
-    const nxt = new Date(newest)
-    nxt.setMonth(nxt.getMonth()+1)
+  const nxt = new Date(newest)
+  // Use UTC setters/getters to match monthKey (which uses UTC) and avoid
+  // timezone shifts when incrementing the month.
+  nxt.setUTCMonth(nxt.getUTCMonth()+1)
     const mk = monthKey(nxt)
     if (!months.includes(mk)) {
       // Apply depreciation to the new month first
@@ -294,68 +299,79 @@ export function AssetsPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, idx)=> (
-              <tr key={idx} className={`border-b ${row.isGroup? '' : (idx % 2 === 0 ? 'bg-white dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-700/50')}`}>
-                <td className={`p-2 sticky left-0 ${row.isGroup ? 'bg-slate-100 dark:bg-slate-900 font-semibold text-slate-900 dark:text-slate-100' : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100' } border-r border-gray-200 dark:border-gray-700`} style={{ zIndex: 80, paddingLeft: `${row.depth*26}px`, fontSize: row.isGroup? '0.95rem' : (row.depth>1? '0.85rem':'0.9rem') , minWidth: '340px', width: '380px', textAlign: 'center' }}>
-                  {row.isGroup ? (
-                    row.name
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      {hasChildren(row.item) && (
-                        <button
-                          onClick={()=> {
-                            const it = row.item!
-                            if (hasVisibleChildren(it)) collapseItem(it); else expandItem(it)
-                          }}
-                          className="bg-transparent border-0 p-0 text-gray-400 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none cursor-pointer"
-                          title={hasVisibleChildren(row.item) ? 'Comprimi' : 'Espandi'}
-                          aria-label={hasVisibleChildren(row.item) ? 'Comprimi' : 'Espandi'}
-                        >
-                          {hasVisibleChildren(row.item) ? '▾' : '▸'}
-                        </button>
-                      )}
-                      <span>{row.name}</span>
-                    </div>
-                  )}
-                </td>
-                {months.map(m=> {
-                  if (row.isGroup) {
-                    const group = groups.find(g=> g.id===row.groupId)
-                    const items = (group?.items||[]).filter(it=> !it.parentItemId && !it.hidden)
-                    const v = items.reduce((sum, it)=> sum + valueFor(it, m, true), 0)
-                    return <td key={m} className="p-2 text-center font-semibold text-slate-900 dark:text-slate-100 border-l border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800" style={{ minWidth: '140px' }}>{v ? formatEUR(v) : ''}</td>
-                  }
-                  const item = row.item!
-                  const val = valueFor(item, m, true)
-                  const isEditing = editing && editing.itemId===item.id && editing.month===m
-                  return (
-                    <td
-                      key={m}
-                      onClick={()=>{ if(!isEditing) onCellClick(item, m) }}
-                      className="p-2 text-center border-l border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 cursor-text"
-                      style={{ minWidth: '140px' }}
-                    >
-                      {isEditing ? (
-                        <input
-                          autoFocus
-                          type="number"
-                          step="0.01"
-                          value={editValue}
-                          onChange={e=>setEditValue(e.target.value)}
-                          onBlur={()=>{ saveEdit() }}
-                          onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); saveEdit() } if(e.key==='Escape'){ setEditing(null); setEditValue('') } }}
-                          className="no-spin w-full text-center bg-transparent outline-none focus:outline-none focus:ring-0 border-0 p-0 m-0 appearance-none"
-                        />
-                      ) : (
-                        <div className="w-32 mx-auto">
-                          {val? formatEUR(val) : <span className="text-gray-400">—</span>}
-                        </div>
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
+            {rows.map((row, idx)=> {
+              const isParent = !row.isGroup && hasChildren(row.item)
+              const isLeafItem = !row.isGroup && isLeaf(row.item)
+              const rowBg = row.isGroup ? '' : (idx % 2 === 0 ? 'bg-white dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-700/50')
+              return (
+                <tr key={idx} className={`border-b ${rowBg}`}>
+                  <td className={`p-2 sticky left-0 border-r border-gray-200 dark:border-gray-700`} style={{ zIndex: 80, paddingLeft: `${row.depth*26}px`, fontSize: row.isGroup? '0.95rem' : (row.depth>1? '0.85rem':'0.9rem') , minWidth: '340px', width: '380px', textAlign: 'center' }}>
+                    {row.isGroup ? (
+                      // group header (unchange)
+                      <span className="bg-slate-100 dark:bg-slate-900 font-semibold text-slate-900 dark:text-slate-100 p-1 rounded">{row.name}</span>
+                    ) : (
+                      // item row: highlight parents more vs children
+                      <div className="flex items-center gap-2">
+                        {hasChildren(row.item) && (
+                          <button
+                            onClick={()=> {
+                              const it = row.item!
+                              if (hasVisibleChildren(it)) collapseItem(it); else expandItem(it)
+                            }}
+                            className="bg-transparent border-0 p-0 text-gray-400 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none cursor-pointer"
+                            title={hasVisibleChildren(row.item) ? 'Comprimi' : 'Espandi'}
+                            aria-label={hasVisibleChildren(row.item) ? 'Comprimi' : 'Espandi'}
+                          >
+                            {hasVisibleChildren(row.item) ? '▾' : '▸'}
+                          </button>
+                        )}
+                        <span className={`${isParent ? 'font-semibold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 p-1 rounded' : ''}`}>{row.name}</span>
+                      </div>
+                    )}
+                  </td>
+
+                  {months.map(m=> {
+                    if (row.isGroup) {
+                      const group = groups.find(g=> g.id===row.groupId)
+                      const items = (group?.items||[]).filter(it=> !it.parentItemId && !it.hidden)
+                      const v = items.reduce((sum, it)=> sum + valueFor(it, m, true), 0)
+                      return <td key={m} className="p-2 text-center font-semibold text-slate-900 dark:text-slate-100 border-l border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800" style={{ minWidth: '140px' }}>{v ? formatEUR(v) : ''}</td>
+                    }
+                    const item = row.item!
+                    const val = valueFor(item, m, true)
+                    const isEditing = editing && editing.itemId===item.id && editing.month===m
+                    // for non-editable cells (parents), show muted style and default cursor
+                    const cellClassBase = isLeafItem ? 'hover:bg-blue-50 dark:hover:bg-blue-900/40 cursor-text' : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-default'
+                    return (
+                      <td
+                        key={m}
+                        onClick={()=>{ if(!isEditing && isLeafItem) onCellClick(item, m) }}
+                        className={`p-2 text-center border-l border-gray-200 dark:border-gray-700 ${cellClassBase}`}
+                        style={{ minWidth: '140px' }}
+                      >
+                        {isEditing ? (
+                          <input
+                            autoFocus
+                            type="number"
+                            step="0.01"
+                            value={editValue}
+                            onChange={e=>setEditValue(e.target.value)}
+                            onBlur={()=>{ saveEdit() }}
+                            onKeyDown={(e)=>{ if(e.key==='Enter'){ e.preventDefault(); saveEdit() } if(e.key==='Escape'){ setEditing(null); setEditValue('') } }}
+                            className="no-spin w-full text-center bg-transparent outline-none focus:outline-none focus:ring-0 border-0 p-0 m-0 appearance-none"
+                          />
+                        ) : (
+                          <div className="w-32 mx-auto flex items-center justify-center gap-1">
+                            {val ? <span>{formatEUR(val)}</span> : <span className="text-gray-400">—</span>}
+                            {!isLeafItem && <span className="text-xs text-gray-400" title="Non modificabile">🔒</span>}
+                          </div>
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
           </tbody>
           {/* Footer totals pinned at bottom */}
           <tfoot className="sticky bottom-0" style={{ zIndex: 90 }}>

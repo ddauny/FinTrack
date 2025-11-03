@@ -143,7 +143,9 @@ export function TransactionsPage() {
       setForm((f:any)=>({ ...f, accountId: id }))
       return id
     }
-    const created = await api.accounts.create({ name: 'Primary', initialBalance: 0 })
+  // Provide a default `type` (required by server validation) when creating
+  // the fallback account. Use 'Checking' as a sensible default.
+  const created = await api.accounts.create({ name: 'Primary', type: 'Checking', initialBalance: 0 })
     setForm((f:any)=>({ ...f, accountId: (created as any).id }))
     return (created as any).id
   }
@@ -153,8 +155,25 @@ export function TransactionsPage() {
     if (!form.categoryId) { alert('Please select a category.'); return }
     const acctId = await ensureAccountId()
     const payload = { ...form, accountId: acctId, amount: Number(form.amount) }
-    if (editingId) await api.transactions.update(editingId, payload)
-    else await api.transactions.create(payload)
+    try {
+      if (editingId) await api.transactions.update(editingId, payload)
+      else await api.transactions.create(payload)
+    } catch (err: any) {
+      // Show a user-friendly error and log details
+      console.error('Error creating/updating transaction:', err)
+      let message = 'Errore durante il salvataggio della transazione.'
+      try {
+        const txt = String(err.message || err)
+        // if server returned JSON error body, try to parse
+        const parsed = JSON.parse(txt)
+        if (parsed && parsed.error) message = parsed.error
+        else message = txt
+      } catch (_) {
+        // fallback to raw message
+      }
+      alert(message)
+      return
+    }
     setShowModal(false)
     setEditingId(null)
     setShowNotesSuggestions(false)
@@ -401,11 +420,11 @@ export function TransactionsPage() {
             <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</div>
             {t.notes && <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t.notes}</div>}
             <div className="flex gap-2">
-              <button title="Edit" onClick={()=>{ setEditingId(t.id); setForm({ date: String(t.date).slice(0,10), amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, notes: t.notes||'' }); setShowModal(true) }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-gray-200 rounded" aria-label="Edit Transaction">
+              <button title="Edit" onClick={()=>{ setEditingId(t.id); setForm({ date: String(t.date).slice(0,10), amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, notes: t.notes||'' }); setShowModal(true) }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400" aria-label="Edit Transaction">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
                 Edit
               </button>
-              <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-red-600 text-white rounded" aria-label="Delete Transaction">
+              <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400" aria-label="Delete Transaction">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
                 Delete
               </button>
@@ -440,10 +459,10 @@ export function TransactionsPage() {
                 <td className="p-2 min-w-[150px] hidden sm:table-cell">{t.notes}</td>
                 <td className="p-2 min-w-[100px]">
                   <div className="flex flex-col sm:flex-row gap-1">
-                    <button title="Edit" onClick={()=>{ setEditingId(t.id); setForm({ date: String(t.date).slice(0,10), amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, notes: t.notes||'' }); setShowModal(true) }} className="p-1 sm:p-2 text-xs sm:text-sm bg-gray-200 rounded" aria-label="Edit Transaction">
+                    <button title="Edit" onClick={()=>{ setEditingId(t.id); setForm({ date: String(t.date).slice(0,10), amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, notes: t.notes||'' }); setShowModal(true) }} className="p-1 sm:p-2 text-xs sm:text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400" aria-label="Edit Transaction">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 sm:w-4 sm:h-4"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
                     </button>
-                    <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="p-1 sm:p-2 text-xs sm:text-sm bg-red-600 text-white rounded" aria-label="Delete Transaction">
+                    <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="p-1 sm:p-2 text-xs sm:text-sm bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400" aria-label="Delete Transaction">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 sm:w-4 sm:h-4"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
                     </button>
                   </div>

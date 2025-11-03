@@ -57,6 +57,7 @@ export interface Budget {
 export interface Account {
   id: number;
   name: string;
+  type: string;
   initialBalance: number;
 }
 
@@ -128,6 +129,7 @@ export interface BudgetForm {
 
 export interface AccountForm {
   name: string;
+  type: string;
   initialBalance: number;
 }
 
