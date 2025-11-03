@@ -395,6 +395,55 @@ export function TransactionsPage() {
             </svg>
             <span>Import CSV</span>
           </button>
+          <button
+            title="Export CSV"
+            onClick={async () => {
+              // Build same query used for listing (but without pagination)
+              let q = `?limit=10000&sortBy=${sortBy}&order=${order}`;
+              if (startDate) q += `&startDate=${startDate}`;
+              if (endDate) q += `&endDate=${endDate}`;
+              if (selectedCategory) q += `&category=${encodeURIComponent(selectedCategory)}`;
+              if (searchQuery.trim()) q += `&search=${encodeURIComponent(searchQuery.trim())}`;
+              try {
+                const res: any = await api.transactions.list(q);
+                const itemsToExport = res.items || [];
+                if (!itemsToExport.length) { alert('Nessuna transazione da esportare'); return }
+                const headers = ['date','amount','category','notes'];
+                const escapeCsv = (val: any) => {
+                  const str = String(val ?? '');
+                  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    return `"${str.replace(/"/g,'""')}"`;
+                  }
+                  return str;
+                };
+                const rows = itemsToExport.map((t: any) => ({
+                  date: String(t.date).slice(0,10),
+                  amount: Number(t.amount),
+                  category: t.category?.name || (t.categoryId ?? ''),
+                  notes: t.notes || ''
+                }));
+                const csv = [headers.join(',')].concat(rows.map(r => headers.map(h => escapeCsv(r[h])).join(','))).join('\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `transactions_${new Date().toISOString().slice(0,10)}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+              } catch (err) {
+                console.error('Export failed', err);
+                alert('Esportazione fallita');
+              }
+            }}
+            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-2 focus:ring-green-500"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+              <path d="M12 5v10m0 0-4-4m4 4 4-4M4 19h16" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>Export CSV</span>
+          </button>
           <button 
             title="Add Transactioooooosdsn" 
             onClick={()=>setShowModal(true)} 
