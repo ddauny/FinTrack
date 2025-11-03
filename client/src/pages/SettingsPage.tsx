@@ -25,8 +25,8 @@ export function SettingsPage() {
       <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded shadow">
         <div className="font-semibold mb-2 dark:text-gray-100">Profile</div>
         <div className="flex flex-col sm:flex-row gap-2">
-          <input value={email} onChange={e=>setEmail(e.target.value)} className="border p-2 rounded flex-1" />
-          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="New password" className="border p-2 rounded flex-1" />
+          <input value={email} onChange={e=>setEmail(e.target.value)} className="border p-2 rounded flex-1 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600" />
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="New password" className="border p-2 rounded flex-1 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600" />
           <button onClick={async()=>{ await api.settings.updateProfile({ email, password: password||undefined }); setPassword(''); refresh() }} className="px-3 py-2 rounded bg-blue-600 text-white whitespace-nowrap">Save</button>
         </div>
       </div>
@@ -38,10 +38,10 @@ export function SettingsPage() {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M11 11V5a1 1 0 112 0v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H5a1 1 0 110-2h6z"/></svg>
           </button>
         </div>
-        <div className="border rounded h-64 overflow-auto">
+        <div className="border border-gray-200 dark:border-gray-700 rounded h-64 overflow-auto bg-transparent">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-white">
-              <tr className="text-left border-b">
+            <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800">
+              <tr className="text-left border-b border-gray-200 dark:border-gray-700 text-slate-700 dark:text-slate-100">
                 <th className="p-2 w-1/2">Name</th>
                 <th className="p-2 w-1/4">Type</th>
                 <th className="p-2 w-1/4 text-right">Actions</th>
@@ -49,10 +49,10 @@ export function SettingsPage() {
             </thead>
             <tbody>
               {categories.map(c=> (
-                <tr key={c.id} className="border-b">
-                  <td className="p-2">{c.name}</td>
+                <tr key={c.id} className="border-b border-gray-200 dark:border-gray-700">
+                  <td className="p-2 text-slate-900 dark:text-slate-100">{c.name}</td>
                   <td className="p-2">
-                    <select value={c.type} onChange={async(e)=>{ await api.categories.update(c.id, { name: c.name, type: e.target.value }); refresh() }} className="border p-1 rounded">
+                    <select value={c.type} onChange={async(e)=>{ await api.categories.update(c.id, { name: c.name, type: e.target.value }); refresh() }} className="border p-1 rounded bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600">
                       <option>Expense</option>
                       <option>Income</option>
                     </select>
@@ -71,13 +71,13 @@ export function SettingsPage() {
 
       {showCatModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded p-4 w-full max-w-sm space-y-2">
-            <div className="font-semibold mb-2">Add Category</div>
-            <input value={catForm.name} onChange={e=>setCatForm({...catForm, name:e.target.value})} placeholder="Name" className="w-full border p-2 rounded" />
-            <select value={catForm.type} onChange={e=>setCatForm({...catForm, type:e.target.value})} className="w-full border p-2 rounded">
-              <option>Expense</option>
-              <option>Income</option>
-            </select>
+            <div className="bg-white dark:bg-gray-800 rounded p-4 w-full max-w-sm space-y-2 text-slate-900 dark:text-slate-100">
+              <div className="font-semibold mb-2">Add Category</div>
+              <input value={catForm.name} onChange={e=>setCatForm({...catForm, name:e.target.value})} placeholder="Name" className="w-full border p-2 rounded bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600" />
+              <select value={catForm.type} onChange={e=>setCatForm({...catForm, type:e.target.value})} className="w-full border p-2 rounded bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600">
+                <option>Expense</option>
+                <option>Income</option>
+              </select>
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={()=>setShowCatModal(false)} className="px-3 py-2 rounded">Cancel</button>
               <button onClick={async()=>{ if(!catForm.name) return; await api.categories.create(catForm); setCatForm({ name:'', type:'Expense' }); setShowCatModal(false); refresh() }} className="px-3 py-2 rounded bg-blue-600 text-white">Save</button>
@@ -88,9 +88,9 @@ export function SettingsPage() {
 
       {showGroupModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded p-4 w-full max-w-sm space-y-2">
+          <div className="bg-white dark:bg-gray-800 rounded p-4 w-full max-w-sm space-y-2 text-slate-900 dark:text-slate-100">
             <div className="font-semibold mb-2">Add Asset Group</div>
-            <input value={groupForm.name} onChange={e=>setGroupForm({...groupForm, name:e.target.value})} placeholder="Group name (e.g., Stock & ETF)" className="w-full border p-2 rounded" />
+            <input value={groupForm.name} onChange={e=>setGroupForm({...groupForm, name:e.target.value})} placeholder="Group name (e.g., Stock & ETF)" className="w-full border p-2 rounded bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600" />
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={()=>setShowGroupModal(false)} className="px-3 py-2 rounded">Cancel</button>
               <button onClick={async()=>{ if(!groupForm.name) return; await fetch('/api/asset-groups', { method:'POST', headers:{ 'Content-Type':'application/json', ...(localStorage.getItem('token') ? { Authorization: `Bearer ${localStorage.getItem('token')}` } : {}) }, body: JSON.stringify({ name: groupForm.name }) }); setGroupForm({ name:'' }); setShowGroupModal(false); refresh() }} className="px-3 py-2 rounded bg-blue-600 text-white">Save</button>
@@ -101,10 +101,10 @@ export function SettingsPage() {
 
       {showItemModalForGroup && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded p-4 w-full max-w-sm space-y-2">
+          <div className="bg-white dark:bg-gray-800 rounded p-4 w-full max-w-sm space-y-2 text-slate-900 dark:text-slate-100">
             <div className="font-semibold mb-2">Add Item</div>
-            <input value={itemForm[showItemModalForGroup]?.name||''} onChange={e=>setItemForm({ ...itemForm, [showItemModalForGroup]: { ...(itemForm[showItemModalForGroup]||{}), name:e.target.value } })} placeholder="New item (e.g., Trade Republic)" className="w-full border p-2 rounded" />
-            <input value={itemForm[showItemModalForGroup]?.description||''} onChange={e=>setItemForm({ ...itemForm, [showItemModalForGroup]: { ...(itemForm[showItemModalForGroup]||{}), description:e.target.value } })} placeholder="Description" className="w-full border p-2 rounded" />
+            <input value={itemForm[showItemModalForGroup]?.name||''} onChange={e=>setItemForm({ ...itemForm, [showItemModalForGroup]: { ...(itemForm[showItemModalForGroup]||{}), name:e.target.value } })} placeholder="New item (e.g., Trade Republic)" className="w-full border p-2 rounded bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600" />
+            <input value={itemForm[showItemModalForGroup]?.description||''} onChange={e=>setItemForm({ ...itemForm, [showItemModalForGroup]: { ...(itemForm[showItemModalForGroup]||{}), description:e.target.value } })} placeholder="Description" className="w-full border p-2 rounded bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600" />
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={()=>setShowItemModalForGroup(null)} className="px-3 py-2 rounded">Cancel</button>
               <button onClick={async()=>{ const it=itemForm[showItemModalForGroup!]; if(!it?.name) return; await fetch(`/api/asset-groups/${showItemModalForGroup}/items`, { method:'POST', headers:{ 'Content-Type':'application/json', ...(localStorage.getItem('token') ? { Authorization: `Bearer ${localStorage.getItem('token')}` } : {}) }, body: JSON.stringify(it) }); setItemForm({ ...itemForm, [showItemModalForGroup!]: { name:'', description:'' } }); setShowItemModalForGroup(null); refresh() }} className="px-3 py-2 rounded bg-blue-600 text-white">Save</button>
@@ -112,7 +112,7 @@ export function SettingsPage() {
           </div>
         </div>
       )}
-      <div className="bg-white p-4 rounded shadow">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
         <div className="flex justify-between items-center mb-2">
           <div className="font-semibold">Asset Groups</div>
           <button title="Add group" onClick={()=>setShowGroupModal(true)} className="p-2 rounded bg-blue-600 text-white" aria-label="Add group">
@@ -122,7 +122,7 @@ export function SettingsPage() {
 
         <div className="space-y-4">
           {groups.map(g=> (
-            <div key={g.id} className="border rounded p-3">
+            <div key={g.id} className="border border-gray-200 dark:border-gray-700 rounded p-3 bg-white dark:bg-gray-800 text-slate-900 dark:text-slate-100">
               <div className="flex justify-between items-center mb-2">
                 <div className="font-semibold">{g.name}</div>
                 <div className="flex gap-2">
@@ -134,10 +134,10 @@ export function SettingsPage() {
                   </button>
                 </div>
               </div>
-              <div className="border rounded max-h-48 overflow-auto">
+              <div className="border border-gray-200 dark:border-gray-700 rounded max-h-48 overflow-auto bg-transparent">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left border-b">
+                    <tr className="text-left border-b border-gray-200 dark:border-gray-700 text-slate-700 dark:text-slate-100">
                       <th className="p-2">Item</th>
                       <th className="p-2">Description</th>
                       <th className="p-2">Depreciation (€/month)</th>
@@ -174,7 +174,7 @@ export function SettingsPage() {
                                       console.error('Error updating depreciation:', error);
                                     }
                                   }}
-                                  className="w-20 px-2 py-1 text-sm border rounded"
+                                  className="w-20 px-2 py-1 text-sm border rounded bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600"
                                   title="Monthly depreciation amount in euros"
                                 />
                               ) : (
@@ -219,7 +219,7 @@ export function SettingsPage() {
                                         console.error('Error updating depreciation:', error);
                                       }
                                     }}
-                                    className="w-20 px-2 py-1 text-sm border rounded"
+                                    className="w-20 px-2 py-1 text-sm border rounded bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600"
                                     title="Monthly depreciation amount in euros"
                                   />
                                 </td>
