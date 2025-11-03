@@ -5,6 +5,9 @@ type Group = { id:number; name:string; items: Item[] }
 type Item = { id:number; name:string; description?:string; parentItemId?:number|null; hidden?: boolean; depreciationAmount?: number; valuations?: { month:string; value:number }[] }
 
 export function AssetsPage() {
+  // detect whether the document root has the `dark` class so we can adapt
+  // dynamic inline colors (used by growth percentage rows) to dark mode too.
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
   const [groups, setGroups] = useState<Group[]>([])
   const [months, setMonths] = useState<string[]>([])
   const [manualMonths, setManualMonths] = useState<Set<string>>(new Set())
@@ -250,8 +253,8 @@ export function AssetsPage() {
       <div ref={scrollRef} className="overflow-y-auto overflow-x-auto" style={{ maxHeight: '85vh' }}>
         <table className="min-w-full text-sm">
           <thead className="sticky top-0" style={{ zIndex: 90 }}>
-            <tr className="border-b" style={{ backgroundColor: '#10b981' }}>
-              <th className="p-2 sticky top-0 left-0 text-left" style={{ zIndex: 100, minWidth: '340px', width: '380px', backgroundColor: '#10b981' }}>
+            <tr className="border-b bg-slate-700 dark:bg-slate-900 text-white">
+              <th className="p-2 sticky top-0 left-0 text-left bg-slate-700 dark:bg-slate-900 text-white" style={{ zIndex: 100, minWidth: '340px', width: '380px' }}>
                 <span className="font-semibold" style={{ fontSize: '1.08rem' }}>Asset</span>
               </th>
               {months.map((m, i)=> (
@@ -269,13 +272,13 @@ export function AssetsPage() {
                     // Finally refresh
                     await refresh() 
                   } 
-                }} className="p-2 whitespace-nowrap text-center border-l border-gray-200 relative sticky top-0" style={{ zIndex: 95, minWidth: '140px', backgroundColor: '#10b981' }}>
+                }} className="p-2 whitespace-nowrap text-center border-l border-gray-200 dark:border-gray-700 relative sticky top-0 bg-slate-600 dark:bg-slate-800 text-white" style={{ zIndex: 95, minWidth: '140px' }}>
                   {i===0 && (
-                    <button onClick={addNextMonth} className="absolute left-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100" title="Aggiungi mese successivo" aria-label="Aggiungi mese successivo">‹</button>
+                    <button onClick={addNextMonth} className="absolute left-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200" title="Aggiungi mese successivo" aria-label="Aggiungi mese successivo">‹</button>
                   )}
                   {formatDateMonthYear(new Date(m))}
                   {i===months.length-1 && (
-                    <button onClick={addPrevMonth} className="absolute right-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100" title="Aggiungi mese precedente" aria-label="Aggiungi mese precedente">›</button>
+                    <button onClick={addPrevMonth} className="absolute right-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200" title="Aggiungi mese precedente" aria-label="Aggiungi mese precedente">›</button>
                   )}
                 </th>
               ))}
@@ -284,7 +287,7 @@ export function AssetsPage() {
           <tbody>
             {rows.map((row, idx)=> (
               <tr key={idx} className={`border-b ${row.isGroup? '' : (idx % 2 === 0 ? 'bg-white dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-700/50')}`}>
-                <td className={`p-2 sticky left-0 bg-white dark:bg-gray-800 ${row.isGroup? 'font-semibold text-gray-900 dark:text-gray-100':''}`} style={{ zIndex: 80, paddingLeft: `${row.depth*26}px`, fontSize: row.isGroup? '0.95rem' : (row.depth>1? '0.85rem':'0.9rem') , minWidth: '340px', width: '380px', backgroundColor: row.isGroup ? '#FFE37A' : '#FFFFFF', textAlign: 'center', boxShadow: '2px 0 0 #d1d5db' }}>
+                <td className={`p-2 sticky left-0 ${row.isGroup ? 'bg-slate-100 dark:bg-slate-900 font-semibold text-slate-900 dark:text-slate-100' : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100' } border-r border-gray-200 dark:border-gray-700`} style={{ zIndex: 80, paddingLeft: `${row.depth*26}px`, fontSize: row.isGroup? '0.95rem' : (row.depth>1? '0.85rem':'0.9rem') , minWidth: '340px', width: '380px', textAlign: 'center' }}>
                   {row.isGroup ? (
                     row.name
                   ) : (
@@ -311,7 +314,7 @@ export function AssetsPage() {
                     const group = groups.find(g=> g.id===row.groupId)
                     const items = (group?.items||[]).filter(it=> !it.parentItemId && !it.hidden)
                     const v = items.reduce((sum, it)=> sum + valueFor(it, m, true), 0)
-                    return <td key={m} className="p-2 text-center font-semibold text-gray-800 border-l border-gray-200" style={{ minWidth: '140px', backgroundColor: '#fef3c7' }}>{v ? formatEUR(v) : ''}</td>
+                    return <td key={m} className="p-2 text-center font-semibold text-slate-900 dark:text-slate-100 border-l border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800" style={{ minWidth: '140px' }}>{v ? formatEUR(v) : ''}</td>
                   }
                   const item = row.item!
                   const val = valueFor(item, m, true)
@@ -320,7 +323,7 @@ export function AssetsPage() {
                     <td
                       key={m}
                       onClick={()=>{ if(!isEditing) onCellClick(item, m) }}
-                      className="p-2 text-center border-l border-gray-200 hover:bg-blue-50 cursor-text"
+                      className="p-2 text-center border-l border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 cursor-text"
                       style={{ minWidth: '140px' }}
                     >
                       {isEditing ? (
@@ -348,21 +351,21 @@ export function AssetsPage() {
           {/* Footer totals pinned at bottom */}
           <tfoot className="sticky bottom-0" style={{ zIndex: 90 }}>
             {/* Riga Total Net Worth (invariata) */}
-            <tr style={{ backgroundColor: '#FFE37A' }}>
-              <td className="p-2 sticky left-0" style={{ backgroundColor: '#FFE37A', zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Total Net Worth</td>
+            <tr className="bg-slate-200 dark:bg-slate-800">
+              <td className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-800" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Total Net Worth</td>
               {months.map(m=>{
                 const v = groups.reduce((sum, g)=>{
                   const roots = (g.items||[]).filter(it=> !it.parentItemId && !it.hidden)
                   const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
                   return sum + s
                 }, 0)
-                return <td key={m} className="p-2 text-center border-l border-gray-200" style={{ backgroundColor: '#FFE37A' }}>{v? formatEUR(v): ''}</td>
+                return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100" >{v? formatEUR(v): ''}</td>
               })}
             </tr>
 
             {/* Riga Growth vs previous month (CAMBIATO COLORE VERDE) */}
-            <tr style={{ backgroundColor: '#22c55e' }}> {/* <-- Verde più acceso */}
-              <td className="p-2 sticky left-0" style={{ backgroundColor: 'white', zIndex: 90, fontWeight: 600, textAlign: 'center', color: 'black', minWidth: '340px', width: '380px' }}>Growth vs previous month</td>
+            <tr className="bg-slate-100 dark:bg-slate-900"> {/* <-- Verde più acceso */}
+              <td className="p-2 sticky left-0 bg-slate-50 dark:bg-slate-800" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth vs previous month</td>
               {months.map((m, i)=>{
                 const curr = groups.reduce((sum, g)=>{
                   const roots = (g.items||[]).filter(it=> !it.parentItemId && !it.hidden)
@@ -376,13 +379,13 @@ export function AssetsPage() {
                   return sum + s
                 }, 0) : 0
                 const diff = prevKey ? (curr - prev) : 0
-                return <td key={m} className="p-2 text-center border-l border-gray-200" style={{ backgroundColor: 'white', color: 'black' }}>{prevKey? formatEUR(diff): ''}</td>
+                return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-transparent text-slate-900 dark:text-slate-100">{prevKey? formatEUR(diff): ''}</td>
               })}
             </tr>
 
             {/* Riga Growth percentage (CAMBIATO CALCOLO COLORE) */}
-            <tr style={{ backgroundColor: 'white' }}>
-              <td className="p-2 sticky left-0" style={{ backgroundColor: 'white', zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth percentage</td>
+            <tr className="bg-transparent">
+              <td className="p-2 sticky left-0 bg-transparent" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth percentage</td>
               {months.map((m, i)=>{
                 const curr = groups.reduce((sum, g)=>{
                   const roots = (g.items||[]).filter(it=> !it.parentItemId && !it.hidden)
@@ -398,21 +401,19 @@ export function AssetsPage() {
                 const pct = prevKey && prev !== 0 ? ((curr - prev) / prev) * 100 : 0
                 
                 // Calcola colore dinamico basato sulla percentuale (CON NUOVO VERDE)
-                let bgColor = 'white'; // Default per 0% o primo mese
-                if (prevKey && prev !== 0) {
-                    const absPct = Math.abs(pct);
-                    // Scala l'opacità: 0% = 0 opacity, 10% (o più) = 1 opacity
-                    const opacity = Math.min(absPct / 10, 1);
-                    if (pct > 0) {
-                        // Verde (nuovo colore) per valori positivi
-                        bgColor = `rgba(34, 197, 94, ${opacity})`; // RGB per #22c55e
-                    } else if (pct < 0) {
-                        // Rosso per valori negativi (mantenuto)
-                        bgColor = `rgba(239, 68, 68, ${opacity})`; // RGB per #ef4444
-                    }
-                }
-                
-                return <td key={m} className="p-2 text-center border-l border-gray-200" style={{ backgroundColor: bgColor }}>{prevKey && prev!==0? `${pct.toFixed(2)}%` : ''}</td>
+        let bgColor = isDark ? 'transparent' : 'white'; // default
+        if (prevKey && prev !== 0) {
+          const absPct = Math.abs(pct);
+          const opacity = Math.min(absPct / 10, 1);
+          if (pct > 0) {
+            // green, slightly toned down in dark mode
+            bgColor = isDark ? `rgba(34,197,94,${Math.max(opacity * 0.35, 0.08)})` : `rgba(34,197,94,${opacity})`;
+          } else if (pct < 0) {
+            bgColor = isDark ? `rgba(239,68,68,${Math.max(opacity * 0.35, 0.08)})` : `rgba(239,68,68,${opacity})`;
+          }
+        }
+
+        return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700" style={{ backgroundColor: bgColor }}>{prevKey && prev!==0? `${pct.toFixed(2)}%` : ''}</td>
               })}
             </tr>
           </tfoot>
