@@ -209,12 +209,12 @@ export function MonthlySummaryPage() {
       {/* Month Selector */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
         <div className="flex items-center gap-4">
-          <label className="text-sm font-medium">Select Month:</label>
+          <label className="text-sm font-medium text-slate-700 dark:text-gray-100">Select Month:</label>
           <input
             type="month"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="border rounded px-3 py-2"
+            className="border rounded px-3 py-2 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
           />
           <div className="text-lg font-semibold dark:text-gray-100">
             {formatMonthDisplay(selectedMonth)}

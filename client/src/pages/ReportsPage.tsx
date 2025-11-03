@@ -8,6 +8,10 @@ import dayjs from 'dayjs' // <-- AGGIUNTO
 
 export function ReportsPage() {
   const { hideNumbers } = usePrivacy()
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  const chartTextColor = isDark ? '#e6eef6' : '#0f172a' // light in dark mode, dark in light mode
+  const gridLineColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'
+  const axisLineColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.12)'
   const navigate = useNavigate()
   const [cashflow, setCashflow] = useState<any[]>([])
   const [spending, setSpending] = useState<any[]>([])
@@ -91,18 +95,18 @@ export function ReportsPage() {
   }, [startMonth, startYear, endMonth, endYear])
 
   const cashflowOption = {
-    tooltip: { 
-      trigger: 'axis',
-      valueFormatter: (val: any) => hideNumbers ? '••••••' : formatEUR(val as number)
-    },
-    legend: { data: ['Income', 'Expense'] },
-    xAxis: { type: 'category', data: (cashflow && cashflow.length > 0) ? cashflow.map(r=> formatDateDMY(new Date(r.period+'-01'))) : ['No Data'] },
+    textStyle: { color: chartTextColor },
+    xAxis: { type: 'category', data: (cashflow && cashflow.length > 0) ? cashflow.map(r=> formatDateDMY(new Date(r.period+'-01'))) : ['No Data'], axisLabel: { color: chartTextColor }, axisLine: { lineStyle: { color: axisLineColor } } },
     yAxis: { 
       type: 'value',
       axisLabel: {
-        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value)
-      }
+        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value),
+        color: chartTextColor
+      },
+      splitLine: { lineStyle: { color: gridLineColor } },
+      axisLine: { lineStyle: { color: axisLineColor } }
     },
+  legend: { data: ['Income', 'Expense'], textStyle: { color: chartTextColor } },
     series: [
       { name: 'Income', type: 'bar', data: (cashflow && cashflow.length > 0) ? cashflow.map(r=>r.income) : [0], itemStyle: { color: '#16a34a' } },
       { name: 'Expense', type: 'bar', data: (cashflow && cashflow.length > 0) ? cashflow.map(r=>r.expense) : [0], itemStyle: { color: '#dc2626' } },
@@ -111,14 +115,19 @@ export function ReportsPage() {
 
   const palette = ['#3b82f6','#06b6d4','#8b5cf6','#10b981','#f59e0b','#a78bfa','#22c55e','#14b8a6','#0ea5e9','#84cc16']
   const spendingOption = {
+    textStyle: { color: chartTextColor },
     tooltip: { 
       trigger: 'item',
-      formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`
+      formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`,
+      backgroundColor: isDark ? 'rgba(15,23,42,0.9)' : undefined,
+      textStyle: { color: chartTextColor }
     },
     color: palette,
+    legend: { textStyle: { color: chartTextColor } },
     series: [{
       type: 'pie', radius: ['40%','70%'],
       label: { 
+        color: chartTextColor,
         formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`
       },
       data: (spending && spending.length > 0) ? spending.map(s=>({ name:s.category, value:s.total })) : [{ name: 'No Data', value: 0 }],
@@ -129,17 +138,23 @@ export function ReportsPage() {
   }
 
   const trendsOption = {
+    textStyle: { color: chartTextColor },
     tooltip: { 
       trigger: 'axis',
-      valueFormatter: (val: any) => hideNumbers ? '••••••' : formatEUR(val as number)
+      valueFormatter: (val: any) => hideNumbers ? '••••••' : formatEUR(val as number),
+      backgroundColor: isDark ? 'rgba(15,23,42,0.9)' : undefined,
+      textStyle: { color: chartTextColor }
     },
-    legend: { data: ['Income', 'Expense'] },
-    xAxis: { type: 'category', data: (trends && trends.length > 0) ? trends.map(r=> formatDateDMY(new Date(r.period+'-01'))) : ['No Data'] },
+    legend: { data: ['Income', 'Expense'], textStyle: { color: chartTextColor } },
+    xAxis: { type: 'category', data: (trends && trends.length > 0) ? trends.map(r=> formatDateDMY(new Date(r.period+'-01'))) : ['No Data'], axisLabel: { color: chartTextColor }, axisLine: { lineStyle: { color: axisLineColor } } },
     yAxis: { 
       type: 'value',
       axisLabel: {
-        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value)
-      }
+        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value),
+        color: chartTextColor
+      },
+      splitLine: { lineStyle: { color: gridLineColor } },
+      axisLine: { lineStyle: { color: axisLineColor } }
     },
     series: [
       { name: 'Income', type: 'line', data: (trends && trends.length > 0) ? trends.map(r=>r.income) : [0], lineStyle: { color: '#16a34a' }, itemStyle: { color: '#16a34a' } },
@@ -149,6 +164,7 @@ export function ReportsPage() {
 
   // Monthly Expenses Horizontal Bar Chart
   const monthlyExpensesOption = {
+    textStyle: { color: chartTextColor },
     tooltip: { 
       trigger: 'axis', 
       axisPointer: { type: 'shadow' },
@@ -158,13 +174,17 @@ export function ReportsPage() {
     xAxis: { 
       type: 'value',
       axisLabel: {
-        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value)
-      }
+        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value),
+        color: chartTextColor
+      },
+      splitLine: { lineStyle: { color: gridLineColor } },
+      axisLine: { lineStyle: { color: axisLineColor } }
     },
     yAxis: { 
       type: 'category', 
       data: (monthlyExpenses || []).map(e => e.month),
-      axisLabel: { fontSize: 10 }
+      axisLabel: { fontSize: 10, color: chartTextColor },
+      axisLine: { lineStyle: { color: axisLineColor } }
     },
     series: [{
       type: 'bar',
@@ -196,10 +216,14 @@ export function ReportsPage() {
 
   // Category Analysis Radar Chart
   const categoryAnalysisOption = {
-    tooltip: { trigger: 'item' },
+    textStyle: { color: chartTextColor },
+    tooltip: { trigger: 'item', backgroundColor: isDark ? 'rgba(15,23,42,0.9)' : undefined, textStyle: { color: chartTextColor } },
     radar: {
       indicator: (categoryAnalysis && categoryAnalysis.length > 0) ? categoryAnalysis.map(c => ({ name: c.category, max: c.maxValue || 1 })) : [{ name: 'No Data', max: 1 }],
-      radius: '70%'
+      radius: '70%',
+      axisLine: { lineStyle: { color: axisLineColor } },
+      splitLine: { lineStyle: { color: gridLineColor } },
+      name: { textStyle: { color: chartTextColor } }
     },
     series: [{
       type: 'radar',
@@ -219,15 +243,19 @@ export function ReportsPage() {
 
   // Net Worth Trend Area Chart
   const netWorthTrendOption = {
+    textStyle: { color: chartTextColor },
     tooltip: { trigger: 'axis' },
     xAxis: { 
       type: 'category', 
-      data: (netWorthTrend && netWorthTrend.length > 0) ? netWorthTrend.map(n => formatDateDMY(new Date(n.period+'-01'))) : ['No Data']
+      data: (netWorthTrend && netWorthTrend.length > 0) ? netWorthTrend.map(n => formatDateDMY(new Date(n.period+'-01'))) : ['No Data'],
+      axisLabel: { color: chartTextColor },
+      axisLine: { lineStyle: { color: axisLineColor } }
     },
     yAxis: { 
       type: 'value',
       axisLabel: {
-        formatter: (value: number) => hideNumbers ? '••••••' : `€${value.toLocaleString()}`
+        formatter: (value: number) => hideNumbers ? '••••••' : `€${value.toLocaleString()}`,
+        color: chartTextColor
       }
     },
     series: [{

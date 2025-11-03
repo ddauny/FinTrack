@@ -294,7 +294,7 @@ export function TransactionsPage() {
   return (
     <div className="bg-white dark:bg-gray-800 p-2 sm:p-4 rounded shadow">
       <div className="mb-4">
-        <div className="font-semibold mb-3 dark:text-gray-100">Transaasdasdasdctions</div>
+        <div className="font-semibold mb-3 dark:text-gray-100">Transactions</div>
         
         {/* Filter Controls */}
         <div className="space-y-4">
