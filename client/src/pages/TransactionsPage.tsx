@@ -174,6 +174,9 @@ export function TransactionsPage() {
       alert(message)
       return
     }
+    // Reset the form to defaults so the modal is clean for the next add
+    setForm({ date: new Date().toISOString().slice(0,10), amount: 0, accountId: '', categoryId: '', notes: '' })
+    setCategoryQuery('')
     setShowModal(false)
     setEditingId(null)
     setShowNotesSuggestions(false)
@@ -554,7 +557,20 @@ export function TransactionsPage() {
               )}
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={()=>{ setShowModal(false); setEditingId(null); setShowNotesSuggestions(false); setNotesSuggestions([]); setSelectedSuggestionIndex(-1); setShowCategorySuggestions(false); setCategorySuggestions([]); setSelectedCategoryIndex(-1) }} className="px-3 py-2 rounded">Cancel</button>
+              <button type="button" onClick={()=>{ 
+                // Close modal and fully reset transient form state
+                setShowModal(false); 
+                setEditingId(null); 
+                setShowNotesSuggestions(false); 
+                setNotesSuggestions([]); 
+                setSelectedSuggestionIndex(-1); 
+                setShowCategorySuggestions(false); 
+                setCategorySuggestions([]); 
+                setSelectedCategoryIndex(-1);
+                // Reset the form fields so the modal is clean next time
+                setForm({ date: new Date().toISOString().slice(0,10), amount: 0, accountId: '', categoryId: '', notes: '' });
+                setCategoryQuery('');
+              }} className="px-3 py-2 rounded">Cancel</button>
               <button type="submit" disabled={!form.categoryId || !form.amount} className="px-3 py-2 rounded bg-blue-600 disabled:bg-blue-400 text-white">Save</button>
             </div>
           </form>
