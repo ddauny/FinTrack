@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '@/lib/api'
+import { api } from '../lib/api'
 
 export function SettingsPage() {
   const [profile, setProfile] = useState<any>(null)
@@ -22,8 +22,8 @@ export function SettingsPage() {
   useEffect(()=>{ refresh() }, [])
   return (
     <div className="p-2 sm:p-4 space-y-4">
-      <div className="bg-white p-3 sm:p-4 rounded shadow">
-        <div className="font-semibold mb-2">Profile</div>
+      <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded shadow">
+        <div className="font-semibold mb-2 dark:text-gray-100">Profile</div>
         <div className="flex flex-col sm:flex-row gap-2">
           <input value={email} onChange={e=>setEmail(e.target.value)} className="border p-2 rounded flex-1" />
           <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="New password" className="border p-2 rounded flex-1" />
@@ -31,9 +31,9 @@ export function SettingsPage() {
         </div>
       </div>
       {/* Accounts section removed per requirements */}
-      <div className="bg-white p-3 sm:p-4 rounded shadow">
+      <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded shadow">
         <div className="flex items-center justify-between mb-2">
-          <div className="font-semibold">Categories</div>
+          <div className="font-semibold dark:text-gray-100">Categories</div>
           <button title="Add category" onClick={()=>setShowCatModal(true)} className="p-2 rounded bg-blue-600 text-white" aria-label="Add category">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M11 11V5a1 1 0 112 0v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H5a1 1 0 110-2h6z"/></svg>
           </button>

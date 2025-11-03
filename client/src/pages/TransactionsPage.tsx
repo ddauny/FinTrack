@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { api } from '@/lib/api'
-import { formatEUR, formatDateDMY } from '@/lib/format'
+import { api } from '../lib/api'
+import { formatEUR, formatDateDMY } from '../lib/format'
 import { PrivacyNumber } from '@/components/PrivacyNumber'
 
 export function TransactionsPage() {
@@ -292,48 +292,48 @@ export function TransactionsPage() {
   }, [categories])
 
   return (
-    <div className="bg-white p-2 sm:p-4 rounded shadow">
+    <div className="bg-white dark:bg-gray-800 p-2 sm:p-4 rounded shadow">
       <div className="mb-4">
-        <div className="font-semibold mb-3">Transactions</div>
+        <div className="font-semibold mb-3 dark:text-gray-100">Transaasdasdasdctions</div>
         
         {/* Filter Controls */}
         <div className="space-y-4">
           {/* Date Filters */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">From Date</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">From Date</label>
               <input 
                 type="date" 
                 value={startDate} 
                 onChange={e=>setStartDate(e.target.value)} 
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">To Date</label>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">To Date</label>
               <input 
                 type="date" 
                 value={endDate} 
                 onChange={e=>setEndDate(e.target.value)} 
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
           </div>
           
           {/* Search Filter */}
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Search</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Search</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 placeholder="Search by category, amount, or notes..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               <button 
                 onClick={()=>{setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery('')}} 
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
               >
                 Clear
               </button>
@@ -364,7 +364,7 @@ export function TransactionsPage() {
           <button 
             title="Import CSV" 
             onClick={()=>fileInputRef.current?.click()} 
-            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500" 
+            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-2 focus:ring-blue-500" 
             aria-label="Import CSV"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
@@ -374,7 +374,7 @@ export function TransactionsPage() {
             <span>Import CSV</span>
           </button>
           <button 
-            title="Add Transaction" 
+            title="Add Transactioooooosdsn" 
             onClick={()=>setShowModal(true)} 
             className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500" 
             aria-label="Add Transaction"
@@ -389,7 +389,7 @@ export function TransactionsPage() {
       {/* Mobile Card View */}
       <div className="block sm:hidden space-y-2">
         {items.map((t)=> (
-          <div key={t.id} className="bg-gray-50 p-3 rounded border">
+          <div key={t.id} className="bg-gray-50 dark:bg-gray-700/10 p-3 rounded border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-start mb-2">
               <div className="text-sm font-medium">{formatDateDMY(t.date)}</div>
               <div className={`text-sm font-bold ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-700' : 'text-red-700'}`}>
@@ -398,8 +398,8 @@ export function TransactionsPage() {
                 </PrivacyNumber>
               </div>
             </div>
-            <div className="text-sm text-gray-600 mb-1">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</div>
-            {t.notes && <div className="text-xs text-gray-500 mb-2">{t.notes}</div>}
+            <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</div>
+            {t.notes && <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t.notes}</div>}
             <div className="flex gap-2">
               <button title="Edit" onClick={()=>{ setEditingId(t.id); setForm({ date: String(t.date).slice(0,10), amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, notes: t.notes||'' }); setShowModal(true) }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-gray-200 rounded" aria-label="Edit Transaction">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
@@ -429,7 +429,7 @@ export function TransactionsPage() {
           <tbody>
             {/* Debug: {console.log('Rendering items:', items.length, 'items')} */}
             {items.map((t)=> (
-              <tr key={t.id} className="border-b hover:bg-gray-50">
+              <tr key={t.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700/10">
                 <td className="p-2 min-w-[100px]">{formatDateDMY(t.date)}</td>
                 <td className={`p-2 min-w-[120px] ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-700' : 'text-red-700'}`}>
                   <PrivacyNumber value={t.amount}>
@@ -453,19 +453,19 @@ export function TransactionsPage() {
           </tbody>
         </table>
       </div>
-      <div className="py-3 text-center text-sm text-gray-600">
+      <div className="py-3 text-center text-sm text-gray-600 dark:text-gray-300">
         {loading ? 'Loading…' : (items.length >= total ? 'All loaded' : '')}
       </div>
 
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-2 sm:p-4">
-          <form onSubmit={createTxn} className="bg-white rounded p-4 w-full max-w-sm space-y-2 max-h-[90vh] overflow-y-auto">
+          <form onSubmit={createTxn} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded p-4 w-full max-w-sm space-y-2 max-h-[90vh] overflow-y-auto">
             <div className="font-semibold mb-2">{editingId ? 'Edit Transaction' : 'Add Transaction'}</div>
             <div className="text-xs text-gray-500 mb-2">All fields are required except Notes.</div>
             <label className="text-sm">Date</label>
-            <input type="date" value={form.date} onChange={e=>setForm({...form, date:e.target.value})} className="w-full border p-2 rounded" />
+            <input type="date" value={form.date} onChange={e=>setForm({...form, date:e.target.value})} className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded" />
             <label className="text-sm">Amount (e.g., 24.99)</label>
-            <input type="number" step="0.01" value={form.amount} onChange={e=>setForm({...form, amount:e.target.value})} placeholder="Amount" className="w-full border p-2 rounded" />
+            <input type="number" step="0.01" value={form.amount} onChange={e=>setForm({...form, amount:e.target.value})} placeholder="Amount" className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded" />
             {/* Type removed (inferred from category); Account removed as requested */}
             <label className="text-sm">Category</label>
             <div className="relative">
@@ -476,15 +476,15 @@ export function TransactionsPage() {
                 onKeyDown={handleCategoryKeyDown}
                 onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
                 onFocus={() => categoryQuery.length >= 1 && categorySuggestions.length > 0 && setShowCategorySuggestions(true)}
-                className="w-full border p-2 rounded"
+                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded"
               />
               {showCategorySuggestions && categorySuggestions.length > 0 && (
-                <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-b shadow-lg max-h-40 overflow-y-auto">
+                <div className="absolute z-10 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-b shadow-lg max-h-40 overflow-y-auto">
                   {categorySuggestions.map((c, index) => (
                     <div
                       key={c.id}
                       onClick={() => selectCategorySuggestion(c)}
-                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
+                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
                         index === selectedCategoryIndex ? 'bg-blue-100' : ''
                       } ${c.type==='Income'?'text-green-700':'text-red-700'}`}
                     >
@@ -494,14 +494,14 @@ export function TransactionsPage() {
                 </div>
               )}
             </div>
-            <div className="max-h-40 overflow-auto border rounded">
+            <div className="max-h-40 overflow-auto border border-gray-300 dark:border-gray-600 rounded">
               {categories
                 .filter(c=> c.name.toLowerCase().includes(categoryQuery.toLowerCase()))
                 .map(c=> (
                   <div
                     key={c.id}
                     onClick={()=>{setForm({...form, categoryId: c.id}); setCategoryQuery(c.name)}}
-                    className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${form.categoryId===c.id? 'bg-gray-100':''} ${c.type==='Income'?'text-green-700':'text-red-700'}`}
+                    className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${form.categoryId===c.id? 'bg-gray-100 dark:bg-gray-600':''} ${c.type==='Income'?'text-green-700':'text-red-700'}`}
                   >
                     {c.name}
                   </div>
@@ -516,15 +516,15 @@ export function TransactionsPage() {
                 onBlur={() => setTimeout(() => setShowNotesSuggestions(false), 200)}
                 onFocus={() => form.notes.length >= 2 && notesSuggestions.length > 0 && setShowNotesSuggestions(true)}
                 placeholder="Optional notes" 
-                className="w-full border p-2 rounded" 
+                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded" 
               />
               {showNotesSuggestions && notesSuggestions.length > 0 && (
-                <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-b shadow-lg max-h-40 overflow-y-auto">
+                <div className="absolute z-10 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-b shadow-lg max-h-40 overflow-y-auto">
                   {notesSuggestions.map((suggestion, index) => (
                     <div
                       key={index}
                       onClick={() => selectSuggestion(suggestion)}
-                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${
+                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
                         index === selectedSuggestionIndex ? 'bg-blue-100' : ''
                       }`}
                     >

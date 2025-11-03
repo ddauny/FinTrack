@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
-import { formatEUR } from '@/lib/format';
+import { api } from '../lib/api';
+import { formatEUR } from '../lib/format';
 import type { Budget } from '../types';
 
 export function BudgetsPage() {
@@ -11,8 +11,8 @@ export function BudgetsPage() {
   }, []);
   
   return (
-    <div className="bg-white p-4 rounded shadow">
-      <div className="font-semibold mb-4">Budgets</div>
+    <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+      <div className="font-semibold mb-4 dark:text-gray-100">Budgets</div>
       <div className="space-y-3">
         {items.map((b: Budget) => {
           const pct = Math.min(100, Math.round((Number(b.spent || 0) / Number(b.amount || 1)) * 100));

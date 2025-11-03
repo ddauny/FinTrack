@@ -31,10 +31,10 @@ budgetsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
       _sum: { amount: true },
     }),
   ]);
-  const monthlyMap = new Map(monthlySpending.map((s) => [s.categoryId, Number(s._sum.amount ?? 0)]));
-  const yearlyMap = new Map(yearlySpending.map((s) => [s.categoryId, Number(s._sum.amount ?? 0)]));
+  const monthlyMap = new Map(monthlySpending.map((s : any) => [s.categoryId, Number(s._sum.amount ?? 0)]));
+  const yearlyMap = new Map(yearlySpending.map((s : any) => [s.categoryId, Number(s._sum.amount ?? 0)]));
 
-  const enriched = budgets.map((b) => ({
+  const enriched = budgets.map((b : any) => ({
     ...b,
     spent: (b.period === "Monthly" ? monthlyMap : yearlyMap).get(b.categoryId) ?? 0,
   }));

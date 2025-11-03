@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { usePrivacy } from '../contexts/PrivacyContext'
 import { useState } from 'react'
+import ThemeToggle from '../contexts/ThemeToggle'
 
 export function TopNav() {
   const { pathname } = useLocation()
@@ -16,22 +17,22 @@ export function TopNav() {
     setIsMobileMenuOpen(false)
   }
   const link = (to: string, label: string) => (
-    <Link to={to} className={`px-3 py-2 rounded ${pathname===to? 'bg-blue-600 text-white':'text-blue-700 hover:bg-blue-100'}`}>{label}</Link>
+    <Link to={to} className={`px-3 py-2 rounded ${pathname===to? 'bg-blue-600 text-white':'text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800'}`}>{label}</Link>
   )
   const mobileLink = (to: string, label: string) => (
     <Link 
       to={to} 
       onClick={closeMobileMenu}
-      className={`block px-4 py-3 text-sm ${pathname===to? 'bg-blue-600 text-white':'text-gray-700 hover:bg-blue-100'}`}
+      className={`block px-4 py-3 text-sm ${pathname===to? 'bg-blue-600 text-white':'text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-800'}`}
     >
       {label}
     </Link>
   )
   return (
-    <nav className="w-full border-b bg-white">
+    <nav className="w-full border-b bg-white dark:bg-gray-800 dark:border-gray-700">
       <div className="mx-auto max-w-7xl flex items-center justify-between p-3">
         <div className="flex items-center gap-2">
-          <span className="font-bold text-xl text-blue-700">FinTrack</span>
+          <span className="font-bold text-xl text-blue-700 dark:text-blue-300">FinTrack</span>
         </div>
         
         {/* Desktop Navigation */}
@@ -43,9 +44,12 @@ export function TopNav() {
             {link('/monthly-summary', 'Monthly Summary')}
             {link('/reports', 'Reports')}
             {link('/settings', 'Settings')}
+            <div className="flex items-center">
+              <ThemeToggle />
+            </div>
             <button 
               onClick={toggleNumbers} 
-              className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300"
+              className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600"
               title={hideNumbers ? "Show numbers" : "Hide numbers"}
             >
               {hideNumbers ? (
@@ -59,7 +63,7 @@ export function TopNav() {
                 </svg>
               )}
             </button>
-            <button onClick={logout} className="ml-2 px-3 py-2 rounded bg-gray-200 hover:bg-gray-300">Logout</button>
+            <button onClick={logout} className="ml-2 px-3 py-2 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600">Logout</button>
           </>)}
           {!token && (<>
             {link('/login', 'Login')}
@@ -71,7 +75,7 @@ export function TopNav() {
         <div className="md:hidden">
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-2 rounded-md text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="p-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             aria-label="Toggle mobile menu"
           >
             {isMobileMenuOpen ? (
@@ -89,7 +93,7 @@ export function TopNav() {
 
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden bg-white border-t">
+        <div className="md:hidden bg-white dark:bg-gray-800 border-t dark:border-t-gray-700">
           <div className="px-2 pt-2 pb-3 space-y-1">
             {token && (<>
               {mobileLink('/', 'Dashboard')}
@@ -99,9 +103,12 @@ export function TopNav() {
               {mobileLink('/reports', 'Reports')}
               {mobileLink('/settings', 'Settings')}
               <div className="border-t border-gray-200 my-2"></div>
+              <div className="px-4 py-2">
+                <ThemeToggle />
+              </div>
               <button 
                 onClick={() => { toggleNumbers(); closeMobileMenu(); }}
-                className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-blue-100"
+                className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-700/20"
               >
                 <span className="mr-2">
                   {hideNumbers ? (
@@ -119,7 +126,7 @@ export function TopNav() {
               </button>
               <button 
                 onClick={() => { logout(); closeMobileMenu(); }}
-                className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-red-100"
+                className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-700/10"
               >
                 Logout
               </button>

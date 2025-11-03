@@ -1,0 +1,60 @@
+services:
+  #################
+  # Database
+  #################
+  db:
+    image: postgres:15-alpine
+    container_name: fintrack-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: fintrack
+    volumes:
+      - fintrack-data:/var/lib/postgresql/data
+    healthcheck:
+      # Test per controllare che postgres sia pronto prima di avviare l'app
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fintrack"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  #################
+  # Backend (Server)
+  #################
+  app:
+    container_name: fintrack-app  
+    build: 
+      context: .
+      dockerfile: ./server/Dockerfile
+    ports:
+      - "4000:4000"      
+    env_file:
+      - .env
+    volumes:
+      - ./server:/app/server
+      - /app/server/node_modules
+    command: sh -c "npx prisma migrate deploy && npm run dev"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  #################
+  # Frontend (Client)
+  #################
+  client:
+    container_name: fintrack-client
+    build:
+      context: .
+      dockerfile: client/Dockerfile 
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client:/app/client
+      - /app/client/node_modules
+    depends_on:
+      - app 
+
+volumes:
+  fintrack-data:

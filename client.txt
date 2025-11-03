@@ -1,0 +1,107 @@
+.
+├── client
+│   ├── Dockerfile
+│   ├── Dockerfile.prod
+│   ├── index.html
+│   ├── nginx.conf
+│   ├── node_modules
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── postcss.config.js
+│   ├── src
+│   │   ├── App.js
+│   │   ├── App.tsx
+│   │   ├── components
+│   │   │   ├── PrivacyNumber.js
+│   │   │   ├── PrivacyNumber.tsx
+│   │   │   ├── TopNav.js
+│   │   │   └── TopNav.tsx
+│   │   ├── contexts
+│   │   │   ├── PrivacyContext.js
+│   │   │   └── PrivacyContext.tsx
+│   │   ├── index.css
+│   │   ├── lib
+│   │   │   ├── api.js
+│   │   │   ├── api.ts
+│   │   │   ├── format.js
+│   │   │   └── format.ts
+│   │   ├── main.js
+│   │   ├── main.tsx
+│   │   ├── pages
+│   │   │   ├── AssetsPage.js
+│   │   │   ├── AssetsPage.tsx
+│   │   │   ├── BudgetsPage.js
+│   │   │   ├── BudgetsPage.tsx
+│   │   │   ├── DashboardPage.js
+│   │   │   ├── DashboardPage.tsx
+│   │   │   ├── LoginPage.js
+│   │   │   ├── LoginPage.tsx
+│   │   │   ├── MonthlySummaryPage.js
+│   │   │   ├── MonthlySummaryPage.tsx
+│   │   │   ├── RegisterPage.js
+│   │   │   ├── RegisterPage.tsx
+│   │   │   ├── ReportsPage.js
+│   │   │   ├── ReportsPage.tsx
+│   │   │   ├── SettingsPage.js
+│   │   │   ├── SettingsPage.tsx
+│   │   │   ├── TransactionsPage.js
+│   │   │   └── TransactionsPage.tsx
+│   │   └── types
+│   │       ├── index.js
+│   │       └── index.ts
+│   ├── tailwind.config.js
+│   ├── tsconfig.json
+│   ├── tsconfig.tsbuildinfo
+│   └── vite.config.ts
+├── client.txt
+├── docker-compose.dev.yml
+├── docker-compose.prod.yml
+├── readme.md
+└── server
+    ├── Dockerfile
+    ├── Dockerfile.prod
+    ├── generateShortcutToken.cjs
+    ├── node_modules
+    ├── package-lock.json
+    ├── package.json
+    ├── prisma
+    │   ├── migrations
+    │   │   ├── 20251016200950_init
+    │   │   │   └── migration.sql
+    │   │   ├── 20251016212541_asset_groups
+    │   │   │   └── migration.sql
+    │   │   ├── 20251016215507_asset_item_nesting
+    │   │   │   └── migration.sql
+    │   │   ├── 20251016233311_asset_item_hidden
+    │   │   │   └── migration.sql
+    │   │   ├── 20251017103332_add_depreciation_amount
+    │   │   │   └── migration.sql
+    │   │   └── migration_lock.toml
+    │   ├── schema.prisma
+    │   └── seed.ts
+    ├── src
+    │   ├── config
+    │   │   └── env.ts
+    │   ├── db
+    │   │   └── prisma.ts
+    │   ├── index.ts
+    │   ├── middleware
+    │   │   └── auth.ts
+    │   ├── routes
+    │   │   ├── accounts.ts
+    │   │   ├── assets.ts
+    │   │   ├── auth.ts
+    │   │   ├── budgets.ts
+    │   │   ├── categories.ts
+    │   │   ├── dashboard.ts
+    │   │   ├── index.ts
+    │   │   ├── reports.ts
+    │   │   ├── settings.ts
+    │   │   └── transactions.ts
+    │   ├── services
+    │   │   └── marketData.ts
+    │   └── utils
+    │       └── pagination.ts
+    └── tsconfig.json
+
+25 directories, 80 files

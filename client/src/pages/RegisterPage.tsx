@@ -1,17 +1,25 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { api } from '@/lib/api'
+import { api } from '../lib/api'
 
 export function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null) // Added state for password validation error
   const navigate = useNavigate()
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setPasswordError(null) // Reset password error
+
+    if (password.length < 8) {
+      setPasswordError('Password must be at least 8 characters long')
+      return
+    }
+
     setLoading(true)
     try {
       await api.register(email, password)
@@ -25,17 +33,18 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="max-w-sm mx-auto mt-10 p-6 bg-white rounded shadow">
-      <h1 className="text-xl font-semibold mb-4">Register</h1>
+    <div className="max-w-sm mx-auto mt-10 p-6 bg-white dark:bg-gray-800 rounded shadow">
+      <h1 className="text-xl font-semibold mb-4 dark:text-gray-100">Register</h1>
       <form onSubmit={onSubmit} className="space-y-3">
         <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full border p-2 rounded" />
         <input type="password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" className="w-full border p-2 rounded" />
+        {passwordError && <div className="text-red-600 text-sm">{passwordError}</div>} {/* Display password error */}
         {error && <div className="text-red-600 text-sm">{error}</div>}
         <button type="submit" disabled={loading} className="w-full bg-blue-600 disabled:bg-blue-400 text-white py-2 rounded">
           {loading ? 'Creating...' : 'Create account'}
         </button>
       </form>
-      <div className="text-sm mt-3">Have an account? <Link to="/login" className="text-blue-700">Login</Link></div>
+      <div className="text-sm mt-3">Have an account? <Link to="/login" className="text-blue-700 dark:text-blue-300">Login</Link></div>
     </div>
   )
 }
