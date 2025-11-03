@@ -61,8 +61,11 @@ export function AssetsPage() {
   }
 
   function monthKey(d: Date) {
-    const yyyy = d.getFullYear()
-    const mm = String(d.getMonth()+1).padStart(2,'0')
+    // Use UTC getters to avoid timezone shifts when converting stored ISO dates
+    // into month keys. This prevents off-by-one-month issues when the server
+    // stores dates in UTC and the client is in a different timezone.
+    const yyyy = d.getUTCFullYear()
+    const mm = String(d.getUTCMonth()+1).padStart(2,'0')
     return `${yyyy}-${mm}-01`
   }
 
@@ -130,10 +133,16 @@ export function AssetsPage() {
     if (!editing) return
     const { itemId, month } = editing
     const body = { month, value: Number(editValue||0) }
-    await fetch(`/api/asset-items/${itemId}/valuations`, { method:'POST', headers:{ 'Content-Type':'application/json', ...tokenHeader() }, body: JSON.stringify(body) })
-    setEditing(null)
-    setEditValue('')
-    refresh()
+    try {
+      await fetch(`/api/asset-items/${itemId}/valuations`, { method:'POST', headers:{ 'Content-Type':'application/json', ...tokenHeader() }, body: JSON.stringify(body) })
+      // Wait for the refreshed group/valuation data so the UI reflects the change
+      await refresh()
+    } catch (err) {
+      console.error('Error saving valuation:', err)
+    } finally {
+      setEditing(null)
+      setEditValue('')
+    }
   }
 
   async function addPrevMonth() {
