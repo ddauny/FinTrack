@@ -268,7 +268,7 @@ export function AssetsPage() {
         <table className="min-w-full text-sm">
           <thead className="sticky top-0" style={{ zIndex: 90 }}>
             <tr className="border-b bg-slate-700 dark:bg-slate-900 text-white">
-              <th className="p-2 sticky top-0 left-0 text-left bg-slate-700 dark:bg-slate-900 text-white" style={{ zIndex: 100, minWidth: '340px', width: '380px' }}>
+              <th className="p-2 sticky top-0 left-0 text-left bg-slate-700 dark:bg-slate-900 text-white" style={{ zIndex: 300, minWidth: '340px', width: '380px' }}>
                 <span className="font-semibold" style={{ fontSize: '1.08rem' }}>Asset</span>
               </th>
               {months.map((m, i)=> (
@@ -305,7 +305,7 @@ export function AssetsPage() {
               const rowBg = row.isGroup ? '' : (idx % 2 === 0 ? 'bg-white dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-700/50')
               return (
                 <tr key={idx} className={`border-b ${rowBg}`}>
-                  <td className={`p-2 sticky left-0 border-r border-gray-200 dark:border-gray-700`} style={{ zIndex: 80, paddingLeft: `${row.depth*26}px`, fontSize: row.isGroup? '0.95rem' : (row.depth>1? '0.85rem':'0.9rem') , minWidth: '340px', width: '380px', textAlign: 'center' }}>
+                  <td className={`p-2 sticky left-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800`} style={{ zIndex: 250, paddingLeft: `${row.depth*26}px`, fontSize: row.isGroup? '0.95rem' : (row.depth>1? '0.85rem':'0.9rem') , minWidth: '340px', width: '380px', textAlign: 'center' }}>
                     {row.isGroup ? (
                       // group header (unchange)
                       <span className="bg-slate-100 dark:bg-slate-900 font-semibold text-slate-900 dark:text-slate-100 p-1 rounded">{row.name}</span>
@@ -377,7 +377,7 @@ export function AssetsPage() {
           <tfoot className="sticky bottom-0" style={{ zIndex: 90 }}>
             {/* Riga Total Net Worth (invariata) */}
             <tr className="bg-slate-200 dark:bg-slate-800">
-              <td className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-800" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Total Net Worth</td>
+              <td className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-800" style={{ zIndex: 300, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Total Net Worth</td>
               {months.map(m=>{
                 const v = groups.reduce((sum, g)=>{
                   const roots = (g.items||[]).filter(it=> !it.parentItemId && !it.hidden)
@@ -390,7 +390,7 @@ export function AssetsPage() {
 
             {/* Riga Growth vs previous month (CAMBIATO COLORE VERDE) */}
             <tr className="bg-slate-100 dark:bg-slate-900"> {/* <-- Verde più acceso */}
-              <td className="p-2 sticky left-0 bg-slate-50 dark:bg-slate-800" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth vs previous month</td>
+              <td className="p-2 sticky left-0 bg-slate-50 dark:bg-slate-800" style={{ zIndex: 300, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth vs previous month</td>
               {months.map((m, i)=>{
                 const curr = groups.reduce((sum, g)=>{
                   const roots = (g.items||[]).filter(it=> !it.parentItemId && !it.hidden)
@@ -410,7 +410,7 @@ export function AssetsPage() {
 
             {/* Riga Growth percentage (CAMBIATO CALCOLO COLORE) */}
             <tr className="bg-transparent">
-              <td className="p-2 sticky left-0 bg-transparent" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth percentage</td>
+              <td className="p-2 sticky left-0 bg-slate-50 dark:bg-slate-800" style={{ zIndex: 300, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth percentage</td>
               {months.map((m, i)=>{
                 const curr = groups.reduce((sum, g)=>{
                   const roots = (g.items||[]).filter(it=> !it.parentItemId && !it.hidden)
