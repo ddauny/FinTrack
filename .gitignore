@@ -36,4 +36,4 @@ nginx.conf
 nginx.conf.template
 script-linux.md
 
-backup.sql
+/backups/
