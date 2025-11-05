@@ -14,8 +14,8 @@ export default defineConfig({
     host: true,
     port: 5173,
     proxy: {
-      '/api': 'http://app:4000',
-      '/health': 'http://app:4000'
+      '/api': 'http://app-dev:4000',
+      '/health': 'http://app-dev:4000'
     },
     hmr: {
       host: 'localhost'

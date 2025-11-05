@@ -422,7 +422,7 @@ export function TransactionsPage() {
                   category: t.category?.name || (t.categoryId ?? ''),
                   notes: t.notes || ''
                 }));
-                const csv = [headers.join(',')].concat(rows.map(r => headers.map(h => escapeCsv(r[h])).join(','))).join('\n');
+                const csv = [headers.join(',')].concat(rows.map((r: any) => headers.map(h => escapeCsv(r[h])).join(','))).join('\n');
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');

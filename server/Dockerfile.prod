@@ -1,0 +1,31 @@
+FROM node:18-slim
+WORKDIR /app/server
+
+# Installa openssl, necessario per Prisma
+RUN apt-get update -y && apt-get install -y openssl
+
+# Copia i file di dipendenze e lo schema prisma
+# NOTA: Il context del build è la root (.), quindi i percorsi sono "server/..."
+COPY server/package*.json ./
+COPY server/prisma ./prisma/
+
+# Installa TUTTE le dipendenze (incl. dev)
+# Necessario perché il comando 'npx prisma ...' viene eseguito all'avvio
+RUN npm install
+
+# Copia TUTTO il resto del codice sorgente del server
+# (sovrascriverà package.json ma va bene, le dipendenze sono già installate)
+COPY server/ ./
+
+# Genera il client Prisma
+RUN npx prisma generate
+
+# (Opzionale) Se usi TypeScript, inserisci qui il comando di build
+RUN npm run build
+
+# Esponi la porta (buona pratica)
+EXPOSE 4000
+
+# Il CMD viene sovrascritto dal 'command:' nel tuo docker-compose.yml
+# Ma è buona norma averlo per completezza
+CMD ["npm", "run", "start"]
