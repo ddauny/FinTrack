@@ -29,6 +29,7 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
   const startDate = (req.query as any).startDate;
   const endDate = (req.query as any).endDate;
   const searchQuery = (req.query as any).search;
+  const txnType = (req.query as any).type;
   
   const where: any = { userId: req.userId! };
   if (filterByCategory) where.categoryId = filterByCategory;
@@ -59,6 +60,12 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
       name: categoryName
     };
     console.log('Filtering by category name:', categoryName);
+  }
+
+  // Handle transaction type filtering (Expense/Income)
+  if (txnType && (txnType === 'Expense' || txnType === 'Income')) {
+    where.type = txnType;
+    console.log('Filtering by type:', txnType);
   }
 
   // Handle search query - search in category name, amount, and notes

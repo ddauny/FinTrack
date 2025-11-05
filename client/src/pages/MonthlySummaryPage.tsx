@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
@@ -10,12 +11,14 @@ import dayjs from 'dayjs'
 export function MonthlySummaryPage() {
   const { hideNumbers } = usePrivacy()
   const navigate = useNavigate()
+  const location = useLocation()
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
   const [monthlyData, setMonthlyData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
 
   // Load monthly data when month changes
   useEffect(() => {
@@ -86,6 +89,31 @@ export function MonthlySummaryPage() {
 
     loadMonthlyData()
   }, [selectedMonth])
+
+  // If `month` is provided as query param (YYYY-MM), set selectedMonth accordingly
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search)
+      const m = params.get('month')
+      if (m) {
+        // Accept YYYY-MM or a full ISO date (YYYY-MM-DD / YYYY-MM-DDTHH:MM:SSZ)
+        if (/^\d{4}-\d{2}$/.test(m)) {
+          setSelectedMonth(m)
+        } else {
+          try {
+            const normalized = dayjs(m).format('YYYY-MM')
+            if (/^\d{4}-\d{2}$/.test(normalized)) setSelectedMonth(normalized)
+          } catch (err) {
+            // ignore invalid format
+          }
+        }
+      }
+      const c = params.get('category')
+      if (c) setSelectedCategory(c)
+    } catch (err) {
+      // ignore
+    }
+  }, [location.search])
 
   const getMonthRange = (monthStr: string) => {
     const date = dayjs(monthStr) // Parse 'YYYY-MM'
@@ -206,6 +234,14 @@ export function MonthlySummaryPage() {
 
   return (
     <div className="space-y-6">
+      {selectedCategory && (
+        <div className="bg-blue-50 dark:bg-blue-900/40 border border-blue-100 dark:border-blue-800 rounded p-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-blue-800 dark:text-blue-100">Viewing category: <strong>{selectedCategory}</strong></div>
+            <button className="text-sm text-blue-600 dark:text-blue-300 underline" onClick={() => setSelectedCategory(null)}>Clear</button>
+          </div>
+        </div>
+      )}
       {/* Month Selector */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
         <div className="flex items-center gap-4">

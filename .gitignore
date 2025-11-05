@@ -40,3 +40,4 @@ Dockerfile.prod
 script-linux.md
 
 backup.sql
+server/gen.cjs

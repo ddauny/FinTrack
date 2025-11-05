@@ -119,7 +119,8 @@ export function ReportsPage() {
     tooltip: { 
       trigger: 'item',
       formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`,
-      backgroundColor: isDark ? 'rgba(15,23,42,0.9)' : undefined,
+      // Make tooltip background dynamic per theme for readability
+      backgroundColor: isDark ? 'rgba(15,23,42,0.9)' : 'rgba(255,255,255,0.95)',
       textStyle: { color: chartTextColor }
     },
     color: palette,
@@ -135,6 +136,20 @@ export function ReportsPage() {
         color: (params: any)=> palette[params.dataIndex % palette.length]
       }
     }]
+  }
+
+  // Handle click on spending pie: navigate to Transactions page with date range and category
+  const handleSpendingClick = (params: any) => {
+    if (!params) return
+    const categoryName = params.name || (params.data && params.data.name)
+    if (!categoryName) return
+    // Use the selected start and end month/year range to navigate to transactions
+    const s = dayjs().year(startYear).month(startMonth).startOf('month')
+    const e = dayjs().year(endYear).month(endMonth).endOf('month')
+    const startStr = s.format('YYYY-MM-DD')
+    const endStr = e.format('YYYY-MM-DD')
+    const [from, to] = (s.isBefore(e) || s.isSame(e)) ? [startStr, endStr] : [endStr, startStr]
+    navigate(`/transactions?startDate=${encodeURIComponent(from)}&endDate=${encodeURIComponent(to)}&category=${encodeURIComponent(categoryName)}&type=Expense`)
   }
 
   const trendsOption = {
@@ -209,7 +224,38 @@ export function ReportsPage() {
         const endStr = date.endOf('month').format('YYYY-MM-DD')
         
         // Navigate to transactions page with date filters using React Router
-        navigate(`/transactions?startDate=${startStr}&endDate=${endStr}`);
+        navigate(`/transactions?startDate=${startStr}&endDate=${endStr}&type=Expense`);
+      }
+    }
+  }
+
+  // Handle click on cashflow chart: navigate to Monthly Summary for clicked month
+  const handleCashflowClick = (params: any) => {
+    if (params && params.dataIndex != null && cashflow && cashflow.length > params.dataIndex) {
+      const clicked = cashflow[params.dataIndex]
+      if (clicked && clicked.period) {
+        // clicked.period is expected to be 'YYYY-MM'
+        navigate(`/monthly-summary?month=${encodeURIComponent(clicked.period)}`)
+      }
+    }
+  }
+
+  // Handle click on trends chart: navigate to Monthly Summary for clicked month
+  const handleTrendsClick = (params: any) => {
+    if (params && params.dataIndex != null && trends && trends.length > params.dataIndex) {
+      const clicked = trends[params.dataIndex]
+      if (clicked && clicked.period) {
+        navigate(`/monthly-summary?month=${encodeURIComponent(clicked.period)}`)
+      }
+    }
+  }
+
+  // Handle click on net worth trend chart: navigate to Monthly Summary for clicked month
+  const handleNetWorthClick = (params: any) => {
+    if (params && params.dataIndex != null && netWorthTrend && netWorthTrend.length > params.dataIndex) {
+      const clicked = netWorthTrend[params.dataIndex]
+      if (clicked && clicked.period) {
+        navigate(`/monthly-summary?month=${encodeURIComponent(clicked.period)}`)
       }
     }
   }
@@ -217,7 +263,8 @@ export function ReportsPage() {
   // Category Analysis Radar Chart
   const categoryAnalysisOption = {
     textStyle: { color: chartTextColor },
-    tooltip: { trigger: 'item', backgroundColor: isDark ? 'rgba(15,23,42,0.9)' : undefined, textStyle: { color: chartTextColor } },
+    // Make tooltip background dynamic per theme so the detail window is readable
+    tooltip: { trigger: 'item', backgroundColor: isDark ? 'rgba(15,23,42,0.9)' : 'rgba(255,255,255,0.95)', textStyle: { color: chartTextColor } },
     radar: {
       indicator: (categoryAnalysis && categoryAnalysis.length > 0) ? categoryAnalysis.map(c => ({ name: c.category, max: c.maxValue || 1 })) : [{ name: 'No Data', max: 1 }],
       radius: '70%',
@@ -310,7 +357,7 @@ export function ReportsPage() {
           <div className="font-semibold text-gray-900 dark:text-gray-100">Cash Flow</div>
           <button className="text-sm text-blue-700 dark:text-blue-300 whitespace-nowrap" onClick={()=>exportCsv('/api/reports/cashflow')}>Export CSV</button>
         </div>
-        <ReactECharts option={cashflowOption} style={{height:300}} />
+  <ReactECharts option={cashflowOption} style={{height:300}} onEvents={{ click: handleCashflowClick }} />
       </div>
   <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded shadow">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
@@ -351,14 +398,14 @@ export function ReportsPage() {
             exportCsv(`/api/reports/spending-by-category?start=${from}&end=${to}`)
           }}>Export CSV</button>
         </div>
-        <ReactECharts option={spendingOption} style={{height:300}} />
+  <ReactECharts option={spendingOption} style={{height:300}} onEvents={{ click: handleSpendingClick }} />
       </div>
   <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
         <div className="flex justify-between items-center mb-2">
           <div className="font-semibold text-gray-900 dark:text-gray-100">Income vs Expense Trend</div>
           <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/trends')}>Export CSV</button>
         </div>
-        <ReactECharts option={trendsOption} style={{height:300}} />
+  <ReactECharts option={trendsOption} style={{height:300}} onEvents={{ click: handleTrendsClick }} />
       </div>
       
       {/* New Charts */}
@@ -395,7 +442,7 @@ export function ReportsPage() {
                 <div className="font-semibold text-gray-900 dark:text-gray-100">Net Worth Trend</div>
                 <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/net-worth-trend')}>Export CSV</button>
               </div>
-              <ReactECharts option={netWorthTrendOption} style={{height:300}} />
+              <ReactECharts option={netWorthTrendOption} style={{height:300}} onEvents={{ click: handleNetWorthClick }} />
             </div>
           )}
         </div>

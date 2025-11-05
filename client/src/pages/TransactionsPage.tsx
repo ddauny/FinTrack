@@ -16,6 +16,9 @@ export function TransactionsPage() {
     }
   }, [items])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const initialAutoRefreshSkipped = useRef(false)
+  const initialLoadDone = useRef(false)
+  const initialFetchStarted = useRef(false)
   const [categories, setCategories] = useState<any[]>([])
   const [form, setForm] = useState<any>({ date: new Date().toISOString().slice(0,10), amount: 0, accountId: '', categoryId: '', notes: '' })
   const [categoryQuery, setCategoryQuery] = useState('')
@@ -32,6 +35,7 @@ export function TransactionsPage() {
   const [loading, setLoading] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [txnType, setTxnType] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const pageSize = 20
@@ -39,15 +43,39 @@ export function TransactionsPage() {
   async function fetchPage(p: number, mode: 'replace'|'append' = 'replace') {
     if (loading) return
     setLoading(true)
-    
     let query = `?page=${p}&limit=${pageSize}&sortBy=${sortBy}&order=${order}`
-    if (startDate) query += `&startDate=${startDate}`
-    if (endDate) query += `&endDate=${endDate}`
-    if (selectedCategory) {
+
+    // If initial navigation provided URL params and initial load hasn't
+    // completed yet, prefer URL params to build the query so any concurrent
+    // fetches use the intended filters.
+    if (!initialLoadDone.current) {
+      try {
+        const urlParams = new URLSearchParams(window.location.search)
+        const urlStartDate = urlParams.get('startDate')
+        const urlEndDate = urlParams.get('endDate')
+        const urlCategory = urlParams.get('category')
+        const urlType = urlParams.get('type')
+        if (urlStartDate) query += `&startDate=${urlStartDate}`
+        if (urlEndDate) query += `&endDate=${urlEndDate}`
+        if (urlCategory) query += `&category=${encodeURIComponent(urlCategory)}`
+        if (urlType) query += `&type=${encodeURIComponent(urlType)}`
+      } catch (err) {
+        // ignore and fall back to state
+      }
+    }
+
+    // Fallback / normal behavior: include current state filters if provided
+    if (startDate && !query.includes('&startDate=')) query += `&startDate=${startDate}`
+    if (endDate && !query.includes('&endDate=')) query += `&endDate=${endDate}`
+    if (selectedCategory && !query.includes('&category=')) {
       query += `&category=${encodeURIComponent(selectedCategory)}`
       console.log('Frontend filtering by category:', selectedCategory)
     }
-    if (searchQuery.trim()) {
+    if (txnType && !query.includes('&type=')) {
+      query += `&type=${encodeURIComponent(txnType)}`
+      console.log('Frontend filtering by type:', txnType)
+    }
+    if (searchQuery.trim() && !query.includes('&search=')) {
       query += `&search=${encodeURIComponent(searchQuery.trim())}`
       console.log('Frontend filtering by search:', searchQuery.trim())
     }
@@ -60,16 +88,32 @@ export function TransactionsPage() {
       query,
       items: res.items
     })
-    console.log('Setting items to:', res.items)
+    // Defensive client-side filter: if txnType (or type in URL) is set, ensure we only
+    // display transactions matching that type. This guards against server-side misses.
+    let receivedItems = res.items || []
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlType = urlParams.get('type')
+    const effectiveType = txnType || urlType || ''
+    if (effectiveType) {
+      const beforeCount = receivedItems.length
+      receivedItems = receivedItems.filter((it: any) => {
+        if (!it) return false
+        if (it.type) return it.type === effectiveType
+        if (it.category && it.category.type) return it.category.type === effectiveType
+        return false
+      })
+      if (receivedItems.length !== beforeCount) console.log(`Defensive filtered out ${beforeCount - receivedItems.length} items not matching type=${effectiveType}`)
+    }
+    console.log('Setting items to:', receivedItems)
     setTotal(res.total || 0)
     if (mode === 'replace') {
-      setItems(res.items || [])
-      console.log('Items set to:', res.items)
+      setItems(receivedItems)
+      console.log('Items set to:', receivedItems)
     } else {
       // Prevent duplicates by checking if item already exists
       setItems(prev => {
         const existingIds = new Set(prev.map((item: any) => item.id))
-        const newItems = (res.items || []).filter((item: any) => !existingIds.has(item.id))
+        const newItems = (receivedItems || []).filter((item: any) => !existingIds.has(item.id))
         return [...prev, ...newItems]
       })
     }
@@ -80,10 +124,11 @@ export function TransactionsPage() {
   
   // Handle URL parameters for date and category filtering - MUST be first
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlStartDate = urlParams.get('startDate');
-    const urlEndDate = urlParams.get('endDate');
-    const urlCategory = urlParams.get('category');
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlStartDate = urlParams.get('startDate');
+  const urlEndDate = urlParams.get('endDate');
+  const urlCategory = urlParams.get('category');
+  const urlType = urlParams.get('type');
     
     console.log('Reading URL parameters:', { urlStartDate, urlEndDate, urlCategory });
     
@@ -94,18 +139,72 @@ export function TransactionsPage() {
     if (urlCategory) {
       setSelectedCategory(urlCategory);
     }
+    if (urlType) {
+      setTxnType(urlType)
+    }
   }, []);
   
-  // Load data and categories after URL parameters are set
+  // Immediately fetch using URL params (avoid race with state updates)
   useEffect(() => {
-    // Small delay to ensure URL parameters are processed
-    const timer = setTimeout(() => {
-      console.log('Loading data with filters:', { startDate, endDate, selectedCategory });
-      refresh();
-    }, 100);
-    
-    return () => clearTimeout(timer);
-  }, []);
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlStartDate = urlParams.get('startDate');
+    const urlEndDate = urlParams.get('endDate');
+    const urlCategory = urlParams.get('category');
+    const urlType = urlParams.get('type');
+
+    const doFetch = async () => {
+      // Prevent double-starting the initial fetch (React StrictMode/dev may mount effects twice)
+      if (initialFetchStarted.current) return
+      initialFetchStarted.current = true
+      // Mark we don't want the auto-refresh effect to run while initial fetch is in-flight
+      initialAutoRefreshSkipped.current = true
+      try {
+        setLoading(true)
+  // Reflect URL params into component state so later updates use the same filters
+  if (urlStartDate) setStartDate(urlStartDate)
+  if (urlEndDate) setEndDate(urlEndDate)
+  if (urlCategory) setSelectedCategory(urlCategory)
+  if (urlType) setTxnType(urlType)
+
+        let query = `?page=1&limit=${pageSize}&sortBy=${sortBy}&order=${order}`
+        if (urlStartDate) query += `&startDate=${urlStartDate}`
+        if (urlEndDate) query += `&endDate=${urlEndDate}`
+  if (urlCategory) query += `&category=${encodeURIComponent(urlCategory)}`
+  if (urlType) query += `&type=${encodeURIComponent(urlType)}`
+        if (searchQuery.trim()) query += `&search=${encodeURIComponent(searchQuery.trim())}`
+        console.log('Initial URL-driven fetch with query:', query)
+        const res: any = await api.transactions.list(query)
+        // Apply the same defensive filtering we use in fetchPage so initial
+        // URL-driven responses are consistent (avoid showing incomes when
+        // type=Expense is requested).
+        let receivedItems = res.items || []
+        const urlTypeLocal = urlType
+        const effectiveTypeLocal = urlTypeLocal || ''
+        if (effectiveTypeLocal) {
+          const beforeCount = receivedItems.length
+          receivedItems = receivedItems.filter((it: any) => {
+            if (!it) return false
+            if (it.type) return it.type === effectiveTypeLocal
+            if (it.category && it.category.type) return it.category.type === effectiveTypeLocal
+            return false
+          })
+          if (receivedItems.length !== beforeCount) console.log(`Defensive filtered out ${beforeCount - receivedItems.length} items not matching type=${effectiveTypeLocal}`)
+        }
+        setItems(receivedItems)
+        setTotal(res.total || 0)
+        setPage(1)
+        // Mark initial load done so subsequent fetches use component state
+        initialLoadDone.current = true
+      } catch (err) {
+        console.error('Error fetching transactions from URL params:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    // Only run this once on mount to handle navigation from other pages
+    doFetch()
+  }, [])
   
   useEffect(() => {
     Promise.all([api.accounts.list(), api.categories.list()]).then(([accs, cats])=>{
@@ -118,11 +217,17 @@ export function TransactionsPage() {
 
   // re-fetch on sort change or filter change
   useEffect(()=>{ 
+    // If the initial URL-driven fetch hasn't completed yet, don't trigger
+    // automatic refreshes — they would race and may overwrite the URL-driven results.
+    if (!initialLoadDone.current) {
+      return
+    }
+
     setPage(1); // Reset to first page when filters change
     setItems([]); // Clear existing items to prevent duplicates
     // Force refresh with new parameters
     setTimeout(() => refresh(), 50); // Small delay to ensure state is updated
-  }, [sortBy, order, startDate, endDate, selectedCategory, searchQuery])
+  }, [sortBy, order, startDate, endDate, selectedCategory, searchQuery, txnType])
 
   // infinite scroll on window
   useEffect(()=>{
@@ -341,15 +446,13 @@ export function TransactionsPage() {
           </div>
           
           {/* Filter Indicator */}
-          {(startDate || endDate || selectedCategory || searchQuery) && (
+          {(startDate || endDate || selectedCategory || searchQuery || txnType) && (
             <div className="flex items-center gap-2">
               <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg">
-                {selectedCategory ? `Category: ${selectedCategory}` : 
-                 searchQuery ? `Search: "${searchQuery}"` : 
-                 'Date filtered'}
+                {txnType ? `Type: ${txnType}` : (selectedCategory ? `Category: ${selectedCategory}` : (searchQuery ? `Search: "${searchQuery}"` : 'Date filtered'))}
               </div>
               <button 
-                onClick={()=>{setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery('')}} 
+                onClick={()=>{setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery(''); setTxnType('')}} 
                 className="text-xs text-red-600 hover:text-red-800"
               >
                 ×
