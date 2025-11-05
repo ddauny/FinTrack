@@ -18,6 +18,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - default-dev
 
   #################
   # Backend (Sviluppo)
@@ -38,6 +40,8 @@ services:
     depends_on:
       db-dev:
         condition: service_healthy
+    networks:
+      - default-dev
 
   #################
   # Frontend (Sviluppo)
@@ -59,7 +63,7 @@ services:
       - BACKEND_SERVICE_NAME=app-dev
     networks:
       - web-proxy
-      - default
+      - default-dev
 
 volumes:
   fintrack-dev-data:
@@ -68,3 +72,5 @@ volumes:
 networks:
   web-proxy:
     external: true
+  default-dev:
+    driver: bridge
