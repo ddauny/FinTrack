@@ -109,7 +109,6 @@ assetsRouter.get("/market-data", requireAuth, async (_req: AuthRequest, res) => 
 const groupSchema = z.object({ name: z.string().min(1) });
 assetsRouter.get("/asset-groups", requireAuth, async (req: AuthRequest, res) => {
   const groups = await prisma.assetGroup.findMany({ where: { userId: req.userId! }, include: { items: { include: { valuations: true } } } });
-  // No filtering here; frontend controls visibility but needs full data to show hidden gap indicators
   res.json(groups);
 });
 assetsRouter.post("/asset-groups", requireAuth, async (req: AuthRequest, res) => {
@@ -134,15 +133,21 @@ assetsRouter.delete("/asset-groups/:id", requireAuth, async (req: AuthRequest, r
   res.status(204).end();
 });
 
-const itemSchema = z.object({ 
+// --- MODIFICA CHIAVE: Schemi separati per Creazione e Aggiornamento ---
+const itemCreateSchema = z.object({ 
   name: z.string().min(1), 
   description: z.string().optional(), 
   hidden: z.boolean().optional(),
   depreciationAmount: z.number().optional()
 });
+// Lo schema di aggiornamento ha tutti i campi opzionali
+const itemUpdateSchema = itemCreateSchema.partial();
+// --- FINE MODIFICA ---
+
 assetsRouter.post("/asset-groups/:groupId/items", requireAuth, async (req: AuthRequest, res) => {
   const groupId = Number(req.params.groupId);
-  const parse = itemSchema.safeParse(req.body);
+  // Usa lo schema di CREAZIONE
+  const parse = itemCreateSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const item = await prisma.assetItem.create({ 
     data: { 
@@ -154,15 +159,41 @@ assetsRouter.post("/asset-groups/:groupId/items", requireAuth, async (req: AuthR
   });
   res.status(201).json(item);
 });
+
+// --- MODIFICA CHIAVE: L'endpoint PUT ora usa il nuovo schema ---
 assetsRouter.put("/asset-items/:itemId", requireAuth, async (req: AuthRequest, res) => {
   const itemId = Number(req.params.itemId);
-  const parse = itemSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
-  const item = await prisma.assetItem.update({ where: { id: itemId }, data: parse.data });
+  
+  // Usa lo schema di AGGIORNAMENTO
+  const parse = itemUpdateSchema.safeParse(req.body);
+  if (!parse.success) {
+    // Se la validazione fallisce, rispondi 400
+    return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  }
+
+  // Controlla che l'utente sia proprietario di questo item
+  const itemToUpdate = await prisma.assetItem.findFirst({
+    where: { id: itemId, group: { userId: req.userId! } }
+  });
+  if (!itemToUpdate) return res.status(404).json({ error: "Not found or forbidden" });
+  
+  // Esegui l'aggiornamento
+  const item = await prisma.assetItem.update({ 
+    where: { id: itemId }, 
+    data: parse.data // parse.data contiene solo i campi inviati (es. { hidden: true })
+  });
   res.json(item);
 });
+// --- FINE MODIFICA ---
+
 assetsRouter.delete("/asset-items/:itemId", requireAuth, async (req: AuthRequest, res) => {
   const itemId = Number(req.params.itemId);
+  // Aggiunto controllo di sicurezza
+  const itemToDelete = await prisma.assetItem.findFirst({
+    where: { id: itemId, group: { userId: req.userId! } }
+  });
+  if (!itemToDelete) return res.status(404).json({ error: "Not found or forbidden" });
+
   await prisma.assetItem.delete({ where: { id: itemId } });
   res.status(204).end();
 });
@@ -214,25 +245,53 @@ assetsRouter.post("/asset-items/:itemId/expand", requireAuth, async (req: AuthRe
 // Create nested child under an item
 assetsRouter.post("/asset-items/:itemId/children", requireAuth, async (req: AuthRequest, res) => {
   const itemId = Number(req.params.itemId);
-  const parse = itemSchema.safeParse(req.body);
+  const parse = itemCreateSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const parent = await prisma.assetItem.findUnique({ where: { id: itemId } });
   if (!parent) return res.status(404).json({ error: "Parent not found" });
-  // Until DB migration makes groupId nullable, inherit parent's groupId to satisfy relation
   if (!parent.groupId) return res.status(400).json({ error: "Parent missing group" });
   const child = await prisma.assetItem.create({ data: { groupId: parent.groupId, parentItemId: itemId, name: parse.data.name, description: parse.data.description } });
   res.status(201).json(child);
 });
 
-const valuationSchema = z.object({ month: z.string(), value: z.number() });
+// --- MODIFICA CHIAVE: Lo schema Zod ora accetta 'null' per 'note' E 'formula' ---
+const valuationSchema = z.object({ 
+  month: z.string(), 
+  value: z.number(), 
+  formula: z.string().nullable().optional(), // Accetta string, null, o undefined
+  note: z.string().nullable().optional()  // Accetta string, null, o undefined
+});
+// --- FINE MODIFICA ---
+
 assetsRouter.post("/asset-items/:itemId/valuations", requireAuth, async (req: AuthRequest, res) => {
   const itemId = Number(req.params.itemId);
   const parse = valuationSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
+  
+  if (!parse.success) {
+    // Se la validazione fallisce, rispondi 400
+    return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  }
+
   const childCount = await prisma.assetItem.count({ where: { parentItemId: itemId } });
   if (childCount > 0) return res.status(400).json({ error: "Valuations are only allowed on leaf items" });
+  
   const month = dayjs(parse.data.month).startOf("month").toDate();
-  const v = await prisma.assetValuation.upsert({ where: { itemId_month: { itemId, month } }, update: { value: parse.data.value }, create: { itemId, month, value: parse.data.value } });
+  
+  const v = await prisma.assetValuation.upsert({
+    where: { itemId_month: { itemId, month } },
+    update: { 
+      value: parse.data.value, 
+      formula: parse.data.formula, 
+      note: parse.data.note 
+    },
+    create: { 
+      itemId, 
+      month, 
+      value: parse.data.value, 
+      formula: parse.data.formula, 
+      note: parse.data.note 
+    }
+  });
   res.status(201).json(v);
 });
 
@@ -257,18 +316,17 @@ assetsRouter.post("/asset-valuations/apply-depreciation", requireAuth, async (re
   previousMonth.setMonth(previousMonth.getMonth() - 1);
   const previousMonthKey = `${previousMonth.getFullYear()}-${String(previousMonth.getMonth() + 1).padStart(2, '0')}-01`;
   
-  // Get all leaf items (without children) with depreciation amounts
   const itemsWithDepreciation = await prisma.assetItem.findMany({
     where: {
       group: { userId: req.userId! },
       depreciationAmount: { not: null },
-      children: { none: {} } // Only items without children (leaf items)
+      children: { none: {} } 
     },
     include: {
       valuations: {
         where: { 
           month: { 
-            lt: monthDate // Get valuations before the new month
+            lt: monthDate 
           } 
         },
         orderBy: { month: 'desc' },
@@ -283,9 +341,8 @@ assetsRouter.post("/asset-valuations/apply-depreciation", requireAuth, async (re
     if (item.valuations.length > 0) {
       const previousValue = Number(item.valuations[0].value);
       const depreciationAmount = Number(item.depreciationAmount || 0);
-      const newValue = Math.max(0, previousValue - depreciationAmount); // Don't go below 0
+      const newValue = Math.max(0, previousValue - depreciationAmount); 
       
-      // Only create valuation if there's actually a previous value to depreciate from
       if (previousValue > 0) {
         valuationsToCreate.push({
           itemId: item.id,
@@ -307,3 +364,32 @@ assetsRouter.post("/asset-valuations/apply-depreciation", requireAuth, async (re
 });
 
 
+// --- MODIFICA: ENDPOINT EFFICIENTE per nascondere un intero gruppo ---
+assetsRouter.post("/asset-groups/:groupId/hide-all", requireAuth, async (req: AuthRequest, res) => {
+  const groupId = Number(req.params.groupId);
+  // Verifica che il gruppo appartenga all'utente
+  const group = await prisma.assetGroup.findFirst({
+    where: { id: groupId, userId: req.userId! }
+  });
+  if (!group) return res.status(404).json({ error: "Not found or forbidden" });
+
+  // Nascondi tutti gli item in quel gruppo con una sola query
+  const updated = await prisma.assetItem.updateMany({
+    where: { groupId: groupId },
+    data: { hidden: true }
+  });
+  res.json({ updated: updated.count });
+});
+
+// --- MODIFICA: ENDPOINT EFFICIENTE per mostrare tutte le righe ---
+assetsRouter.post("/asset-items/show-all", requireAuth, async (req: AuthRequest, res) => {
+  // Mostra tutte le righe nascoste per l'utente loggato
+  const updated = await prisma.assetItem.updateMany({
+    where: { 
+      group: { userId: req.userId! },
+      hidden: true 
+    },
+    data: { hidden: false }
+  });
+  res.json({ updated: updated.count });
+});

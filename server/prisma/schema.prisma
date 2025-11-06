@@ -136,6 +136,8 @@ model AssetValuation {
   itemId    Int
   month     DateTime  // use first day of month
   value     Decimal
+  formula   String?   // optional raw formula string (eg: =10+10)
+  note      String?   // optional note attached to this valuation cell
 
   item      AssetItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
   @@unique([itemId, month])

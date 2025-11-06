@@ -122,9 +122,10 @@ export function MonthlySummaryPage() {
     return [startDate, endDate]
   }
 
-  const formatMonthDisplay = (monthStr: string) => {
+const formatMonthDisplay = (monthStr: string) => {
     const [year, month] = monthStr.split('-').map(Number)
     const date = new Date(year, month - 1, 1)
+    // --- MODIFICA: Riportato a 'en-US' per l'inglese ---
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   }
 
@@ -150,6 +151,18 @@ export function MonthlySummaryPage() {
     }
   }
 
+  // --- MODIFICA: Aggiunte funzioni per i pulsanti ---
+  const handlePrevMonth = () => {
+    const newMonth = dayjs(selectedMonth).subtract(1, 'month').format('YYYY-MM');
+    setSelectedMonth(newMonth);
+  };
+  
+  const handleNextMonth = () => {
+    const newMonth = dayjs(selectedMonth).add(1, 'month').format('YYYY-MM');
+    setSelectedMonth(newMonth);
+  };
+  // --- FINE MODIFICA ---
+
   // Chart options
   const incomeChartOption = {
     tooltip: {
@@ -164,7 +177,7 @@ export function MonthlySummaryPage() {
         value: item.amount
       })),
       label: {
-        show: true,
+        show: false, // Nascosto per un look più pulito
         position: 'outside',
         fontSize: 11,
         formatter: (params: any) => {
@@ -173,7 +186,7 @@ export function MonthlySummaryPage() {
         }
       },
       labelLine: {
-        show: true,
+        show: false, // Nascosto per un look più pulito
         length: 10,
         length2: 20,
         smooth: true
@@ -200,7 +213,7 @@ export function MonthlySummaryPage() {
         value: item.amount
       })),
       label: {
-        show: true,
+        show: false, // Nascosto per un look più pulito
         position: 'outside',
         fontSize: 11,
         formatter: (params: any) => {
@@ -209,7 +222,7 @@ export function MonthlySummaryPage() {
         }
       },
       labelLine: {
-        show: true,
+        show: false, // Nascosto per un look più pulito
         length: 10,
         length2: 20,
         smooth: true
@@ -242,21 +255,42 @@ export function MonthlySummaryPage() {
           </div>
         </div>
       )}
-      {/* Month Selector */}
+
+      {/* === MODIFICA INIZIA QUI: Selettore Mese Riscritto === */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-        <div className="flex items-center gap-4">
-          <label className="text-sm font-medium text-slate-700 dark:text-gray-100">Select Month:</label>
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="border rounded px-3 py-2 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
-          />
-          <div className="text-lg font-semibold dark:text-gray-100">
+        <div className="flex items-center justify-center gap-4">
+          
+          {/* Pulsante Mese Precedente */}
+          <button 
+            onClick={handlePrevMonth}
+            className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+            aria-label="Previous month"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          
+          {/* Testo del Mese */}
+          <div className="text-xl font-semibold dark:text-gray-100 w-48 text-center">
             {formatMonthDisplay(selectedMonth)}
           </div>
+
+          {/* Pulsante Mese Successivo */}
+          <button 
+            onClick={handleNextMonth}
+            className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+            aria-label="Next month"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+
         </div>
       </div>
+      {/* === MODIFICA FINISCE QUI === */}
+
 
       {monthlyData && (
         <>
@@ -288,8 +322,9 @@ export function MonthlySummaryPage() {
             </div>
           </div>
 
-          {/* Income and Expenses Tables with Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Riorganizzato per impilare verticalmente */}
+          <div className="grid grid-cols-1 gap-6">
+            
             {/* Income Section */}
             <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
               <div className="flex justify-between items-center mb-4">
@@ -301,15 +336,15 @@ export function MonthlySummaryPage() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Income Table */}
                 <div>
                   <div className="space-y-2">
                     {monthlyData.income.length > 0 ? (
                       monthlyData.income.map((item: any, index: number) => (
-                        <div key={index} className="flex justify-between items-center py-2 border-b">
+                        <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
                           <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 bg-green-100 rounded-full flex items-center justify-center">
+                            <div className="w-4 h-4 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center">
                               <div className="w-2 h-2 bg-green-600 rounded-full"></div>
                             </div>
                             <span className="text-sm">{item.name}</span>
@@ -351,15 +386,15 @@ export function MonthlySummaryPage() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Expenses Table */}
                 <div>
                   <div className="space-y-2">
                     {monthlyData.expenses.length > 0 ? (
                       monthlyData.expenses.map((item: any, index: number) => (
-                        <div key={index} className="flex justify-between items-center py-2 border-b">
+                        <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
                           <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 bg-red-100 rounded-full flex items-center justify-center">
+                            <div className="w-4 h-4 bg-red-100 dark:bg-red-900/50 rounded-full flex items-center justify-center">
                               <div className="w-2 h-2 bg-red-600 rounded-full"></div>
                             </div>
                             <span className="text-sm">{item.name}</span>
