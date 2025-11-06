@@ -12,6 +12,8 @@ build/
 # Env
 server/.env
 client/.env
+.env
+.env.dev
 
 # Logs
 npm-debug.log*
