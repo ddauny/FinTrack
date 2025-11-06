@@ -255,20 +255,26 @@ assetsRouter.post("/asset-items/:itemId/children", requireAuth, async (req: Auth
 });
 
 // --- MODIFICA CHIAVE: Lo schema Zod ora accetta 'null' per 'note' E 'formula' ---
-const valuationSchema = z.object({ 
-  month: z.string(), 
-  value: z.number(), 
-  formula: z.string().nullable().optional(), // Accetta string, null, o undefined
-  note: z.string().nullable().optional()  // Accetta string, null, o undefined
+const valuationSchema = z.object({
+  month: z.string(),
+  value: z.number(),
+  formula: z.string().nullable().optional(),
+  note: z.preprocess(
+    (input) => (typeof input === "string" && input.trim() === "" ? null : input),
+    z.string().nullable().optional()
+  )
 });
+
 // --- FINE MODIFICA ---
 
 assetsRouter.post("/asset-items/:itemId/valuations", requireAuth, async (req: AuthRequest, res) => {
   const itemId = Number(req.params.itemId);
+  // DEBUG: log incoming payload
+  console.log("Received valuation payload:", req.body);
   const parse = valuationSchema.safeParse(req.body);
-  
+
   if (!parse.success) {
-    // Se la validazione fallisce, rispondi 400
+    console.error("Valuation validation error", parse.error);
     return res.status(400).json({ error: "Invalid payload", details: parse.error });
   }
 

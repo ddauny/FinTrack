@@ -266,8 +266,19 @@ export function AssetsPage() {
       payload.value = 0
       payload.formula = null // <-- ECCO LA CORREZIONE
     }
-    payload.note = note || null // 'note' può essere una stringa vuota o null
+    payload.note = note && note.trim() !== '' ? note : null;  
 
+  // LOG AGGIUNTI
+  console.log('== SAVE NOTE DEBUG ==')
+  console.log('itemId:', itemId)
+  console.log('month:', month)
+  console.log('note:', note)
+  console.log('payload:', payload)
+
+    if (!payload.value || !payload.month) {
+  alert("Value or month is missing");
+  return;
+}
     try {
       const res = await fetch(`/api/asset-items/${itemId}/valuations`, { 
         method:'POST', 
@@ -438,7 +449,11 @@ export function AssetsPage() {
         </div>
       )}
 
-      <div ref={scrollRef} className="overflow-y-auto overflow-x-auto" style={{ maxHeight: '85vh' }}>
+<div 
+  ref={scrollRef} 
+  className="overflow-x-auto overflow-y-auto no-scrollbar"
+  style={{ maxHeight: '85vh' }}
+>
         <table className="min-w-full text-sm">
           <thead className="sticky top-0" style={{ zIndex: 90 }}>
             <tr className="border-b bg-slate-700 dark:bg-slate-900 text-white">
@@ -518,7 +533,7 @@ export function AssetsPage() {
                 {months.map(m=> {
                   if (row.isGroup) {
                     const group = groups.find(g=> g.id===row.groupId)
-                    const items = (group?.items||[]).filter(it=> !it.parentItemId && !it.hidden)
+                    const items = (group?.items||[]).filter(it=> !it.parentItemId)
                     const v = items.reduce((sum, it)=> sum + valueFor(it, m, true), 0)
                     return <td key={m} className="p-2 text-center font-semibold text-slate-900 dark:text-slate-100 border-l border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800" style={{ minWidth: '140px' }}>{v ? formatEUR(v) : ''}</td>
                   }
@@ -566,74 +581,74 @@ export function AssetsPage() {
           </tbody>
           <tfoot className="sticky bottom-0" style={{ zIndex: 90 }}>
             <tr className="bg-slate-200 dark:bg-slate-800">
-              <td className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-800" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Total Net Worth</td>
-              {months.map(m=>{
-                const v = groups.reduce((sum, g)=>{
-                  const roots = (g.items||[]).filter(it=> !it.parentItemId && !it.hidden)
-                  const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
-                  return sum + s
-                }, 0)
-                return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100" >{v? formatEUR(v): ''}</td>
-              })}
-            </tr>
+  <td className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-800" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Total Net Worth</td>
+  {months.map(m=>{
+    const v = groups.reduce((sum, g)=>{
+      const roots = (g.items||[]).filter(it=> !it.parentItemId)
+      const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
+      return sum + s
+    }, 0)
+    return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">{v? formatEUR(v): ''}</td>
+  })}
+</tr>
             <tr className="bg-slate-100 dark:bg-slate-900">
-              <td className="p-2 sticky left-0 bg-slate-50 dark:bg-slate-800" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth vs previous month</td>
-              {months.map((m, i)=>{
-                const curr = groups.reduce((sum, g)=>{
-                  const roots = (g.items||[]).filter(it=> !it.parentItemId && !it.hidden)
-                  const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
-                  return sum + s
-                }, 0)
-                const prevKey = months[i+1]
-                const prev = prevKey ? groups.reduce((sum, g)=>{
-                  const roots = (g.items||[]).filter(it=> !it.parentItemId && !it.hidden)
-                  const s = roots.reduce((acc, it)=> acc + valueFor(it, prevKey, true), 0)
-                  return sum + s
-                }, 0) : 0
-                const diff = prevKey ? (curr - prev) : 0
-                return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-transparent text-slate-900 dark:text-slate-100">{prevKey? formatEUR(diff): ''}</td>
-              })}
-            </tr>
-            <tr className="bg-transparent">
-              <td className="p-2 sticky left-0 bg-transparent" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth percentage</td>
-              {months.map((m, i)=>{
-                const curr = groups.reduce((sum, g)=>{
-                  const roots = (g.items||[]).filter(it=> !it.parentItemId && !it.hidden)
-                  const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
-                  return sum + s
-                }, 0)
-                const prevKey = months[i+1]
-                const prev = prevKey ? groups.reduce((sum, g)=>{
-                  const roots = (g.items||[]).filter(it=> !it.parentItemId && !it.hidden)
-                  const s = roots.reduce((acc, it)=> acc + valueFor(it, prevKey, true), 0)
-                  return sum + s
-                }, 0) : 0
-                const pct = prevKey && prev !== 0 ? ((curr - prev) / prev) * 100 : 0
-                
-                let bgColor = isDark ? 'transparent' : 'white'; 
-                if (prevKey && prev !== 0) {
-                  const absPct = Math.abs(pct);
-                  const opacity = Math.min(absPct / 10, 1);
-                  if (pct > 0) {
-                    bgColor = isDark ? `rgba(34,197,94,${Math.max(opacity * 0.35, 0.08)})` : `rgba(34,197,94,${opacity})`;
-                  } else if (pct < 0) {
-                    bgColor = isDark ? `rgba(239,68,68,${Math.max(opacity * 0.35, 0.08)})` : `rgba(239,68,68,${opacity})`;
-                  }
-                }
+  <td className="p-2 sticky left-0 bg-slate-100 dark:bg-slate-900" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth vs previous month</td>
+  {months.map((m, i)=>{
+    const curr = groups.reduce((sum, g)=>{
+      const roots = (g.items||[]).filter(it=> !it.parentItemId)
+      const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
+      return sum + s
+    }, 0)
+    const prevKey = months[i+1]
+    const prev = prevKey ? groups.reduce((sum, g)=>{
+      const roots = (g.items||[]).filter(it=> !it.parentItemId)
+      const s = roots.reduce((acc, it)=> acc + valueFor(it, prevKey, true), 0)
+      return sum + s
+    }, 0) : 0
+    const diff = prevKey ? (curr - prev) : 0
+    return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">{prevKey? formatEUR(diff): ''}</td>
+  })}
+</tr>
+            <tr className="bg-white dark:bg-gray-800">
+  <td className="p-2 sticky left-0 bg-white dark:bg-gray-800" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth percentage</td>
+  {months.map((m, i)=>{
+    const curr = groups.reduce((sum, g)=>{
+      const roots = (g.items||[]).filter(it=> !it.parentItemId)
+      const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
+      return sum + s
+    }, 0)
+    const prevKey = months[i+1]
+    const prev = prevKey ? groups.reduce((sum, g)=>{
+      const roots = (g.items||[]).filter(it=> !it.parentItemId)
+      const s = roots.reduce((acc, it)=> acc + valueFor(it, prevKey, true), 0)
+      return sum + s
+    }, 0) : 0
+    const pct = prevKey && prev !== 0 ? ((curr - prev) / prev) * 100 : 0
+    
+    let bgColor = isDark ? 'rgb(31 41 55)' : 'white'; // Sfondo opaco
+    if (prevKey && prev !== 0) {
+      const absPct = Math.abs(pct);
+      const opacity = Math.min(absPct / 10, 1);
+      if (pct > 0) {
+        bgColor = isDark ? `rgba(34,197,94,${Math.max(opacity * 0.35, 0.08)})` : `rgba(34,197,94,${opacity})`;
+      } else if (pct < 0) {
+        bgColor = isDark ? `rgba(239,68,68,${Math.max(opacity * 0.35, 0.08)})` : `rgba(239,68,68,${opacity})`;
+      }
+    }
 
-                return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700" style={{ backgroundColor: bgColor }}>{prevKey && prev!==0? `${pct.toFixed(2)}%` : ''}</td>
-              })}
-            </tr>
+    return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700" style={{ backgroundColor: bgColor }}>{prevKey && prev!==0? `${pct.toFixed(2)}%` : ''}</td>
+  })}
+</tr>
           </tfoot>
         </table>
       </div>
       
-      <NotePopover
-        visible={!!showNoteFor}
-        initial={noteValue}
-        onClose={()=> setShowNoteFor(null)}
-        onSave={(n: string)=> { if (showNoteFor) saveNote(showNoteFor.itemId, showNoteFor.month, n) }}
-      />
+<NotePopover
+  visible={!!showNoteFor}
+  initial={noteValue}
+  onClose={()=> setShowNoteFor(null)}
+  onSave={(n)=> { if(showNoteFor) saveNote(showNoteFor.itemId, showNoteFor.month, n) }}
+/>
     </div>
   )
 }
