@@ -4,12 +4,20 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { formatDateDMY, formatEUR } from '../lib/format'
 import { usePrivacy } from '@/contexts/PrivacyContext'
-import dayjs from 'dayjs' // <-- AGGIUNTO
+import dayjs from 'dayjs'
+import DatePicker from 'react-datepicker' // Import standard
+import 'react-datepicker/dist/react-datepicker.css'
+import { PrivacyNumber } from '@/components/PrivacyNumber'
+
+// --- MODIFICA: "Forzatura" del tipo per risolvere l'errore TS(2786) ---
+// Diciamo a TypeScript di trattare DatePicker come 'any' per bypassare il controllo dei tipi
+const DatePickerComponent = DatePicker as any;
+// --- FINE MODIFICA ---
 
 export function ReportsPage() {
   const { hideNumbers } = usePrivacy()
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-  const chartTextColor = isDark ? '#e6eef6' : '#0f172a' // light in dark mode, dark in light mode
+  const chartTextColor = isDark ? '#e6eef6' : '#0f172a'
   const gridLineColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'
   const axisLineColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.12)'
   const navigate = useNavigate()
@@ -21,13 +29,9 @@ export function ReportsPage() {
   const [netWorthTrend, setNetWorthTrend] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  // Spending by category range (month/year pickers)
-  const now = dayjs() // Usiamo dayjs
-  const [startMonth, setStartMonth] = useState<number>(now.month()) // 0-11
-  const [startYear, setStartYear] = useState<number>(now.year())
-  const [endMonth, setEndMonth] = useState<number>(now.month())
-  const [endYear, setEndYear] = useState<number>(now.year())
+  
+  const [startDate, setStartDate] = useState(dayjs().startOf('month').toDate())
+  const [endDate, setEndDate] = useState(dayjs().endOf('month').toDate())
 
   // Initial load for other charts (use last 6 months by default)
   useEffect(() => {
@@ -36,15 +40,12 @@ export function ReportsPage() {
         setLoading(true)
         setError(null)
         
-        // [FIXED] Date corrette con dayjs (ultimi 6 mesi inclusi oggi)
         const end = dayjs()
         const start = dayjs().subtract(5, 'month')
         
-        // Usiamo l'inizio del primo mese e la fine del mese corrente
         const startStr = start.startOf('month').format('YYYY-MM-DD')
         const endStr = end.endOf('month').format('YYYY-MM-DD')
         
-        // Load all charts with proper error handling
         const [cashflowData, trendsData, monthlyData, categoryData, netWorthData] = await Promise.allSettled([
           api.reports.cashflow(startStr, endStr),
           api.reports.trends(startStr, endStr),
@@ -74,15 +75,10 @@ export function ReportsPage() {
   useEffect(() => {
     const fetchSpending = async () => {
       try {
-        // [FIXED] Date corrette con dayjs
-        const s = dayjs().year(startYear).month(startMonth).startOf('month')
-        const e = dayjs().year(endYear).month(endMonth).endOf('month')
+        const startStr = dayjs(startDate).format('YYYY-MM-DD')
+        const endStr = dayjs(endDate).format('YYYY-MM-DD')
         
-        const startStr = s.format('YYYY-MM-DD')
-        const endStr = e.format('YYYY-MM-DD')
-        
-        // Normalize if user selects inverted range
-        const [from, to] = (s.isBefore(e) || s.isSame(e)) ? [startStr, endStr] : [endStr, startStr]
+        const [from, to] = (dayjs(startStr).isBefore(endStr) || dayjs(startStr).isSame(endStr)) ? [startStr, endStr] : [endStr, startStr]
         const data = await api.reports.spendingByCategory(from, to)
         setSpending((data as any[]) || [])
       } catch (error) {
@@ -92,10 +88,17 @@ export function ReportsPage() {
     }
     
     fetchSpending()
-  }, [startMonth, startYear, endMonth, endYear])
+  }, [startDate, endDate]) 
 
   const cashflowOption = {
     textStyle: { color: chartTextColor },
+    tooltip: { 
+      trigger: 'axis', 
+      axisPointer: { type: 'shadow' },
+      valueFormatter: (val: any) => hideNumbers ? '••••••' : formatEUR(val as number),
+      backgroundColor: isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
+      textStyle: { color: chartTextColor }
+    },
     xAxis: { type: 'category', data: (cashflow && cashflow.length > 0) ? cashflow.map(r=> formatDateDMY(new Date(r.period+'-01'))) : ['No Data'], axisLabel: { color: chartTextColor }, axisLine: { lineStyle: { color: axisLineColor } } },
     yAxis: { 
       type: 'value',
@@ -106,7 +109,7 @@ export function ReportsPage() {
       splitLine: { lineStyle: { color: gridLineColor } },
       axisLine: { lineStyle: { color: axisLineColor } }
     },
-  legend: { data: ['Income', 'Expense'], textStyle: { color: chartTextColor } },
+    legend: { data: ['Income', 'Expense'], textStyle: { color: chartTextColor } },
     series: [
       { name: 'Income', type: 'bar', data: (cashflow && cashflow.length > 0) ? cashflow.map(r=>r.income) : [0], itemStyle: { color: '#16a34a' } },
       { name: 'Expense', type: 'bar', data: (cashflow && cashflow.length > 0) ? cashflow.map(r=>r.expense) : [0], itemStyle: { color: '#dc2626' } },
@@ -114,22 +117,24 @@ export function ReportsPage() {
   }
 
   const palette = ['#3b82f6','#06b6d4','#8b5cf6','#10b981','#f59e0b','#a78bfa','#22c55e','#14b8a6','#0ea5e9','#84cc16']
+  
   const spendingOption = {
     textStyle: { color: chartTextColor },
     tooltip: { 
       trigger: 'item',
       formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`,
-      // Make tooltip background dynamic per theme for readability
-      backgroundColor: isDark ? 'rgba(15,23,42,0.9)' : 'rgba(255,255,255,0.95)',
+      backgroundColor: isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
       textStyle: { color: chartTextColor }
     },
     color: palette,
-    legend: { textStyle: { color: chartTextColor } },
+    legend: { show: false }, 
     series: [{
       type: 'pie', radius: ['40%','70%'],
       label: { 
-        color: chartTextColor,
-        formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`
+        show: false 
+      },
+      labelLine: {
+        show: false 
       },
       data: (spending && spending.length > 0) ? spending.map(s=>({ name:s.category, value:s.total })) : [{ name: 'No Data', value: 0 }],
       itemStyle: {
@@ -143,12 +148,11 @@ export function ReportsPage() {
     if (!params) return
     const categoryName = params.name || (params.data && params.data.name)
     if (!categoryName) return
-    // Use the selected start and end month/year range to navigate to transactions
-    const s = dayjs().year(startYear).month(startMonth).startOf('month')
-    const e = dayjs().year(endYear).month(endMonth).endOf('month')
-    const startStr = s.format('YYYY-MM-DD')
-    const endStr = e.format('YYYY-MM-DD')
-    const [from, to] = (s.isBefore(e) || s.isSame(e)) ? [startStr, endStr] : [endStr, startStr]
+
+    const startStr = dayjs(startDate).format('YYYY-MM-DD')
+    const endStr = dayjs(endDate).format('YYYY-MM-DD')
+    const [from, to] = (dayjs(startStr).isBefore(endStr) || dayjs(startStr).isSame(endStr)) ? [startStr, endStr] : [endStr, startStr]
+    
     navigate(`/transactions?startDate=${encodeURIComponent(from)}&endDate=${encodeURIComponent(to)}&category=${encodeURIComponent(categoryName)}&type=Expense`)
   }
 
@@ -157,7 +161,7 @@ export function ReportsPage() {
     tooltip: { 
       trigger: 'axis',
       valueFormatter: (val: any) => hideNumbers ? '••••••' : formatEUR(val as number),
-      backgroundColor: isDark ? 'rgba(15,23,42,0.9)' : undefined,
+      backgroundColor: isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
       textStyle: { color: chartTextColor }
     },
     legend: { data: ['Income', 'Expense'], textStyle: { color: chartTextColor } },
@@ -183,7 +187,9 @@ export function ReportsPage() {
     tooltip: { 
       trigger: 'axis', 
       axisPointer: { type: 'shadow' },
-      valueFormatter: (val: any) => hideNumbers ? '••••••' : formatEUR(val as number)
+      valueFormatter: (val: any) => hideNumbers ? '••••••' : formatEUR(val as number),
+      backgroundColor: isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
+      textStyle: { color: chartTextColor }
     },
     grid: { left: '15%', right: '10%', top: '10%', bottom: '10%' },
     xAxis: { 
@@ -218,12 +224,10 @@ export function ReportsPage() {
     if (params.data && monthlyExpenses) {
       const clickedMonth = monthlyExpenses[params.dataIndex];
       if (clickedMonth) {
-        // [FIXED] Date corrette con dayjs
-        const date = dayjs(clickedMonth.month) // Analizza 'YYYY-MM'
+        const date = dayjs(clickedMonth.month) 
         const startStr = date.startOf('month').format('YYYY-MM-DD')
         const endStr = date.endOf('month').format('YYYY-MM-DD')
         
-        // Navigate to transactions page with date filters using React Router
         navigate(`/transactions?startDate=${startStr}&endDate=${endStr}&type=Expense`);
       }
     }
@@ -234,7 +238,6 @@ export function ReportsPage() {
     if (params && params.dataIndex != null && cashflow && cashflow.length > params.dataIndex) {
       const clicked = cashflow[params.dataIndex]
       if (clicked && clicked.period) {
-        // clicked.period is expected to be 'YYYY-MM'
         navigate(`/monthly-summary?month=${encodeURIComponent(clicked.period)}`)
       }
     }
@@ -263,8 +266,11 @@ export function ReportsPage() {
   // Category Analysis Radar Chart
   const categoryAnalysisOption = {
     textStyle: { color: chartTextColor },
-    // Make tooltip background dynamic per theme so the detail window is readable
-    tooltip: { trigger: 'item', backgroundColor: isDark ? 'rgba(15,23,42,0.9)' : 'rgba(255,255,255,0.95)', textStyle: { color: chartTextColor } },
+    tooltip: { 
+      trigger: 'item', 
+      backgroundColor: isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
+      textStyle: { color: chartTextColor } 
+    },
     radar: {
       indicator: (categoryAnalysis && categoryAnalysis.length > 0) ? categoryAnalysis.map(c => ({ name: c.category, max: c.maxValue || 1 })) : [{ name: 'No Data', max: 1 }],
       radius: '70%',
@@ -291,7 +297,11 @@ export function ReportsPage() {
   // Net Worth Trend Area Chart
   const netWorthTrendOption = {
     textStyle: { color: chartTextColor },
-    tooltip: { trigger: 'axis' },
+    tooltip: { 
+      trigger: 'axis',
+      backgroundColor: isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
+      textStyle: { color: chartTextColor }
+    },
     xAxis: { 
       type: 'category', 
       data: (netWorthTrend && netWorthTrend.length > 0) ? netWorthTrend.map(n => formatDateDMY(new Date(n.period+'-01'))) : ['No Data'],
@@ -357,59 +367,100 @@ export function ReportsPage() {
           <div className="font-semibold text-gray-900 dark:text-gray-100">Cash Flow</div>
           <button className="text-sm text-blue-700 dark:text-blue-300 whitespace-nowrap" onClick={()=>exportCsv('/api/reports/cashflow')}>Export CSV</button>
         </div>
-  <ReactECharts option={cashflowOption} style={{height:300}} onEvents={{ click: handleCashflowClick }} />
+        <ReactECharts option={cashflowOption} style={{height:300}} onEvents={{ click: handleCashflowClick }} />
       </div>
-  <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded shadow">
+
+      <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded shadow">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
           <div className="font-semibold text-gray-900 dark:text-gray-100">Spending by Category</div>
+          
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600 dark:text-gray-300">Start</label>
-              <select value={startMonth} onChange={e=>setStartMonth(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm">
-                {Array.from({length:12}).map((_,i)=> <option key={i} value={i}>{new Date(2000,i,1).toLocaleString(undefined,{month:'short'})}</option>)}
-              </select>
-              <select value={startYear} onChange={e=>setStartYear(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm">
-                {Array.from({length:11}).map((_,i)=>{
-                  const y = now.year() - i
-                  return <option key={y} value={y}>{y}</option>
-                })}
-              </select>
+              <label className="text-sm text-gray-600 dark:text-gray-300">From</label>
+              {/* --- MODIFICA: Usato DatePickerComponent (castato) --- */}
+              <DatePickerComponent
+                selected={startDate}
+                onChange={(date: Date | null) => { if (date) setStartDate(date) }}
+                selectsStart
+                startDate={startDate}
+                endDate={endDate}
+                dateFormat="MMM yyyy"
+                showMonthYearPicker
+                className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm w-32"
+              />
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600 dark:text-gray-300">End</label>
-              <select value={endMonth} onChange={e=>setEndMonth(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm">
-                {Array.from({length:12}).map((_,i)=> <option key={i} value={i}>{new Date(2000,i,1).toLocaleString(undefined,{month:'short'})}</option>)}
-              </select>
-              <select value={endYear} onChange={e=>setEndYear(Number(e.target.value))} className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm">
-                {Array.from({length:11}).map((_,i)=>{
-                  const y = now.year() - i
-                  return <option key={y} value={y}>{y}</option>
-                })}
-              </select>
+              <label className="text-sm text-gray-600 dark:text-gray-300">To</label>
+              {/* --- MODIFICA: Usato DatePickerComponent (castato) --- */}
+              <DatePickerComponent
+                selected={endDate}
+                onChange={(date: Date | null) => { if (date) setEndDate(date) }}
+                selectsEnd
+                startDate={startDate}
+                endDate={endDate}
+                dateFormat="MMM yyyy"
+                showMonthYearPicker
+                className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm w-32"
+              />
             </div>
           </div>
+
           <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>{
-            // [FIXED] Date corrette con dayjs
-            const s = dayjs().year(startYear).month(startMonth).startOf('month')
-            const e = dayjs().year(endYear).month(endMonth).endOf('month')
-            const startStr = s.format('YYYY-MM-DD')
-            const endStr = e.format('YYYY-MM-DD')
-            const [from, to] = (s.isBefore(e) || s.isSame(e)) ? [startStr, endStr] : [endStr, startStr]
+            const startStr = dayjs(startDate).format('YYYY-MM-DD')
+            const endStr = dayjs(endDate).format('YYYY-MM-DD')
+            const [from, to] = (dayjs(startStr).isBefore(endStr) || dayjs(startStr).isSame(endStr)) ? [startStr, endStr] : [endStr, startStr]
             exportCsv(`/api/reports/spending-by-category?start=${from}&end=${to}`)
           }}>Export CSV</button>
         </div>
-  <ReactECharts option={spendingOption} style={{height:300}} onEvents={{ click: handleSpendingClick }} />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div>
+            <div className="space-y-2">
+              {spending && spending.length > 0 ? (
+                spending.map((item: any, index: number) => (
+                  <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: palette[index % palette.length] }}
+                      />
+                      <span className="text-sm">{item.category}</span>
+                    </div>
+                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <PrivacyNumber value={item.total}>
+                        {formatEUR(item.total)}
+                      </PrivacyNumber>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-gray-500 text-center py-4">No spending data</div>
+              )}
+            </div>
+          </div>
+          
+          <div>
+            <ReactECharts 
+              option={spendingOption} 
+              style={{ height: '300px' }}
+              onEvents={{
+                click: handleSpendingClick
+              }}
+            />
+          </div>
+        </div>
       </div>
-  <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+
+
+      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
         <div className="flex justify-between items-center mb-2">
           <div className="font-semibold text-gray-900 dark:text-gray-100">Income vs Expense Trend</div>
           <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/trends')}>Export CSV</button>
         </div>
-  <ReactECharts option={trendsOption} style={{height:300}} onEvents={{ click: handleTrendsClick }} />
+        <ReactECharts option={trendsOption} style={{height:300}} onEvents={{ click: handleTrendsClick }} />
       </div>
       
-      {/* New Charts */}
-  <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
         <div className="flex justify-between items-center mb-2">
           <div className="font-semibold text-gray-900 dark:text-gray-100">Monthly Expenses Breakdown</div>
           <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/monthly-expenses')}>Export CSV</button>
@@ -423,7 +474,6 @@ export function ReportsPage() {
         />
       </div>
       
-      {/* Additional Charts - Only show if data is available */}
       {(categoryAnalysis && categoryAnalysis.length > 0) || (netWorthTrend && netWorthTrend.length > 0) ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {categoryAnalysis && categoryAnalysis.length > 0 && (

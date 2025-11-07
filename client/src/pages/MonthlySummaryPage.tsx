@@ -122,10 +122,9 @@ export function MonthlySummaryPage() {
     return [startDate, endDate]
   }
 
-const formatMonthDisplay = (monthStr: string) => {
+  const formatMonthDisplay = (monthStr: string) => {
     const [year, month] = monthStr.split('-').map(Number)
     const date = new Date(year, month - 1, 1)
-    // --- MODIFICA: Riportato a 'en-US' per l'inglese ---
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   }
 
@@ -151,7 +150,6 @@ const formatMonthDisplay = (monthStr: string) => {
     }
   }
 
-  // --- MODIFICA: Aggiunte funzioni per i pulsanti ---
   const handlePrevMonth = () => {
     const newMonth = dayjs(selectedMonth).subtract(1, 'month').format('YYYY-MM');
     setSelectedMonth(newMonth);
@@ -161,9 +159,8 @@ const formatMonthDisplay = (monthStr: string) => {
     const newMonth = dayjs(selectedMonth).add(1, 'month').format('YYYY-MM');
     setSelectedMonth(newMonth);
   };
-  // --- FINE MODIFICA ---
 
-  // Chart options
+  // --- MODIFICA: Riportato 'show: true' su label e labelLine ---
   const incomeChartOption = {
     tooltip: {
       trigger: 'item',
@@ -176,8 +173,9 @@ const formatMonthDisplay = (monthStr: string) => {
         name: item.name,
         value: item.amount
       })),
+      minAngle: 5, // Nasconde etichette per fette troppo piccole
       label: {
-        show: false, // Nascosto per un look più pulito
+        show: true, // <-- RIPRISTINATO
         position: 'outside',
         fontSize: 11,
         formatter: (params: any) => {
@@ -186,7 +184,7 @@ const formatMonthDisplay = (monthStr: string) => {
         }
       },
       labelLine: {
-        show: false, // Nascosto per un look più pulito
+        show: true, // <-- RIPRISTINATO
         length: 10,
         length2: 20,
         smooth: true
@@ -200,6 +198,7 @@ const formatMonthDisplay = (monthStr: string) => {
     }]
   }
 
+  // --- MODIFICA: Riportato 'show: true' su label e labelLine ---
   const expensesChartOption = {
     tooltip: {
       trigger: 'item',
@@ -212,8 +211,9 @@ const formatMonthDisplay = (monthStr: string) => {
         name: item.name,
         value: item.amount
       })),
+      minAngle: 5, // Nasconde etichette per fette troppo piccole
       label: {
-        show: false, // Nascosto per un look più pulito
+        show: true, // <-- RIPRISTINATO
         position: 'outside',
         fontSize: 11,
         formatter: (params: any) => {
@@ -222,7 +222,7 @@ const formatMonthDisplay = (monthStr: string) => {
         }
       },
       labelLine: {
-        show: false, // Nascosto per un look più pulito
+        show: true, // <-- RIPRISTINATO
         length: 10,
         length2: 20,
         smooth: true
@@ -256,11 +256,9 @@ const formatMonthDisplay = (monthStr: string) => {
         </div>
       )}
 
-      {/* === MODIFICA INIZIA QUI: Selettore Mese Riscritto === */}
+      {/* Selettore Mese */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
         <div className="flex items-center justify-center gap-4">
-          
-          {/* Pulsante Mese Precedente */}
           <button 
             onClick={handlePrevMonth}
             className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
@@ -271,12 +269,10 @@ const formatMonthDisplay = (monthStr: string) => {
             </svg>
           </button>
           
-          {/* Testo del Mese */}
           <div className="text-xl font-semibold dark:text-gray-100 w-48 text-center">
             {formatMonthDisplay(selectedMonth)}
           </div>
 
-          {/* Pulsante Mese Successivo */}
           <button 
             onClick={handleNextMonth}
             className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
@@ -289,8 +285,6 @@ const formatMonthDisplay = (monthStr: string) => {
 
         </div>
       </div>
-      {/* === MODIFICA FINISCE QUI === */}
-
 
       {monthlyData && (
         <>
@@ -322,7 +316,6 @@ const formatMonthDisplay = (monthStr: string) => {
             </div>
           </div>
 
-          {/* Riorganizzato per impilare verticalmente */}
           <div className="grid grid-cols-1 gap-6">
             
             {/* Income Section */}
