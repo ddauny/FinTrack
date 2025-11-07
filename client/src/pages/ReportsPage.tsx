@@ -5,14 +5,12 @@ import { api } from '../lib/api'
 import { formatDateDMY, formatEUR } from '../lib/format'
 import { usePrivacy } from '@/contexts/PrivacyContext'
 import dayjs from 'dayjs'
-import DatePicker from 'react-datepicker' // Import standard
+import { default as DatePicker } from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { PrivacyNumber } from '@/components/PrivacyNumber'
 
-// --- MODIFICA: "Forzatura" del tipo per risolvere l'errore TS(2786) ---
-// Diciamo a TypeScript di trattare DatePicker come 'any' per bypassare il controllo dei tipi
+// "Forzatura" del tipo per risolvere l'errore TS(2786)
 const DatePickerComponent = DatePicker as any;
-// --- FINE MODIFICA ---
 
 export function ReportsPage() {
   const { hideNumbers } = usePrivacy()
@@ -33,9 +31,9 @@ export function ReportsPage() {
   const [startDate, setStartDate] = useState(dayjs().startOf('month').toDate())
   const [endDate, setEndDate] = useState(dayjs().endOf('month').toDate())
 
-  // Initial load for other charts (use last 6 months by default)
+  // Caricamento iniziale per i grafici NON dipendenti dalle date (Cashflow, Trends, etc.)
   useEffect(() => {
-    const loadData = async () => {
+    const loadStaticData = async () => {
       try {
         setLoading(true)
         setError(null)
@@ -46,49 +44,72 @@ export function ReportsPage() {
         const startStr = start.startOf('month').format('YYYY-MM-DD')
         const endStr = end.endOf('month').format('YYYY-MM-DD')
         
-        const [cashflowData, trendsData, monthlyData, categoryData, netWorthData] = await Promise.allSettled([
+        const [cashflowData, trendsData, monthlyData, netWorthData] = await Promise.allSettled([
           api.reports.cashflow(startStr, endStr),
           api.reports.trends(startStr, endStr),
           api.reports.monthlyExpenses(startStr, endStr),
-          api.reports.categoryAnalysis(startStr, endStr),
           api.reports.netWorthTrend(startStr, endStr)
         ])
         
         if (cashflowData.status === 'fulfilled') setCashflow(cashflowData.value as any[])
         if (trendsData.status === 'fulfilled') setTrends(trendsData.value as any[])
         if (monthlyData.status === 'fulfilled') setMonthlyExpenses(monthlyData.value as any[])
-        if (categoryData.status === 'fulfilled') setCategoryAnalysis(categoryData.value as any[])
         if (netWorthData.status === 'fulfilled') setNetWorthTrend(netWorthData.value as any[])
         
       } catch (err) {
-        console.error('Error loading reports data:', err)
+        console.error('Error loading static reports data:', err)
         setError('Failed to load reports data')
       } finally {
         setLoading(false)
       }
     }
     
-    loadData()
+    loadStaticData()
   }, [])
 
-  // Fetch spending by category whenever month/year change
+  // Caricamento per i grafici DIPENDENTI dalle date (Spending e Category Analysis)
   useEffect(() => {
-    const fetchSpending = async () => {
+    const fetchDateDependentData = async () => {
       try {
+        setLoading(true) // Imposta loading a true all'inizio
         const startStr = dayjs(startDate).format('YYYY-MM-DD')
         const endStr = dayjs(endDate).format('YYYY-MM-DD')
         
         const [from, to] = (dayjs(startStr).isBefore(endStr) || dayjs(startStr).isSame(endStr)) ? [startStr, endStr] : [endStr, startStr]
-        const data = await api.reports.spendingByCategory(from, to)
-        setSpending((data as any[]) || [])
+        
+        // Carica entrambi i set di dati che dipendono dalle date
+        const [spendingData, analysisData] = await Promise.allSettled([
+          api.reports.spendingByCategory(from, to),
+          api.reports.categoryAnalysis(from, to)
+        ]);
+
+        if (spendingData.status === 'fulfilled') {
+          setSpending((spendingData.value as any[]) || [])
+        } else {
+          console.error('Error loading spending data:', spendingData.reason)
+          setSpending([])
+        }
+
+        if (analysisData.status === 'fulfilled') {
+          setCategoryAnalysis((analysisData.value as any[]) || [])
+        } else {
+          console.error('Error loading category analysis data:', analysisData.reason)
+          setCategoryAnalysis([])
+        }
+
       } catch (error) {
-        console.error('Error loading spending data:', error)
+        console.error('Error loading date-dependent data:', error)
         setSpending([])
+        setCategoryAnalysis([])
+      } finally {
+        setLoading(false) // Imposta loading a false alla fine
       }
     }
     
-    fetchSpending()
-  }, [startDate, endDate]) 
+    fetchDateDependentData()
+  }, [startDate, endDate]) // Si aggiorna quando le date cambiano
+
+  // --- OPZIONI GRAFICI ---
 
   const cashflowOption = {
     textStyle: { color: chartTextColor },
@@ -118,6 +139,7 @@ export function ReportsPage() {
 
   const palette = ['#3b82f6','#06b6d4','#8b5cf6','#10b981','#f59e0b','#a78bfa','#22c55e','#14b8a6','#0ea5e9','#84cc16']
   
+  // --- MODIFICA: Riabilitate 'label' e 'labelLine' ---
   const spendingOption = {
     textStyle: { color: chartTextColor },
     tooltip: { 
@@ -131,10 +153,17 @@ export function ReportsPage() {
     series: [{
       type: 'pie', radius: ['40%','70%'],
       label: { 
-        show: false 
+        show: true, // <-- RIPRISTINATO
+        color: chartTextColor,
+        formatter: (params: any) => hideNumbers ? '••••••' : `${params.name}: ${formatEUR(params.value)}`,
+        avoidLabelOverlap: true, // Aggiunto per pulizia
+        minAngle: 5 // Nasconde etichette per fette troppo piccole
       },
       labelLine: {
-        show: false 
+        show: true, // <-- RIPRISTINATO
+        smooth: true,
+        length: 10,
+        length2: 15
       },
       data: (spending && spending.length > 0) ? spending.map(s=>({ name:s.category, value:s.total })) : [{ name: 'No Data', value: 0 }],
       itemStyle: {
@@ -142,8 +171,8 @@ export function ReportsPage() {
       }
     }]
   }
+  // --- FINE MODIFICA ---
 
-  // Handle click on spending pie: navigate to Transactions page with date range and category
   const handleSpendingClick = (params: any) => {
     if (!params) return
     const categoryName = params.name || (params.data && params.data.name)
@@ -181,7 +210,6 @@ export function ReportsPage() {
     ]
   }
 
-  // Monthly Expenses Horizontal Bar Chart
   const monthlyExpensesOption = {
     textStyle: { color: chartTextColor },
     tooltip: { 
@@ -219,7 +247,6 @@ export function ReportsPage() {
     }]
   }
 
-  // Handle click on monthly expenses chart
   const handleMonthlyExpensesClick = (params: any) => {
     if (params.data && monthlyExpenses) {
       const clickedMonth = monthlyExpenses[params.dataIndex];
@@ -233,7 +260,6 @@ export function ReportsPage() {
     }
   }
 
-  // Handle click on cashflow chart: navigate to Monthly Summary for clicked month
   const handleCashflowClick = (params: any) => {
     if (params && params.dataIndex != null && cashflow && cashflow.length > params.dataIndex) {
       const clicked = cashflow[params.dataIndex]
@@ -243,7 +269,6 @@ export function ReportsPage() {
     }
   }
 
-  // Handle click on trends chart: navigate to Monthly Summary for clicked month
   const handleTrendsClick = (params: any) => {
     if (params && params.dataIndex != null && trends && trends.length > params.dataIndex) {
       const clicked = trends[params.dataIndex]
@@ -253,7 +278,6 @@ export function ReportsPage() {
     }
   }
 
-  // Handle click on net worth trend chart: navigate to Monthly Summary for clicked month
   const handleNetWorthClick = (params: any) => {
     if (params && params.dataIndex != null && netWorthTrend && netWorthTrend.length > params.dataIndex) {
       const clicked = netWorthTrend[params.dataIndex]
@@ -263,7 +287,6 @@ export function ReportsPage() {
     }
   }
 
-  // Category Analysis Radar Chart
   const categoryAnalysisOption = {
     textStyle: { color: chartTextColor },
     tooltip: { 
@@ -294,7 +317,6 @@ export function ReportsPage() {
     }]
   }
 
-  // Net Worth Trend Area Chart
   const netWorthTrendOption = {
     textStyle: { color: chartTextColor },
     tooltip: { 
@@ -377,7 +399,6 @@ export function ReportsPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600 dark:text-gray-300">From</label>
-              {/* --- MODIFICA: Usato DatePickerComponent (castato) --- */}
               <DatePickerComponent
                 selected={startDate}
                 onChange={(date: Date | null) => { if (date) setStartDate(date) }}
@@ -391,7 +412,6 @@ export function ReportsPage() {
             </div>
             <div className="flex items-center gap-2">
               <label className="text-sm text-gray-600 dark:text-gray-300">To</label>
-              {/* --- MODIFICA: Usato DatePickerComponent (castato) --- */}
               <DatePickerComponent
                 selected={endDate}
                 onChange={(date: Date | null) => { if (date) setEndDate(date) }}
@@ -474,29 +494,63 @@ export function ReportsPage() {
         />
       </div>
       
-      {(categoryAnalysis && categoryAnalysis.length > 0) || (netWorthTrend && netWorthTrend.length > 0) ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {categoryAnalysis && categoryAnalysis.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-              <div className="flex justify-between items-center mb-2">
-                <div className="font-semibold text-gray-900 dark:text-gray-100">Category Analysis</div>
-                <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/category-analysis')}>Export CSV</button>
-              </div>
-              <ReactECharts option={categoryAnalysisOption} style={{height:300}} />
-            </div>
-          )}
+      {/* --- MODIFICA: Aggiunto DatePicker a "Category Analysis" --- */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
+          <div className="font-semibold text-gray-900 dark:text-gray-100">Category Analysis</div>
           
-          {netWorthTrend && netWorthTrend.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-              <div className="flex justify-between items-center mb-2">
-                <div className="font-semibold text-gray-900 dark:text-gray-100">Net Worth Trend</div>
-                <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/net-worth-trend')}>Export CSV</button>
-              </div>
-              <ReactECharts option={netWorthTrendOption} style={{height:300}} onEvents={{ click: handleNetWorthClick }} />
+          {/* Aggiunto DatePicker */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 dark:text-gray-300">From</label>
+              <DatePickerComponent
+                selected={startDate}
+                onChange={(date: Date | null) => { if (date) setStartDate(date) }}
+                selectsStart
+                startDate={startDate}
+                endDate={endDate}
+                dateFormat="MMM yyyy"
+                showMonthYearPicker
+                className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm w-32"
+              />
             </div>
-          )}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 dark:text-gray-300">To</label>
+              <DatePickerComponent
+                selected={endDate}
+                onChange={(date: Date | null) => { if (date) setEndDate(date) }}
+                selectsEnd
+                startDate={startDate}
+                endDate={endDate}
+                dateFormat="MMM yyyy"
+                showMonthYearPicker
+                className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded p-1 text-sm w-32"
+              />
+            </div>
+          </div>
+          
+          <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>{
+            const startStr = dayjs(startDate).format('YYYY-MM-DD')
+            const endStr = dayjs(endDate).format('YYYY-MM-DD')
+            const [from, to] = (dayjs(startStr).isBefore(endStr) || dayjs(startStr).isSame(endStr)) ? [startStr, endStr] : [endStr, startStr]
+            exportCsv(`/api/reports/category-analysis?start=${from}&end=${to}`)
+          }}>Export CSV</button>
         </div>
-      ) : null}
+        <ReactECharts option={categoryAnalysisOption} style={{height:300}} />
+      </div>
+      {/* --- FINE MODIFICA --- */}
+
+      {netWorthTrend && netWorthTrend.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <div className="flex justify-between items-center mb-2">
+            <div className="font-semibold text-gray-900 dark:text-gray-100">Net Worth Trend</div>
+            <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/net-worth-trend')}>Export CSV</button>
+          </div>
+          <ReactECharts option={netWorthTrendOption} style={{height:300}} onEvents={{ click: handleNetWorthClick }} />
+        </div>
+      )}
+      
+      {/* Rimosso il blocco ridondante di categoryAnalysis/netWorthTrend */}
     </div>
   )
 }
