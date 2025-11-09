@@ -31,6 +31,7 @@ export function AssetsPage() {
   const [showNoteFor, setShowNoteFor] = useState<{ itemId:number; month:string } | null>(null)
   const [noteValue, setNoteValue] = useState<string>('')
   const [hoveredRowIdx, setHoveredRowIdx] = useState<number | null>(null)
+  const [hoveredCell, setHoveredCell] = useState<{ itemId:number; month:string } | null>(null)
 
   async function refresh() {
     const res = await fetch('/api/asset-groups', { headers: tokenHeader() })
@@ -230,26 +231,22 @@ export function AssetsPage() {
       if (editing || showNoteFor) return; 
       
       if (e.key.toLowerCase() === 'n'){
-        if (selectedCell) {
-          // Ferma l'evento per non far illuminare la riga
+        // Usa hoveredCell invece di selectedCell
+        if (hoveredCell) {
           e.preventDefault();
           e.stopPropagation();
 
-          const { itemId, month } = selectedCell
+          const { itemId, month } = hoveredCell
           const item = groups.flatMap(g=> g.items||[]).find(it=> it.id===itemId)
           const v = item?.valuations?.find(v=> new Date(v.month).toISOString().slice(0,10) === month)
           setNoteValue(v?.note || '')
-          setShowNoteFor(selectedCell)
-          
-          // Annulla la selezione della cella per rimuovere l'highlight della riga
-          setSelectedCell(null); 
-          setHoveredRowIdx(null);
+          setShowNoteFor(hoveredCell)
         }
       }
     }
     window.addEventListener('keydown', onKey)
     return ()=> window.removeEventListener('keydown', onKey)
-  }, [selectedCell, groups, editing, showNoteFor]) // Aggiunte dipendenze
+  }, [hoveredCell, groups, editing, showNoteFor])
   // --- FINE MODIFICA ---
 
   // --- MODIFICA: Corretta la funzione 'saveNote' per l'errore 500 ---
@@ -436,34 +433,33 @@ export function AssetsPage() {
 
   return (
     <div ref={wrapperRef} className="bg-white dark:bg-gray-800 p-2 sm:p-4 rounded shadow -mx-2 sm:-mx-4 md:-mx-6 lg:-mx-8 relative">
-      
-      {countHiddenRows() > 0 && (
-        <div className="mb-2 flex justify-end">
-          <button 
-            onClick={showAllHidden} 
-            className="flex items-center gap-2 px-3 py-1 text-xs font-medium rounded-full text-blue-600 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 transition-colors"
-          >
-            <IconEye />
-            Mostra {countHiddenRows()} righe nascoste
-          </button>
-        </div>
-      )}
-
-<div 
-  ref={scrollRef} 
-  className="overflow-x-auto overflow-y-auto no-scrollbar"
-  style={{ maxHeight: '85vh' }}
->
+      <div 
+        ref={scrollRef} 
+        className="overflow-x-auto overflow-y-auto hide-scrollbar-y" 
+        style={{ maxHeight: '85vh' }}
+      >
         <table className="min-w-full text-sm">
           <thead className="sticky top-0" style={{ zIndex: 90 }}>
             <tr className="border-b bg-slate-700 dark:bg-slate-900 text-white">
               <th className="p-2 sticky top-0 left-0 text-left bg-slate-700 dark:bg-slate-900 text-white" style={{ zIndex: 100, minWidth: '340px', width: '380px' }}>
-                <span className="font-semibold" style={{ fontSize: '1.08rem' }}>Asset</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold" style={{ fontSize: '1.08rem' }}>Asset</span>
+                  {countHiddenRows() > 0 && (
+                    <button 
+                      onClick={showAllHidden}
+                      title={`Show ${countHiddenRows()} hidden row${countHiddenRows() > 1 ? 's' : ''}`}
+                      className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 transition-colors"
+                    >
+                      <IconEye />
+                      {countHiddenRows()}
+                    </button>
+                  )}
+                </div>
               </th>
               {months.map((m, i)=> (
                 <th key={m} onContextMenu={async (e)=>{ 
                   e.preventDefault(); 
-                  if(confirm(`Cancellare tutte le valutazioni del mese ${new Date(m).toLocaleDateString(undefined,{ month:'long', year:'numeric' })}?`)){ 
+                  if(confirm(`Delete all valuations for ${new Date(m).toLocaleDateString(undefined,{ month:'long', year:'numeric' })}?`)){ 
                     setManualMonths(prev => {
                       const newSet = new Set(prev)
                       newSet.delete(m)
@@ -474,11 +470,11 @@ export function AssetsPage() {
                   } 
                 }} className="p-2 whitespace-nowrap text-center border-l border-gray-200 dark:border-gray-700 relative sticky top-0 bg-slate-600 dark:bg-slate-800 text-white" style={{ zIndex: 95, minWidth: '140px' }}>
                   {i===0 && (
-                    <button onClick={addNextMonth} className="absolute left-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200" title="Aggiungi mese successivo" aria-label="Aggiungi mese successivo">‹</button>
+                    <button onClick={addNextMonth} className="absolute left-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200" title="Add next month" aria-label="Add next month">‹</button>
                   )}
                   {formatDateMonthYear(new Date(m))}
                   {i===months.length-1 && (
-                    <button onClick={addPrevMonth} className="absolute right-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200" title="Aggiungi mese precedente" aria-label="Aggiungi mese precedente">›</button>
+                    <button onClick={addPrevMonth} className="absolute right-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200" title="Add previous month" aria-label="Add previous month">›</button>
                   )}
                 </th>
               ))}
@@ -493,7 +489,7 @@ export function AssetsPage() {
                       <span>{row.name}</span>
                       {hoveredRowIdx===idx && (
                         <button 
-                          title="Nascondi gruppo" 
+                          title="Hide group" 
                           onClick={()=> row.groupId && hideGroup(row.groupId)} 
                           className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
                         >
@@ -510,8 +506,8 @@ export function AssetsPage() {
                             if (hasVisibleChildren(it)) collapseItem(it); else expandItem(it)
                           }}
                           className="bg-transparent border-0 p-0 text-gray-400 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none cursor-pointer"
-                          title={hasVisibleChildren(row.item) ? 'Comprimi' : 'Espandi'}
-                          aria-label={hasVisibleChildren(row.item) ? 'Comprimi' : 'Espandi'}
+                          title={hasVisibleChildren(row.item) ? 'Collapse' : 'Expand'}
+                          aria-label={hasVisibleChildren(row.item) ? 'Collapse' : 'Expand'}
                         >
                           {hasVisibleChildren(row.item) ? '▾' : '▸'}
                         </button>
@@ -519,7 +515,7 @@ export function AssetsPage() {
                       <span>{row.name}</span>
                       {hoveredRowIdx===idx && (
                         <button 
-                          title="Nascondi riga" 
+                          title="Hide row" 
                           onClick={()=> toggleHidden(row.item!)} 
                           className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
                         >
@@ -545,6 +541,8 @@ export function AssetsPage() {
                     <td
                       key={m}
                       onClick={(e)=>{ if(!isEditing) onCellClick(item, m) }}
+                      onMouseEnter={()=>{ if(!isEditing) setHoveredCell({ itemId: item.id, month: m }) }}
+                      onMouseLeave={()=>setHoveredCell(null)}
                       className="p-2 text-center border-l border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 cursor-text"
                       style={{ minWidth: '140px' }}
                     >

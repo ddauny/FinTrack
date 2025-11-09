@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "AssetGroup" ADD COLUMN "order" INTEGER NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "AssetItem" ADD COLUMN "order" INTEGER NOT NULL DEFAULT 0;

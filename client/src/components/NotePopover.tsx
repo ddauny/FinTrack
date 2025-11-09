@@ -46,7 +46,7 @@ export default function NotePopover({ visible, initial, onClose, onSave }: NoteP
       onClick={onClose} // Chiudi cliccando sullo sfondo
     >
       <div 
-        className="bg-yellow-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg max-w-sm w-full border border-yellow-200 dark:border-gray-700"
+        className="bg-yellow-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg max-w-md w-full border border-yellow-200 dark:border-gray-700"
         onClick={(e) => e.stopPropagation()} // Impedisce al click di chiudere il modal
       >
         <label className="block mb-2 font-semibold text-gray-900 dark:text-gray-100">
@@ -56,7 +56,7 @@ export default function NotePopover({ visible, initial, onClose, onSave }: NoteP
         </label>
         <textarea
           ref={textareaRef}
-          className="w-full p-2 rounded border focus:ring-yellow-400 focus:border-yellow-400 resize-none bg-white dark:bg-gray-700 dark:text-gray-100 min-h-[80px]"
+          className="w-full p-3 rounded border focus:ring-yellow-400 focus:border-yellow-400 resize-none bg-white dark:bg-gray-700 dark:text-gray-100 min-h-[120px] text-base"
           maxLength={250}
           value={value}
           onChange={e => setValue(e.target.value)}

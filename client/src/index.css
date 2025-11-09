@@ -27,5 +27,26 @@ input[type=number] {
   display: none; /* WebKit */
 }
 
+/* Hide ONLY vertical scrollbar, keep horizontal */
+.hide-scrollbar-y::-webkit-scrollbar {
+  width: 0px; /* Hide vertical scrollbar */
+}
+
+.hide-scrollbar-y::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hide-scrollbar-y {
+  scrollbar-width: thin; /* Firefox - show scrollbar but thin */
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent; /* Firefox - customize colors */
+}
+
+/* For Firefox: hide only vertical, show horizontal */
+@-moz-document url-prefix() {
+  .hide-scrollbar-y {
+    scrollbar-width: none; /* This will hide vertical in Firefox */
+  }
+}
+
 
 

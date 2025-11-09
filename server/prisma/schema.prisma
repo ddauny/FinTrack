@@ -109,7 +109,7 @@ model AssetGroup {
   id        Int      @id @default(autoincrement())
   userId    Int
   name      String   // e.g., 'Stock & ETF', 'Cash', 'Real Estate'
-  // order removed per UX change
+  order     Int      @default(0) // Display order
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   items     AssetItem[]
@@ -123,6 +123,7 @@ model AssetItem {
   description       String?
   hidden            Boolean     @default(false)
   depreciationAmount Decimal?   // Monthly depreciation amount (e.g., 250.00)
+  order             Int         @default(0) // Display order within group or parent
 
   group             AssetGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
   parentItem        AssetItem?  @relation("AssetItemToChildren", fields: [parentItemId], references: [id], onDelete: Cascade)

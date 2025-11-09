@@ -108,7 +108,11 @@ assetsRouter.get("/market-data", requireAuth, async (_req: AuthRequest, res) => 
 // Asset Groups & Items & Valuations
 const groupSchema = z.object({ name: z.string().min(1) });
 assetsRouter.get("/asset-groups", requireAuth, async (req: AuthRequest, res) => {
-  const groups = await prisma.assetGroup.findMany({ where: { userId: req.userId! }, include: { items: { include: { valuations: true } } } });
+  const groups = await prisma.assetGroup.findMany({ 
+    where: { userId: req.userId! }, 
+    include: { items: { include: { valuations: true }, orderBy: { order: 'asc' } } },
+    orderBy: { order: 'asc' }
+  });
   res.json(groups);
 });
 assetsRouter.post("/asset-groups", requireAuth, async (req: AuthRequest, res) => {
@@ -398,4 +402,41 @@ assetsRouter.post("/asset-items/show-all", requireAuth, async (req: AuthRequest,
     data: { hidden: false }
   });
   res.json({ updated: updated.count });
+});
+
+// --- REORDER ENDPOINTS ---
+// Reorder asset groups
+assetsRouter.post("/asset-groups/reorder", requireAuth, async (req: AuthRequest, res) => {
+  const { groupIds } = req.body as { groupIds: number[] };
+  if (!Array.isArray(groupIds)) return res.status(400).json({ error: "Invalid payload" });
+  
+  // Update order for each group
+  await Promise.all(
+    groupIds.map((id, index) =>
+      prisma.assetGroup.updateMany({
+        where: { id, userId: req.userId! },
+        data: { order: index }
+      })
+    )
+  );
+  
+  res.json({ success: true });
+});
+
+// Reorder asset items within a group or parent
+assetsRouter.post("/asset-items/reorder", requireAuth, async (req: AuthRequest, res) => {
+  const { itemIds } = req.body as { itemIds: number[] };
+  if (!Array.isArray(itemIds)) return res.status(400).json({ error: "Invalid payload" });
+  
+  // Update order for each item
+  await Promise.all(
+    itemIds.map((id, index) =>
+      prisma.assetItem.update({
+        where: { id },
+        data: { order: index }
+      })
+    )
+  );
+  
+  res.json({ success: true });
 });
