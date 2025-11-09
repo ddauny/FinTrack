@@ -18,6 +18,7 @@ const createSchema = z.object({
   date: z.string(),
   amount: z.number(),
   notes: z.string().optional(),
+  recurringTransactionId: z.number().int().optional(),
 });
 
 transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
@@ -215,6 +216,7 @@ transactionsRouter.post("/", requireAuth, async (req: AuthRequest, res) => {
       amount: data.amount,
       type,
       notes: data.notes,
+      recurringTransactionId: data.recurringTransactionId,
     },
   });
   res.status(201).json(item);

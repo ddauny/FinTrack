@@ -276,15 +276,16 @@ export function TransactionsPage() {
         startDate: form.date,
         endDate: form.endDate || undefined
       }
-      await api.recurringTransactions.create(recurringPayload)
+      const recurringTransaction = await api.recurringTransactions.create(recurringPayload)
       
-      // Create the first transaction immediately
+      // Create the first transaction immediately with link to recurring transaction
       const firstTransactionPayload = {
         date: form.date,
         amount: Number(form.amount),
         accountId: acctId,
         categoryId: form.categoryId,
-        notes: form.notes
+        notes: form.notes,
+        recurringTransactionId: recurringTransaction.id
       }
       await api.transactions.create(firstTransactionPayload)
     } else {
