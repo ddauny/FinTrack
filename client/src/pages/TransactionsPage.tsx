@@ -16,6 +16,7 @@ export function TransactionsPage() {
     }
   }, [items])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialAutoRefreshSkipped = useRef(false)
   const initialLoadDone = useRef(false)
   const initialFetchStarted = useRef(false)
@@ -229,16 +230,21 @@ export function TransactionsPage() {
     setTimeout(() => refresh(), 50); // Small delay to ensure state is updated
   }, [sortBy, order, startDate, endDate, selectedCategory, searchQuery, txnType])
 
-  // infinite scroll on window
+  // infinite scroll on scrollable container
   useEffect(()=>{
     function onScroll() {
-      const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 200
+      const container = scrollContainerRef.current
+      if (!container) return
+      const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200
       const hasMore = items.length < total
       // Only trigger infinite scroll if we're not changing sort/filters
       if (nearBottom && hasMore && !loading) fetchPage(page + 1, 'append')
     }
-    window.addEventListener('scroll', onScroll)
-    return () => window.removeEventListener('scroll', onScroll)
+    const container = scrollContainerRef.current
+    if (container) {
+      container.addEventListener('scroll', onScroll)
+      return () => container.removeEventListener('scroll', onScroll)
+    }
   }, [items.length, total, loading, page])
   async function ensureAccountId(): Promise<number> {
     if (form.accountId) return Number(form.accountId)
@@ -397,58 +403,97 @@ export function TransactionsPage() {
   }, [categories])
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-2 sm:p-4 rounded shadow">
-      <div className="mb-4">
-        <div className="font-semibold mb-3 dark:text-gray-100">Transactions</div>
-        
-        {/* Filter Controls */}
-        <div className="space-y-4">
-          {/* Date Filters */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">From Date</label>
+    <div className="bg-white dark:bg-gray-800 p-2 sm:p-4 rounded shadow flex flex-col h-[calc(100vh-120px)]">
+      {/* Fixed Header with Filters */}
+      <div className="flex-shrink-0 mb-3">
+        {/* Filter Controls - All in one compact row */}
+        <div className="space-y-2">
+          {/* Date Filters + Search + Actions in one row */}
+          <div className="flex flex-wrap items-end gap-2">
+            {/* From Date */}
+            <div className="flex-shrink-0" style={{width: '140px'}}>
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">From</label>
               <input 
                 type="date" 
                 value={startDate} 
                 onChange={e=>setStartDate(e.target.value)} 
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">To Date</label>
+            
+            {/* To Date */}
+            <div className="flex-shrink-0" style={{width: '140px'}}>
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">To</label>
               <input 
                 type="date" 
                 value={endDate} 
                 onChange={e=>setEndDate(e.target.value)} 
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-          </div>
-          
-          {/* Search Filter */}
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Search</label>
-            <div className="flex gap-2">
+            
+            {/* Search */}
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">Search</label>
               <input
                 type="text"
-                placeholder="Search by category, amount, or notes..."
+                placeholder="Category, amount, notes..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               />
-              <button 
-                onClick={()=>{setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery('')}} 
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
-              >
-                Clear
-              </button>
             </div>
+            
+            {/* Clear Button */}
+            <button 
+              onClick={()=>{setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery('')}} 
+              className="px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 focus:ring-1 focus:ring-blue-500 whitespace-nowrap h-[30px]"
+              title="Clear filters"
+            >
+              Clear
+            </button>
+            
+            {/* Import CSV Button */}
+            <button 
+              onClick={()=>fileInputRef.current?.click()} 
+              className="flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors h-[30px]" 
+              title="Import CSV"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                <path d="M12 3a1 1 0 011 1v9.586l2.293-2.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L11 13.586V4a1 1 0 011-1z"/>
+                <path d="M5 20a2 2 0 01-2-2v-2a1 1 0 112 0v2h14v-2a1 1 0 112 0v2a2 2 0 01-2 2H5z"/>
+              </svg>
+              <span>Import</span>
+            </button>
+            
+            {/* Add Transaction Button */}
+            <button 
+              onClick={()=>{
+                setForm({ 
+                  date: new Date().toISOString().slice(0,10), 
+                  amount: 0, 
+                  accountId: form.accountId || '', 
+                  categoryId: '', 
+                  notes: '' 
+                });
+                setCategoryQuery('');
+                setEditingId(null);
+                setShowModal(true);
+              }} 
+              className="flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:ring-1 focus:ring-blue-500 h-[30px]" 
+              title="Add Transaction"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                <path d="M11 11V5a1 1 0 112 0v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H5a1 1 0 110-2h6z"/>
+              </svg>
+              <span>Add</span>
+            </button>
           </div>
           
           {/* Filter Indicator */}
           {(startDate || endDate || selectedCategory || searchQuery || txnType) && (
             <div className="flex items-center gap-2">
-              <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg">
+              <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-md">
                 {txnType ? `Type: ${txnType}` : (selectedCategory ? `Category: ${selectedCategory}` : (searchQuery ? `Search: "${searchQuery}"` : 'Date filtered'))}
               </div>
               <button 
@@ -460,37 +505,31 @@ export function TransactionsPage() {
             </div>
           )}
         </div>
-          
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 mt-6">
-          <input ref={fileInputRef} type="file" accept=".csv" onChange={onFileSelected} className="hidden" />
-          <button 
-            title="Import CSV" 
-            onClick={()=>fileInputRef.current?.click()} 
-            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-2 focus:ring-blue-500" 
-            aria-label="Import CSV"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-              <path d="M12 3a1 1 0 011 1v9.586l2.293-2.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L11 13.586V4a1 1 0 011-1z"/>
-              <path d="M5 20a2 2 0 01-2-2v-2a1 1 0 112 0v2h14v-2a1 1 0 112 0v2a2 2 0 01-2 2H5z"/>
-            </svg>
-            <span>Import CSV</span>
-          </button>
-          <button 
-            title="Add Transactioooooosdsn" 
-            onClick={()=>setShowModal(true)} 
-            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500" 
-            aria-label="Add Transaction"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-              <path d="M11 11V5a1 1 0 112 0v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H5a1 1 0 110-2h6z"/>
-            </svg>
-            <span>Add Transaction</span>
-          </button>
+        
+        <input ref={fileInputRef} type="file" accept=".csv" onChange={onFileSelected} className="hidden" />
+      </div>
+      
+      {/* Desktop Table Header - Fixed */}
+      <div className="hidden sm:block flex-shrink-0">
+        <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <table className="min-w-full text-sm">
+            <thead className="bg-white dark:bg-gray-800">
+              <tr className="text-left border-b select-none">
+                <th className="p-2 cursor-pointer min-w-[100px] bg-white dark:bg-gray-800" onClick={()=>toggleSort('date')}>Date {sortBy==='date' && sortIcon}</th>
+                <th className="p-2 cursor-pointer min-w-[120px] bg-white dark:bg-gray-800" onClick={()=>toggleSort('amount')}>Amount {sortBy==='amount' && sortIcon}</th>
+                <th className="p-2 cursor-pointer min-w-[120px] bg-white dark:bg-gray-800" onClick={()=>toggleSort('categoryId')}>Category {sortBy==='categoryId' && sortIcon}</th>
+                <th className="p-2 cursor-pointer min-w-[150px] bg-white dark:bg-gray-800 hidden sm:table-cell" onClick={()=>toggleSort('notes')}>Notes {sortBy==='notes' && sortIcon}</th>
+                <th className="p-2 min-w-[100px] bg-white dark:bg-gray-800">Actions</th>
+              </tr>
+            </thead>
+          </table>
         </div>
       </div>
-      {/* Mobile Card View */}
-      <div className="block sm:hidden space-y-2">
+      
+      {/* Scrollable Content Area */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar">
+        {/* Mobile Card View */}
+        <div className="block sm:hidden space-y-2">
         {items.map((t)=> (
           <div key={t.id} className="bg-gray-50 dark:bg-gray-700/10 p-3 rounded border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-start mb-2">
@@ -504,7 +543,19 @@ export function TransactionsPage() {
             <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</div>
             {t.notes && <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t.notes}</div>}
             <div className="flex gap-2">
-              <button title="Edit" onClick={()=>{ setEditingId(t.id); setForm({ date: String(t.date).slice(0,10), amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, notes: t.notes||'' }); setShowModal(true) }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-gray-200 rounded" aria-label="Edit Transaction">
+              <button title="Edit" onClick={()=>{ 
+                setEditingId(t.id); 
+                const category = categoryMap[t.categoryId] || t.category;
+                setForm({ 
+                  date: String(t.date).slice(0,10), 
+                  amount: t.amount, 
+                  accountId: t.accountId, 
+                  categoryId: t.categoryId, 
+                  notes: t.notes||'' 
+                }); 
+                setCategoryQuery(category?.name || '');
+                setShowModal(true);
+              }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-gray-200 rounded" aria-label="Edit Transaction">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
                 Edit
               </button>
@@ -520,15 +571,6 @@ export function TransactionsPage() {
       {/* Desktop Table View */}
       <div className="hidden sm:block overflow-x-auto -mx-4 sm:mx-0">
         <table className="min-w-full text-sm">
-          <thead>
-            <tr className="text-left border-b select-none">
-              <th className="p-2 cursor-pointer min-w-[100px]" onClick={()=>toggleSort('date')}>Date {sortBy==='date' && sortIcon}</th>
-              <th className="p-2 cursor-pointer min-w-[120px]" onClick={()=>toggleSort('amount')}>Amount {sortBy==='amount' && sortIcon}</th>
-              <th className="p-2 cursor-pointer min-w-[120px]" onClick={()=>toggleSort('categoryId')}>Category {sortBy==='categoryId' && sortIcon}</th>
-              <th className="p-2 cursor-pointer min-w-[150px] hidden sm:table-cell" onClick={()=>toggleSort('notes')}>Notes {sortBy==='notes' && sortIcon}</th>
-              <th className="p-2 min-w-[100px]">Actions</th>
-            </tr>
-          </thead>
           <tbody>
             {/* Debug: {console.log('Rendering items:', items.length, 'items')} */}
             {items.map((t)=> (
@@ -543,7 +585,19 @@ export function TransactionsPage() {
                 <td className="p-2 min-w-[150px] hidden sm:table-cell">{t.notes}</td>
                 <td className="p-2 min-w-[100px]">
                   <div className="flex flex-col sm:flex-row gap-1">
-                    <button title="Edit" onClick={()=>{ setEditingId(t.id); setForm({ date: String(t.date).slice(0,10), amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, notes: t.notes||'' }); setShowModal(true) }} className="p-1 sm:p-2 text-xs sm:text-sm bg-gray-200 rounded" aria-label="Edit Transaction">
+                    <button title="Edit" onClick={()=>{ 
+                      setEditingId(t.id); 
+                      const category = categoryMap[t.categoryId] || t.category;
+                      setForm({ 
+                        date: String(t.date).slice(0,10), 
+                        amount: t.amount, 
+                        accountId: t.accountId, 
+                        categoryId: t.categoryId, 
+                        notes: t.notes||'' 
+                      }); 
+                      setCategoryQuery(category?.name || '');
+                      setShowModal(true);
+                    }} className="p-1 sm:p-2 text-xs sm:text-sm bg-gray-200 rounded" aria-label="Edit Transaction">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 sm:w-4 sm:h-4"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
                     </button>
                     <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="p-1 sm:p-2 text-xs sm:text-sm bg-red-600 text-white rounded" aria-label="Delete Transaction">
@@ -559,6 +613,8 @@ export function TransactionsPage() {
       <div className="py-3 text-center text-sm text-gray-600 dark:text-gray-300">
         {loading ? 'Loading…' : (items.length >= total ? 'All loaded' : '')}
       </div>
+      </div>
+      {/* End of Scrollable Content Area */}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-2 sm:p-4">
@@ -572,46 +628,90 @@ export function TransactionsPage() {
             {/* Type removed (inferred from category); Account removed as requested */}
             <label className="text-sm">Category</label>
             <div className="relative">
-              <input
-                placeholder="Search category..."
-                value={categoryQuery}
-                onChange={handleCategoryChange}
-                onKeyDown={handleCategoryKeyDown}
-                onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
-                onFocus={() => categoryQuery.length >= 1 && categorySuggestions.length > 0 && setShowCategorySuggestions(true)}
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded"
-              />
-              {showCategorySuggestions && categorySuggestions.length > 0 && (
-                <div className="absolute z-10 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-b shadow-lg max-h-40 overflow-y-auto">
-                  {categorySuggestions.map((c, index) => (
+              {/* Show selected category as badge */}
+              {form.categoryId && categoryMap[form.categoryId] && (
+                <div 
+                  onClick={() => {
+                    setCategoryQuery('');
+                    setForm({...form, categoryId: ''});
+                  }}
+                  className={`mb-2 flex items-center justify-between w-full px-3 py-2 rounded-md cursor-pointer border ${
+                    categoryMap[form.categoryId].type === 'Income' 
+                      ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700' 
+                      : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700'
+                  }`}
+                >
+                  <span className="font-medium">{categoryMap[form.categoryId].name}</span>
+                  <span className="text-xs opacity-70">✕ Click to change</span>
+                </div>
+              )}
+              
+              {/* Search input - only show when no category selected */}
+              {!form.categoryId && (
+                <>
+                  <input
+                    placeholder="Search category..."
+                    value={categoryQuery}
+                    onChange={handleCategoryChange}
+                    onKeyDown={handleCategoryKeyDown}
+                    onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
+                    onFocus={() => categoryQuery.length >= 1 && categorySuggestions.length > 0 && setShowCategorySuggestions(true)}
+                    className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded"
+                  />
+                  {showCategorySuggestions && categorySuggestions.length > 0 && (
+                    <div className="absolute z-10 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-b shadow-lg max-h-40 overflow-y-auto">
+                      {categorySuggestions.map((c, index) => (
+                        <div
+                          key={c.id}
+                          onClick={() => selectCategorySuggestion(c)}
+                          className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
+                            index === selectedCategoryIndex ? 'bg-blue-100' : ''
+                          } ${c.type==='Income'?'text-green-700':'text-red-700'}`}
+                        >
+                          {c.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            
+            {/* Category list - only show when no category selected */}
+            {!form.categoryId && (
+              <div className="max-h-40 overflow-auto border border-gray-300 dark:border-gray-600 rounded">
+                {categories
+                  .filter(c=> c.name.toLowerCase().includes(categoryQuery.toLowerCase()))
+                  .map(c=> (
                     <div
                       key={c.id}
-                      onClick={() => selectCategorySuggestion(c)}
-                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
-                        index === selectedCategoryIndex ? 'bg-blue-100' : ''
-                      } ${c.type==='Income'?'text-green-700':'text-red-700'}`}
+                      onClick={()=>{setForm({...form, categoryId: c.id}); setCategoryQuery(c.name)}}
+                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${form.categoryId===c.id? 'bg-gray-100 dark:bg-gray-600':''} ${c.type==='Income'?'text-green-700':'text-red-700'}`}
                     >
                       {c.name}
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-            <div className="max-h-40 overflow-auto border border-gray-300 dark:border-gray-600 rounded">
-              {categories
-                .filter(c=> c.name.toLowerCase().includes(categoryQuery.toLowerCase()))
-                .map(c=> (
-                  <div
-                    key={c.id}
-                    onClick={()=>{setForm({...form, categoryId: c.id}); setCategoryQuery(c.name)}}
-                    className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${form.categoryId===c.id? 'bg-gray-100 dark:bg-gray-600':''} ${c.type==='Income'?'text-green-700':'text-red-700'}`}
-                  >
-                    {c.name}
-                  </div>
-                ))}
-            </div>
+              </div>
+            )}
             <label className="text-sm">Notes</label>
             <div className="relative">
+              {/* Notes suggestions ABOVE the input */}
+              {showNotesSuggestions && notesSuggestions.length > 0 && (
+                <div className="absolute bottom-full mb-1 z-10 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-t shadow-lg max-h-40 overflow-y-auto">
+                  {notesSuggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      onClick={() => selectSuggestion(suggestion)}
+                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
+                        index === selectedSuggestionIndex ? 'bg-blue-100 dark:bg-blue-900' : ''
+                      }`}
+                    >
+                      {suggestion}
+                    </div>
+                  ))}
+                </div>
+              )}
+              
               <input 
                 value={form.notes} 
                 onChange={handleNotesChange}
@@ -621,21 +721,6 @@ export function TransactionsPage() {
                 placeholder="Optional notes" 
                 className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded" 
               />
-              {showNotesSuggestions && notesSuggestions.length > 0 && (
-                <div className="absolute z-10 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-b shadow-lg max-h-40 overflow-y-auto">
-                  {notesSuggestions.map((suggestion, index) => (
-                    <div
-                      key={index}
-                      onClick={() => selectSuggestion(suggestion)}
-                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
-                        index === selectedSuggestionIndex ? 'bg-blue-100' : ''
-                      }`}
-                    >
-                      {suggestion}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={()=>{ setShowModal(false); setEditingId(null); setShowNotesSuggestions(false); setNotesSuggestions([]); setSelectedSuggestionIndex(-1); setShowCategorySuggestions(false); setCategorySuggestions([]); setSelectedCategoryIndex(-1) }} className="px-3 py-2 rounded">Cancel</button>

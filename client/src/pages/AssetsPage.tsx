@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatEUR, formatDateDMY, formatDateMonthYear } from '../lib/format'
 import { Parser } from 'expr-eval'
 import NotePopover from '../components/NotePopover' // Assicurati che questo percorso sia corretto
+import { PrivacyNumber } from '@/components/PrivacyNumber'
 
 // --- Icone per la UI ---
 const IconEye = () => (
@@ -531,7 +532,9 @@ export function AssetsPage() {
                     const group = groups.find(g=> g.id===row.groupId)
                     const items = (group?.items||[]).filter(it=> !it.parentItemId)
                     const v = items.reduce((sum, it)=> sum + valueFor(it, m, true), 0)
-                    return <td key={m} className="p-2 text-center font-semibold text-slate-900 dark:text-slate-100 border-l border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800" style={{ minWidth: '140px' }}>{v ? formatEUR(v) : ''}</td>
+                    return <td key={m} className="p-2 text-center font-semibold text-slate-900 dark:text-slate-100 border-l border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800" style={{ minWidth: '140px' }}>
+                      {v ? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber> : ''}
+                    </td>
                   }
                   const item = row.item!
                   const val = valueFor(item, m, true)
@@ -559,7 +562,7 @@ export function AssetsPage() {
                         />
                       ) : (
                         <div className="w-32 mx-auto relative">
-                          {val? formatEUR(val) : <span className="text-gray-400">—</span>}
+                          {val? <PrivacyNumber value={val}>{formatEUR(val)}</PrivacyNumber> : <span className="text-gray-400">—</span>}
                           
                           {/* --- MODIFICA: Stile dell'indicatore della nota (giallo post-it) --- */}
                           {valObj && valObj.note && (
@@ -586,7 +589,9 @@ export function AssetsPage() {
       const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
       return sum + s
     }, 0)
-    return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">{v? formatEUR(v): ''}</td>
+    return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+      {v? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber>: ''}
+    </td>
   })}
 </tr>
             <tr className="bg-slate-100 dark:bg-slate-900">
@@ -604,7 +609,9 @@ export function AssetsPage() {
       return sum + s
     }, 0) : 0
     const diff = prevKey ? (curr - prev) : 0
-    return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">{prevKey? formatEUR(diff): ''}</td>
+    return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+      {prevKey? <PrivacyNumber value={diff}>{formatEUR(diff)}</PrivacyNumber>: ''}
+    </td>
   })}
 </tr>
             <tr className="bg-white dark:bg-gray-800">
