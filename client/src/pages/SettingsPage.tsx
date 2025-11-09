@@ -65,7 +65,8 @@ export function SettingsPage() {
   const [recurringTransactions, setRecurringTransactions] = useState<any[]>([])
   const [categoryMap, setCategoryMap] = useState<Record<number, any>>({})
   const [accountMap, setAccountMap] = useState<Record<number, any>>({})
-
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
+  const [editingCategoryName, setEditingCategoryName] = useState('')
   function tokenHeader(): Record<string, string> {
     const token = localStorage.getItem('token')
     return token ? { Authorization: `Bearer ${token}` } : {}
@@ -453,7 +454,46 @@ export function SettingsPage() {
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {categories.map(c=> (
                   <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                    <td className="p-3 text-slate-900 dark:text-slate-100">{c.name}</td>
+                    <td className="p-3 text-slate-900 dark:text-slate-100">
+                      {editingCategoryId === c.id ? (
+                        <input
+                          type="text"
+                          value={editingCategoryName}
+                          onChange={(e) => setEditingCategoryName(e.target.value)}
+                          onBlur={async () => {
+                            if (editingCategoryName.trim()) {
+                              await api.categories.update(c.id, { name: editingCategoryName, type: c.type })
+                              refresh()
+                            }
+                            setEditingCategoryId(null)
+                          }}
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter') {
+                              if (editingCategoryName.trim()) {
+                                await api.categories.update(c.id, { name: editingCategoryName, type: c.type })
+                                refresh()
+                              }
+                              setEditingCategoryId(null)
+                            } else if (e.key === 'Escape') {
+                              setEditingCategoryId(null)
+                            }
+                          }}
+                          autoFocus
+                          className="w-full px-2 py-1 border border-blue-500 rounded-md text-sm bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      ) : (
+                        <div 
+                          onClick={() => {
+                            setEditingCategoryId(c.id)
+                            setEditingCategoryName(c.name)
+                          }}
+                          className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 px-2 py-1 rounded transition-colors"
+                          title="Click to edit"
+                        >
+                          {c.name}
+                        </div>
+                      )}
+                    </td>
                     <td className="p-3">
                       <select 
                         value={c.type} 
