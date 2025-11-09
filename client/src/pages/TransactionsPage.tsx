@@ -21,7 +21,7 @@ export function TransactionsPage() {
   const initialLoadDone = useRef(false)
   const initialFetchStarted = useRef(false)
   const [categories, setCategories] = useState<any[]>([])
-  const [form, setForm] = useState<any>({ date: new Date().toISOString().slice(0,10), amount: 0, accountId: '', categoryId: '', notes: '' })
+  const [form, setForm] = useState<any>({ date: new Date().toISOString().slice(0,10), amount: 0, accountId: '', categoryId: '', notes: '', isRecurring: false, frequency: 'MONTHLY', endDate: '' })
   const [categoryQuery, setCategoryQuery] = useState('')
   const [notesSuggestions, setNotesSuggestions] = useState<string[]>([])
   const [showNotesSuggestions, setShowNotesSuggestions] = useState(false)
@@ -263,9 +263,43 @@ export function TransactionsPage() {
     e.preventDefault()
     if (!form.categoryId) { alert('Please select a category.'); return }
     const acctId = await ensureAccountId()
-    const payload = { ...form, accountId: acctId, amount: Number(form.amount) }
-    if (editingId) await api.transactions.update(editingId, payload)
-    else await api.transactions.create(payload)
+    
+    if (form.isRecurring) {
+      // Create recurring transaction
+      const recurringPayload = {
+        accountId: acctId,
+        categoryId: form.categoryId,
+        amount: Number(form.amount),
+        type: categoryMap[form.categoryId]?.type || 'Expense',
+        notes: form.notes,
+        frequency: form.frequency,
+        startDate: form.date,
+        endDate: form.endDate || undefined
+      }
+      await api.recurringTransactions.create(recurringPayload)
+      
+      // Create the first transaction immediately
+      const firstTransactionPayload = {
+        date: form.date,
+        amount: Number(form.amount),
+        accountId: acctId,
+        categoryId: form.categoryId,
+        notes: form.notes
+      }
+      await api.transactions.create(firstTransactionPayload)
+    } else {
+      // Create/update normal transaction (exclude recurring fields)
+      const payload = { 
+        date: form.date,
+        amount: Number(form.amount),
+        accountId: acctId,
+        categoryId: form.categoryId,
+        notes: form.notes
+      }
+      if (editingId) await api.transactions.update(editingId, payload)
+      else await api.transactions.create(payload)
+    }
+    
     setShowModal(false)
     setEditingId(null)
     setShowNotesSuggestions(false)
@@ -274,6 +308,7 @@ export function TransactionsPage() {
     setShowCategorySuggestions(false)
     setCategorySuggestions([])
     setSelectedCategoryIndex(-1)
+    setForm({ date: new Date().toISOString().slice(0,10), amount: 0, accountId: '', categoryId: '', notes: '', isRecurring: false, frequency: 'MONTHLY', endDate: '' })
     refresh()
   }
   async function onFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
@@ -474,7 +509,10 @@ export function TransactionsPage() {
                   amount: 0, 
                   accountId: form.accountId || '', 
                   categoryId: '', 
-                  notes: '' 
+                  notes: '',
+                  isRecurring: false,
+                  frequency: 'MONTHLY',
+                  endDate: ''
                 });
                 setCategoryQuery('');
                 setEditingId(null);
@@ -493,12 +531,12 @@ export function TransactionsPage() {
           {/* Filter Indicator */}
           {(startDate || endDate || selectedCategory || searchQuery || txnType) && (
             <div className="flex items-center gap-2">
-              <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-md">
+              <div className="text-xs text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-md">
                 {txnType ? `Type: ${txnType}` : (selectedCategory ? `Category: ${selectedCategory}` : (searchQuery ? `Search: "${searchQuery}"` : 'Date filtered'))}
               </div>
               <button 
                 onClick={()=>{setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery(''); setTxnType('')}} 
-                className="text-xs text-red-600 hover:text-red-800"
+                className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
               >
                 ×
               </button>
@@ -513,13 +551,13 @@ export function TransactionsPage() {
       <div className="hidden sm:block flex-shrink-0">
         <div className="overflow-x-auto -mx-4 sm:mx-0">
           <table className="min-w-full text-sm">
-            <thead className="bg-white dark:bg-gray-800">
-              <tr className="text-left border-b select-none">
-                <th className="p-2 cursor-pointer min-w-[100px] bg-white dark:bg-gray-800" onClick={()=>toggleSort('date')}>Date {sortBy==='date' && sortIcon}</th>
-                <th className="p-2 cursor-pointer min-w-[120px] bg-white dark:bg-gray-800" onClick={()=>toggleSort('amount')}>Amount {sortBy==='amount' && sortIcon}</th>
-                <th className="p-2 cursor-pointer min-w-[120px] bg-white dark:bg-gray-800" onClick={()=>toggleSort('categoryId')}>Category {sortBy==='categoryId' && sortIcon}</th>
-                <th className="p-2 cursor-pointer min-w-[150px] bg-white dark:bg-gray-800 hidden sm:table-cell" onClick={()=>toggleSort('notes')}>Notes {sortBy==='notes' && sortIcon}</th>
-                <th className="p-2 min-w-[100px] bg-white dark:bg-gray-800">Actions</th>
+            <thead className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <tr className="text-left select-none">
+                <th className="p-2 cursor-pointer min-w-[100px] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('date')}>Date {sortBy==='date' && sortIcon}</th>
+                <th className="p-2 cursor-pointer min-w-[120px] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('amount')}>Amount {sortBy==='amount' && sortIcon}</th>
+                <th className="p-2 cursor-pointer min-w-[120px] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('categoryId')}>Category {sortBy==='categoryId' && sortIcon}</th>
+                <th className="p-2 cursor-pointer min-w-[150px] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold hidden sm:table-cell" onClick={()=>toggleSort('notes')}>Notes {sortBy==='notes' && sortIcon}</th>
+                <th className="p-2 min-w-[100px] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold">Actions</th>
               </tr>
             </thead>
           </table>
@@ -533,8 +571,8 @@ export function TransactionsPage() {
         {items.map((t)=> (
           <div key={t.id} className="bg-gray-50 dark:bg-gray-700/10 p-3 rounded border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-start mb-2">
-              <div className="text-sm font-medium">{formatDateDMY(t.date)}</div>
-              <div className={`text-sm font-bold ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-700' : 'text-red-700'}`}>
+              <div className="text-sm font-medium dark:text-gray-200">{formatDateDMY(t.date)}</div>
+              <div className={`text-sm font-bold ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                 <PrivacyNumber value={t.amount}>
                   {formatEUR(t.amount)}
                 </PrivacyNumber>
@@ -551,15 +589,18 @@ export function TransactionsPage() {
                   amount: t.amount, 
                   accountId: t.accountId, 
                   categoryId: t.categoryId, 
-                  notes: t.notes||'' 
+                  notes: t.notes||'',
+                  isRecurring: false,
+                  frequency: 'MONTHLY',
+                  endDate: ''
                 }); 
                 setCategoryQuery(category?.name || '');
                 setShowModal(true);
-              }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-gray-200 rounded" aria-label="Edit Transaction">
+              }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-100 rounded hover:bg-gray-300 dark:hover:bg-gray-500" aria-label="Edit Transaction">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
                 Edit
               </button>
-              <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-red-600 text-white rounded" aria-label="Delete Transaction">
+              <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-600" aria-label="Delete Transaction">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
                 Delete
               </button>
@@ -574,15 +615,15 @@ export function TransactionsPage() {
           <tbody>
             {/* Debug: {console.log('Rendering items:', items.length, 'items')} */}
             {items.map((t)=> (
-              <tr key={t.id} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700/10">
-                <td className="p-2 min-w-[100px]">{formatDateDMY(t.date)}</td>
-                <td className={`p-2 min-w-[120px] ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-700' : 'text-red-700'}`}>
+              <tr key={t.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/20">
+                <td className="p-2 min-w-[100px] dark:text-gray-200">{formatDateDMY(t.date)}</td>
+                <td className={`p-2 min-w-[120px] font-semibold ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   <PrivacyNumber value={t.amount}>
                     {formatEUR(t.amount)}
                   </PrivacyNumber>
                 </td>
-                <td className="p-2 min-w-[120px]">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</td>
-                <td className="p-2 min-w-[150px] hidden sm:table-cell">{t.notes}</td>
+                <td className="p-2 min-w-[120px] dark:text-gray-200">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</td>
+                <td className="p-2 min-w-[150px] hidden sm:table-cell dark:text-gray-300">{t.notes}</td>
                 <td className="p-2 min-w-[100px]">
                   <div className="flex flex-col sm:flex-row gap-1">
                     <button title="Edit" onClick={()=>{ 
@@ -593,14 +634,17 @@ export function TransactionsPage() {
                         amount: t.amount, 
                         accountId: t.accountId, 
                         categoryId: t.categoryId, 
-                        notes: t.notes||'' 
+                        notes: t.notes||'',
+                        isRecurring: false,
+                        frequency: 'MONTHLY',
+                        endDate: ''
                       }); 
                       setCategoryQuery(category?.name || '');
                       setShowModal(true);
-                    }} className="p-1 sm:p-2 text-xs sm:text-sm bg-gray-200 rounded" aria-label="Edit Transaction">
+                    }} className="p-1 sm:p-2 text-xs sm:text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-100 rounded hover:bg-gray-300 dark:hover:bg-gray-500" aria-label="Edit Transaction">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 sm:w-4 sm:h-4"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
                     </button>
-                    <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="p-1 sm:p-2 text-xs sm:text-sm bg-red-600 text-white rounded" aria-label="Delete Transaction">
+                    <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="p-1 sm:p-2 text-xs sm:text-sm bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-600" aria-label="Delete Transaction">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 sm:w-4 sm:h-4"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
                     </button>
                   </div>
@@ -619,14 +663,14 @@ export function TransactionsPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-2 sm:p-4">
           <form onSubmit={createTxn} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded p-4 w-full max-w-sm space-y-2 max-h-[90vh] overflow-y-auto">
-            <div className="font-semibold mb-2">{editingId ? 'Edit Transaction' : 'Add Transaction'}</div>
-            <div className="text-xs text-gray-500 mb-2">All fields are required except Notes.</div>
-            <label className="text-sm">Date</label>
-            <input type="date" value={form.date} onChange={e=>setForm({...form, date:e.target.value})} className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded" />
-            <label className="text-sm">Amount (e.g., 24.99)</label>
-            <input type="number" step="0.01" value={form.amount} onChange={e=>setForm({...form, amount:e.target.value})} placeholder="Amount" className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded" />
+            <div className="font-semibold mb-2 dark:text-gray-100">{editingId ? 'Edit Transaction' : 'Add Transaction'}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">All fields are required except Notes.</div>
+            <label className="text-sm font-medium dark:text-gray-200">Date</label>
+            <input type="date" value={form.date} onChange={e=>setForm({...form, date:e.target.value})} className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded focus:ring-2 focus:ring-blue-500" />
+            <label className="text-sm font-medium dark:text-gray-200">Amount (e.g., 24.99)</label>
+            <input type="number" step="0.01" value={form.amount} onChange={e=>setForm({...form, amount:e.target.value})} placeholder="Amount" className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded focus:ring-2 focus:ring-blue-500" />
             {/* Type removed (inferred from category); Account removed as requested */}
-            <label className="text-sm">Category</label>
+            <label className="text-sm font-medium dark:text-gray-200">Category</label>
             <div className="relative">
               {/* Show selected category as badge */}
               {form.categoryId && categoryMap[form.categoryId] && (
@@ -665,8 +709,8 @@ export function TransactionsPage() {
                           key={c.id}
                           onClick={() => selectCategorySuggestion(c)}
                           className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
-                            index === selectedCategoryIndex ? 'bg-blue-100' : ''
-                          } ${c.type==='Income'?'text-green-700':'text-red-700'}`}
+                            index === selectedCategoryIndex ? 'bg-blue-100 dark:bg-blue-900' : ''
+                          } ${c.type==='Income'?'text-green-600 dark:text-green-400':'text-red-600 dark:text-red-400'}`}
                         >
                           {c.name}
                         </div>
@@ -679,21 +723,21 @@ export function TransactionsPage() {
             
             {/* Category list - only show when no category selected */}
             {!form.categoryId && (
-              <div className="max-h-40 overflow-auto border border-gray-300 dark:border-gray-600 rounded">
+              <div className="max-h-40 overflow-auto border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-750 rounded">
                 {categories
                   .filter(c=> c.name.toLowerCase().includes(categoryQuery.toLowerCase()))
                   .map(c=> (
                     <div
                       key={c.id}
                       onClick={()=>{setForm({...form, categoryId: c.id}); setCategoryQuery(c.name)}}
-                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${form.categoryId===c.id? 'bg-gray-100 dark:bg-gray-600':''} ${c.type==='Income'?'text-green-700':'text-red-700'}`}
+                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${form.categoryId===c.id? 'bg-gray-100 dark:bg-gray-600':''} ${c.type==='Income'?'text-green-600 dark:text-green-400':'text-red-600 dark:text-red-400'}`}
                     >
                       {c.name}
                     </div>
                   ))}
               </div>
             )}
-            <label className="text-sm">Notes</label>
+            <label className="text-sm font-medium dark:text-gray-200">Notes</label>
             <div className="relative">
               {/* Notes suggestions ABOVE the input */}
               {showNotesSuggestions && notesSuggestions.length > 0 && (
@@ -702,7 +746,7 @@ export function TransactionsPage() {
                     <div
                       key={index}
                       onClick={() => selectSuggestion(suggestion)}
-                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
+                      className={`px-3 py-2 cursor-pointer text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600 ${
                         index === selectedSuggestionIndex ? 'bg-blue-100 dark:bg-blue-900' : ''
                       }`}
                     >
@@ -719,12 +763,54 @@ export function TransactionsPage() {
                 onBlur={() => setTimeout(() => setShowNotesSuggestions(false), 200)}
                 onFocus={() => form.notes.length >= 2 && notesSuggestions.length > 0 && setShowNotesSuggestions(true)}
                 placeholder="Optional notes" 
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded" 
+                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400 dark:placeholder:text-gray-500" 
               />
             </div>
+            
+            {/* Recurring Transaction Section */}
+            {!editingId && (
+              <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                <label className="flex items-center gap-2 text-sm font-medium dark:text-gray-200 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={form.isRecurring} 
+                    onChange={e => setForm({...form, isRecurring: e.target.checked})}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
+                  />
+                  Make this a recurring transaction
+                </label>
+                
+                {form.isRecurring && (
+                  <div className="mt-3 space-y-2 pl-6">
+                    <label className="text-sm font-medium dark:text-gray-200">Frequency</label>
+                    <select 
+                      value={form.frequency} 
+                      onChange={e => setForm({...form, frequency: e.target.value})}
+                      className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="WEEKLY">Weekly</option>
+                      <option value="BIWEEKLY">Every 2 weeks</option>
+                      <option value="MONTHLY">Monthly</option>
+                      <option value="BIMONTHLY">Every 2 months</option>
+                      <option value="QUARTERLY">Quarterly</option>
+                      <option value="YEARLY">Yearly</option>
+                    </select>
+                    
+                    <label className="text-sm font-medium dark:text-gray-200">End Date (Optional)</label>
+                    <input 
+                      type="date" 
+                      value={form.endDate} 
+                      onChange={e => setForm({...form, endDate: e.target.value})}
+                      className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Leave empty for no end date</p>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={()=>{ setShowModal(false); setEditingId(null); setShowNotesSuggestions(false); setNotesSuggestions([]); setSelectedSuggestionIndex(-1); setShowCategorySuggestions(false); setCategorySuggestions([]); setSelectedCategoryIndex(-1) }} className="px-3 py-2 rounded">Cancel</button>
-              <button type="submit" disabled={!form.categoryId || !form.amount} className="px-3 py-2 rounded bg-blue-600 disabled:bg-blue-400 text-white">Save</button>
+              <button type="button" onClick={()=>{ setShowModal(false); setEditingId(null); setShowNotesSuggestions(false); setNotesSuggestions([]); setSelectedSuggestionIndex(-1); setShowCategorySuggestions(false); setCategorySuggestions([]); setSelectedCategoryIndex(-1) }} className="px-3 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600">Cancel</button>
+              <button type="submit" disabled={!form.categoryId || !form.amount} className="px-3 py-2 rounded bg-blue-600 disabled:bg-blue-400 dark:disabled:bg-blue-800 text-white hover:bg-blue-700 disabled:cursor-not-allowed">Save</button>
             </div>
           </form>
         </div>

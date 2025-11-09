@@ -62,6 +62,9 @@ export function SettingsPage() {
   const [itemForm, setItemForm] = useState<Record<number, { name: string; description?: string }>>({})
   const [showItemModalForGroup, setShowItemModalForGroup] = useState<number | null>(null)
   const [depreciationValues, setDepreciationValues] = useState<Record<number, string>>({})
+  const [recurringTransactions, setRecurringTransactions] = useState<any[]>([])
+  const [categoryMap, setCategoryMap] = useState<Record<number, any>>({})
+  const [accountMap, setAccountMap] = useState<Record<number, any>>({})
 
   function tokenHeader(): Record<string, string> {
     const token = localStorage.getItem('token')
@@ -69,15 +72,27 @@ export function SettingsPage() {
   }
 
   async function refresh() {
-    const [p, c, g] = await Promise.all([
+    const [p, c, g, r, accounts] = await Promise.all([
       api.settings.profile(), 
       api.categories.list(), 
-      fetch('/api/asset-groups', { headers: tokenHeader() }).then(r=>r.json())
+      fetch('/api/asset-groups', { headers: tokenHeader() }).then(r=>r.json()),
+      api.recurringTransactions.list(),
+      api.accounts.list()
     ])
     setProfile(p)
     setEmail((p as any)?.email||'')
     setCategories(c as any[])
     setGroups(g as Group[])
+    setRecurringTransactions(r)
+    
+    // Create maps for easier lookups
+    const catMap: Record<number, any> = {}
+    c.forEach((cat: any) => catMap[cat.id] = cat)
+    setCategoryMap(catMap)
+    
+    const accMap: Record<number, any> = {}
+    accounts.forEach((acc: any) => accMap[acc.id] = acc)
+    setAccountMap(accMap)
   }
 
   useEffect(()=>{ refresh() }, [])
@@ -257,6 +272,153 @@ export function SettingsPage() {
             </p>
           </div>
         </div>
+      </section>
+
+      {/* Recurring Transactions Section */}
+      <section className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+          </svg>
+          Recurring Transactions
+        </h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Manage your recurring transactions. These will be automatically created on their scheduled dates.
+        </p>
+        {recurringTransactions.length === 0 ? (
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mx-auto mb-3 opacity-50">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+            <p className="text-sm">No recurring transactions yet</p>
+            <p className="text-xs mt-1">Add a new transaction and check "Make this a recurring transaction"</p>
+          </div>
+        ) : (
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <div className="max-h-96 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-slate-100 dark:bg-slate-700">
+                  <tr className="text-left text-slate-700 dark:text-slate-200">
+                    <th className="p-3 font-semibold">Name & Category</th>
+                    <th className="p-3 font-semibold">Amount</th>
+                    <th className="p-3 font-semibold">Frequency</th>
+                    <th className="p-3 font-semibold">Start Date</th>
+                    <th className="p-3 font-semibold">Next Payment</th>
+                    <th className="p-3 font-semibold">End Date</th>
+                    <th className="p-3 font-semibold">Status</th>
+                    <th className="p-3 text-right font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {recurringTransactions.map(rt => {
+                    const category = categoryMap[rt.categoryId] || rt.category
+                    const account = accountMap[rt.accountId] || rt.account
+                    const isIncome = category?.type === 'Income'
+                    
+                    return (
+                      <tr key={rt.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <td className="p-3">
+                          <div className="space-y-1">
+                            <div className="font-semibold text-gray-900 dark:text-gray-100">
+                              {rt.notes || 'Recurring Transaction'}
+                            </div>
+                            <div className={`text-sm ${isIncome ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                              {category?.name || 'Unknown Category'}
+                            </div>
+                            {account && <div className="text-xs text-gray-500 dark:text-gray-400">{account.name}</div>}
+                          </div>
+                        </td>
+                        <td className={`p-3 font-semibold ${isIncome ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          €{Number(rt.amount).toFixed(2)}
+                        </td>
+                        <td className="p-3 text-slate-900 dark:text-slate-100">
+                          <span className="inline-flex items-center px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
+                            {rt.frequency === 'WEEKLY' && '📅 Weekly'}
+                            {rt.frequency === 'BIWEEKLY' && '📅 Every 2 weeks'}
+                            {rt.frequency === 'MONTHLY' && '📅 Monthly'}
+                            {rt.frequency === 'BIMONTHLY' && '📅 Every 2 months'}
+                            {rt.frequency === 'QUARTERLY' && '📅 Quarterly'}
+                            {rt.frequency === 'YEARLY' && '📅 Yearly'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-900 dark:text-slate-100">
+                          <div className="text-sm font-medium">
+                            {new Date(rt.startDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </div>
+                        </td>
+                        <td className="p-3 text-slate-900 dark:text-slate-100">
+                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                            {new Date(rt.nextDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </div>
+                        </td>
+                        <td className="p-3 text-slate-900 dark:text-slate-100">
+                          {rt.endDate ? (
+                            <div className="text-sm">
+                              {new Date(rt.endDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 italic">No end date</div>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            rt.isActive 
+                              ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' 
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                          }`}>
+                            {rt.isActive ? '✓ Active' : '⏸ Paused'}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                try {
+                                  await api.recurringTransactions.update(rt.id, { isActive: !rt.isActive })
+                                  refresh()
+                                } catch (err) {
+                                  console.error('Error toggling recurring transaction:', err)
+                                }
+                              }}
+                              className={`p-2 rounded-md text-sm font-medium transition-colors ${
+                                rt.isActive
+                                  ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800'
+                                  : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800'
+                              }`}
+                              aria-label={rt.isActive ? 'Pause recurring transaction' : 'Resume recurring transaction'}
+                              title={rt.isActive ? 'Pause' : 'Resume'}
+                            >
+                              {rt.isActive ? '⏸' : '▶'}
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (confirm('Are you sure you want to delete this recurring transaction?')) {
+                                  try {
+                                    await api.recurringTransactions.remove(rt.id)
+                                    refresh()
+                                  } catch (err) {
+                                    console.error('Error deleting recurring transaction:', err)
+                                  }
+                                }
+                              }}
+                              className="p-1.5 rounded-md bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+                              aria-label="Delete recurring transaction"
+                              title="Delete"
+                            >
+                              <IconTrash />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Categories Section */}

@@ -17,6 +17,7 @@ model User {
   accounts     Account[]
   categories   Category[]
   transactions Transaction[]
+  recurringTransactions RecurringTransaction[]
   budgets      Budget[]
   portfolios   Portfolio[]
   manualAssets ManualAsset[]
@@ -55,12 +56,35 @@ model Transaction {
   type       String    // 'Income' | 'Expense'
   notes      String?
   createdAt  DateTime  @default(now())
+  recurringTransactionId Int? // Link to recurring transaction if generated automatically
 
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   account    Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   category   Category  @relation("TxnCategory", fields: [categoryId], references: [id])
+  recurringTransaction RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
 
   @@index([userId, date])
+}
+
+model RecurringTransaction {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  accountId    Int
+  categoryId   Int
+  amount       Decimal
+  type         String    // 'Income' | 'Expense'
+  notes        String?
+  frequency    String    // 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'BIMONTHLY' | 'QUARTERLY' | 'YEARLY'
+  startDate    DateTime  // When to start generating transactions
+  nextDate     DateTime  // Next scheduled transaction date
+  endDate      DateTime? // Optional end date
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generatedTransactions Transaction[]
+
+  @@index([userId, nextDate, isActive])
 }
 
 model Budget {

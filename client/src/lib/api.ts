@@ -105,6 +105,12 @@ export const api = {
   settings: {
     profile: () => apiGet<any>('/api/settings/profile'),
     updateProfile: (data: any) => apiJson<any>('/api/settings/profile', 'PUT', data),
+  },
+  recurringTransactions: {
+    list: () => apiGet<any[]>('/api/recurring-transactions'),
+    create: (data: any) => apiJson<any>('/api/recurring-transactions', 'POST', data),
+    update: (id: number, data: any) => apiJson<any>(`/api/recurring-transactions/${id}`, 'PATCH', data),
+    remove: (id: number) => apiJson<void>(`/api/recurring-transactions/${id}`, 'DELETE'),
   }
 }
 
