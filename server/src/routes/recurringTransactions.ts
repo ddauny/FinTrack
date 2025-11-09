@@ -61,7 +61,7 @@ router.post('/', requireAuth, async (req, res) => {
 router.patch('/:id', requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id)
-    const { isActive, endDate } = req.body
+    const { isActive, endDate, categoryId } = req.body
     
     // Verify ownership
     const existing = await prisma.recurringTransaction.findFirst({
@@ -76,7 +76,8 @@ router.patch('/:id', requireAuth, async (req, res) => {
       where: { id },
       data: {
         isActive: isActive !== undefined ? isActive : undefined,
-        endDate: endDate !== undefined ? (endDate ? new Date(endDate) : null) : undefined
+        endDate: endDate !== undefined ? (endDate ? new Date(endDate) : null) : undefined,
+        categoryId: categoryId !== undefined ? categoryId : undefined
       }
     })
     res.json(updated)

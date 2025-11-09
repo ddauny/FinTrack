@@ -323,10 +323,26 @@ export function SettingsPage() {
                             <div className="font-semibold text-gray-900 dark:text-gray-100">
                               {rt.notes || 'Recurring Transaction'}
                             </div>
-                            <div className={`text-sm ${isIncome ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                              {category?.name || 'Unknown Category'}
-                            </div>
-                            {account && <div className="text-xs text-gray-500 dark:text-gray-400">{account.name}</div>}
+                            <select
+                              value={rt.categoryId}
+                              onChange={async (e) => {
+                                const newCategoryId = parseInt(e.target.value)
+                                try {
+                                  await api.recurringTransactions.update(rt.id, { categoryId: newCategoryId })
+                                  refresh()
+                                } catch (err) {
+                                  console.error('Error updating category:', err)
+                                  alert('Failed to update category')
+                                }
+                              }}
+                              className={`text-sm font-medium border-none bg-transparent cursor-pointer hover:underline ${isIncome ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
+                            >
+                              {categories.map(cat => (
+                                <option key={cat.id} value={cat.id} className="text-gray-900">
+                                  {cat.name}
+                                </option>
+                              ))}
+                            </select>
                           </div>
                         </td>
                         <td className={`p-3 font-semibold ${isIncome ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
