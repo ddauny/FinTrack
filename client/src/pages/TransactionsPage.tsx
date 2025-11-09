@@ -553,11 +553,10 @@ export function TransactionsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
               <tr className="text-left select-none">
-                <th className="p-2 cursor-pointer min-w-[100px] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('date')}>Date {sortBy==='date' && sortIcon}</th>
-                <th className="p-2 cursor-pointer min-w-[120px] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('amount')}>Amount {sortBy==='amount' && sortIcon}</th>
-                <th className="p-2 cursor-pointer min-w-[120px] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('categoryId')}>Category {sortBy==='categoryId' && sortIcon}</th>
-                <th className="p-2 cursor-pointer min-w-[150px] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold hidden sm:table-cell" onClick={()=>toggleSort('notes')}>Notes {sortBy==='notes' && sortIcon}</th>
-                <th className="p-2 min-w-[100px] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold">Actions</th>
+                <th className="p-2 cursor-pointer w-[25%] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('date')}>Date {sortBy==='date' && sortIcon}</th>
+                <th className="p-2 cursor-pointer w-[25%] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('amount')}>Amount {sortBy==='amount' && sortIcon}</th>
+                <th className="p-2 cursor-pointer w-[25%] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('categoryId')}>Category {sortBy==='categoryId' && sortIcon}</th>
+                <th className="p-2 cursor-pointer w-[25%] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold hidden sm:table-cell" onClick={()=>toggleSort('notes')}>Notes {sortBy==='notes' && sortIcon}</th>
               </tr>
             </thead>
           </table>
@@ -604,6 +603,11 @@ export function TransactionsPage() {
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
                 Delete
               </button>
+              {(t as any).recurringTransactionId && (
+                <div className="col-span-2 flex items-center justify-center px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 rounded text-yellow-700 dark:text-yellow-400 text-xs font-medium">
+                  ⟳ Recurring transaction
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -615,17 +619,28 @@ export function TransactionsPage() {
           <tbody>
             {/* Debug: {console.log('Rendering items:', items.length, 'items')} */}
             {items.map((t)=> (
-              <tr key={t.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/20">
-                <td className="p-2 min-w-[100px] dark:text-gray-200">{formatDateDMY(t.date)}</td>
-                <td className={`p-2 min-w-[120px] font-semibold ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              <tr key={t.id} className="group border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/20 relative">
+                <td className="p-2 w-[25%] dark:text-gray-200">
+                  <div className="flex items-center gap-2">
+                    {formatDateDMY(t.date)}
+                    {(t as any).recurringTransactionId && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 rounded text-yellow-600 dark:text-yellow-400 text-xs font-medium" title="Recurring transaction">
+                        ⟳
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className={`p-2 w-[25%] font-semibold ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   <PrivacyNumber value={t.amount}>
                     {formatEUR(t.amount)}
                   </PrivacyNumber>
                 </td>
-                <td className="p-2 min-w-[120px] dark:text-gray-200">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</td>
-                <td className="p-2 min-w-[150px] hidden sm:table-cell dark:text-gray-300">{t.notes}</td>
-                <td className="p-2 min-w-[100px]">
-                  <div className="flex flex-col sm:flex-row gap-1">
+                <td className="p-2 w-[25%] dark:text-gray-200">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</td>
+                <td className="p-2 w-[25%] hidden sm:table-cell dark:text-gray-300">{t.notes}</td>
+                
+                {/* Floating action buttons on hover */}
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
+                  <div className="flex items-center gap-1 bg-white dark:bg-gray-800 rounded shadow-lg px-1 py-1">
                     <button title="Edit" onClick={()=>{ 
                       setEditingId(t.id); 
                       const category = categoryMap[t.categoryId] || t.category;
@@ -641,14 +656,14 @@ export function TransactionsPage() {
                       }); 
                       setCategoryQuery(category?.name || '');
                       setShowModal(true);
-                    }} className="p-1 sm:p-2 text-xs sm:text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-100 rounded hover:bg-gray-300 dark:hover:bg-gray-500" aria-label="Edit Transaction">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 sm:w-4 sm:h-4"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
+                    }} className="p-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600" aria-label="Edit Transaction">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
                     </button>
-                    <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="p-1 sm:p-2 text-xs sm:text-sm bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-600" aria-label="Delete Transaction">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 sm:w-4 sm:h-4"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
+                    <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="p-1.5 text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800" aria-label="Delete Transaction">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
                     </button>
                   </div>
-                </td>
+                </div>
               </tr>
             ))}
           </tbody>

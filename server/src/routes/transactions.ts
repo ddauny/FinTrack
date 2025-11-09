@@ -127,8 +127,17 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
   const [items, total] = await Promise.all([
     prisma.transaction.findMany({ 
       where, 
-      orderBy, 
-      include: { 
+      orderBy,
+      select: {
+        id: true,
+        date: true,
+        amount: true,
+        notes: true,
+        accountId: true,
+        categoryId: true,
+        userId: true,
+        type: true,
+        recurringTransactionId: true,
         category: {
           select: {
             id: true,
