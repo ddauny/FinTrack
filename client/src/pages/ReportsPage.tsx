@@ -224,19 +224,47 @@ export function ReportsPage() {
       axisPointer: { type: 'shadow' },
       valueFormatter: (val: any) => hideNumbers ? '••••••' : formatEUR(val as number),
       backgroundColor: isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
-      textStyle: { color: chartTextColor }
+      textStyle: { color: chartTextColor },
+      confine: true
     },
-    xAxis: { type: 'category', data: (cashflow && cashflow.length > 0) ? cashflow.map(r=> formatDateDMY(new Date(r.period+'-01'))) : ['No Data'], axisLabel: { color: chartTextColor }, axisLine: { lineStyle: { color: axisLineColor } } },
+    grid: {
+      left: '5%',
+      right: '3%',
+      bottom: '20%',
+      top: '15%',
+      containLabel: true
+    },
+    xAxis: { 
+      type: 'category', 
+      data: (cashflow && cashflow.length > 0) ? cashflow.map(r=> formatDateDMY(new Date(r.period+'-01'))) : ['No Data'], 
+      axisLabel: { 
+        color: chartTextColor,
+        rotate: 45,
+        fontSize: 10,
+        interval: 0
+      }, 
+      axisLine: { lineStyle: { color: axisLineColor } } 
+    },
     yAxis: { 
       type: 'value',
       axisLabel: {
-        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value),
-        color: chartTextColor
+        formatter: (value: number) => {
+          if (hideNumbers) return '••••••';
+          if (value >= 1000) return `€${(value/1000).toFixed(0)}k`;
+          return `€${value.toFixed(0)}`;
+        },
+        color: chartTextColor,
+        fontSize: 10
       },
       splitLine: { lineStyle: { color: gridLineColor } },
       axisLine: { lineStyle: { color: axisLineColor } }
     },
-    legend: { data: ['Income', 'Expense'], textStyle: { color: chartTextColor } },
+    legend: { 
+      data: ['Income', 'Expense'], 
+      textStyle: { color: chartTextColor },
+      top: 0,
+      left: 'center'
+    },
     series: [
       { name: 'Income', type: 'bar', data: (cashflow && cashflow.length > 0) ? cashflow.map(r=>r.income) : [0], itemStyle: { color: '#16a34a' } },
       { name: 'Expense', type: 'bar', data: (cashflow && cashflow.length > 0) ? cashflow.map(r=>r.expense) : [0], itemStyle: { color: '#dc2626' } },
@@ -310,15 +338,46 @@ export function ReportsPage() {
       trigger: 'axis',
       valueFormatter: (val: any) => hideNumbers ? '••••••' : formatEUR(val as number),
       backgroundColor: isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
-      textStyle: { color: chartTextColor }
+      textStyle: { color: chartTextColor },
+      confine: true, // Mantieni tooltip dentro il grafico
+      position: function (point: any, params: any, dom: any, rect: any, size: any) {
+        // Posiziona tooltip in alto su mobile
+        if (size.viewSize[0] < 640) {
+          return [10, 10];
+        }
+        return null;
+      }
     },
-    legend: { data: ['Income', 'Expense'], textStyle: { color: chartTextColor } },
-    xAxis: { type: 'category', data: (trends && trends.length > 0) ? trends.map(r=> formatDateDMY(new Date(r.period+'-01'))) : ['No Data'], axisLabel: { color: chartTextColor }, axisLine: { lineStyle: { color: axisLineColor } } },
+    legend: { 
+      data: ['Income', 'Expense'], 
+      textStyle: { color: chartTextColor },
+      top: 0,
+      left: 'center'
+    },
+    grid: {
+      left: '5%',
+      right: '3%',
+      bottom: '20%',
+      top: '15%',
+      containLabel: true
+    },
+    xAxis: { 
+      type: 'category', 
+      data: (trends && trends.length > 0) ? trends.map(r=> formatDateDMY(new Date(r.period+'-01'))) : ['No Data'], 
+      axisLabel: { 
+        color: chartTextColor,
+        rotate: 45, // Ruota le etichette su mobile
+        fontSize: 10,
+        interval: 0 // Mostra tutte le etichette
+      }, 
+      axisLine: { lineStyle: { color: axisLineColor } } 
+    },
     yAxis: { 
       type: 'value',
       axisLabel: {
         formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value),
-        color: chartTextColor
+        color: chartTextColor,
+        fontSize: 10
       },
       splitLine: { lineStyle: { color: gridLineColor } },
       axisLine: { lineStyle: { color: axisLineColor } }
@@ -336,14 +395,27 @@ export function ReportsPage() {
       axisPointer: { type: 'shadow' },
       valueFormatter: (val: any) => hideNumbers ? '••••••' : formatEUR(val as number),
       backgroundColor: isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
-      textStyle: { color: chartTextColor }
+      textStyle: { color: chartTextColor },
+      confine: true
     },
-    grid: { left: '15%', right: '10%', top: '10%', bottom: '10%' },
+    grid: { 
+      left: '10%', 
+      right: '5%', 
+      top: '5%', 
+      bottom: '5%',
+      containLabel: true
+    },
     xAxis: { 
       type: 'value',
       axisLabel: {
-        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value),
-        color: chartTextColor
+        formatter: (value: number) => {
+          if (hideNumbers) return '••••••';
+          // Formato abbreviato per mobile
+          if (value >= 1000) return `€${(value/1000).toFixed(0)}k`;
+          return `€${value.toFixed(0)}`;
+        },
+        color: chartTextColor,
+        fontSize: 10
       },
       splitLine: { lineStyle: { color: gridLineColor } },
       axisLine: { lineStyle: { color: axisLineColor } }
@@ -351,7 +423,12 @@ export function ReportsPage() {
     yAxis: { 
       type: 'category', 
       data: (monthlyExpenses || []).map(e => e.month),
-      axisLabel: { fontSize: 10, color: chartTextColor },
+      axisLabel: { 
+        fontSize: 10, 
+        color: chartTextColor,
+        width: 60,
+        overflow: 'truncate'
+      },
       axisLine: { lineStyle: { color: axisLineColor } }
     },
     series: [{
@@ -361,7 +438,14 @@ export function ReportsPage() {
       label: {
         show: true,
         position: 'right',
-        formatter: (params: any) => hideNumbers ? '••••••' : `€${params.value.toFixed(2)}`
+        formatter: (params: any) => {
+          if (hideNumbers) return '••••••';
+          const val = params.value;
+          if (val >= 1000) return `€${(val/1000).toFixed(1)}k`;
+          return `€${val.toFixed(0)}`;
+        },
+        fontSize: 9,
+        color: chartTextColor
       }
     }]
   }
@@ -508,19 +592,26 @@ export function ReportsPage() {
       formatter: (params: any) => {
         const data = params[0]
         return `${data.name}<br/>${hideNumbers ? '••••••' : formatEUR(data.value)}`
-      }
+      },
+      confine: true
     },
     xAxis: { 
       type: 'category', 
       data: assetGrowthTrend.map(d => dayjs(d.month).format('MMM YYYY')),
-      axisLabel: { color: chartTextColor, rotate: 45 },
+      axisLabel: { 
+        color: chartTextColor, 
+        rotate: 45,
+        fontSize: 10,
+        interval: 0
+      },
       axisLine: { lineStyle: { color: axisLineColor } }
     },
     yAxis: { 
       type: 'value',
       axisLabel: {
         formatter: (value: number) => hideNumbers ? '••••••' : `€${(value/1000).toFixed(0)}k`,
-        color: chartTextColor
+        color: chartTextColor,
+        fontSize: 10
       },
       splitLine: { lineStyle: { color: gridLineColor } }
     },
@@ -541,7 +632,7 @@ export function ReportsPage() {
       itemStyle: { color: '#3b82f6' },
       smooth: true
     }],
-    grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true }
+    grid: { left: '5%', right: '3%', bottom: '20%', top: '10%', containLabel: true }
   }
 
   // Asset Distribution Option
@@ -553,20 +644,23 @@ export function ReportsPage() {
       textStyle: { color: chartTextColor },
       formatter: (params: any) => {
         return `${params.name}<br/>${hideNumbers ? '••••••' : formatEUR(params.value)} (${params.percent}%)`
-      }
+      },
+      confine: true
     },
     legend: {
-      orient: 'vertical',
-      right: 10,
-      top: 'center',
-      textStyle: { color: chartTextColor }
+      orient: 'horizontal',
+      bottom: 0,
+      left: 'center',
+      textStyle: { color: chartTextColor, fontSize: 10 },
+      itemWidth: 15,
+      itemHeight: 10
     },
     series: [{
       name: 'Asset Distribution',
       type: 'pie',
-      radius: ['40%', '70%'],
-      center: ['40%', '50%'],
-      avoidLabelOverlap: false,
+      radius: ['40%', '65%'],
+      center: ['50%', '45%'],
+      avoidLabelOverlap: true,
       itemStyle: {
         borderRadius: 10,
         borderColor: isDark ? '#1f2937' : '#fff',
@@ -574,11 +668,17 @@ export function ReportsPage() {
       },
       label: {
         show: true,
-        formatter: '{b}: {d}%',
-        color: chartTextColor
+        formatter: '{d}%',
+        color: chartTextColor,
+        fontSize: 10,
+        position: 'outside'
+      },
+      labelLine: {
+        length: 10,
+        length2: 10
       },
       emphasis: {
-        label: { show: true, fontSize: 16, fontWeight: 'bold' }
+        label: { show: true, fontSize: 12, fontWeight: 'bold' }
       },
       data: assetDistribution.map((d, i) => ({
         value: d.value,

@@ -34,6 +34,8 @@ export function AssetsPage() {
   const [hoveredRowIdx, setHoveredRowIdx] = useState<number | null>(null)
   const [hoveredCell, setHoveredCell] = useState<{ itemId:number; month:string } | null>(null)
   const [suggestion, setSuggestion] = useState<number | null>(null)
+  const [isMobileView, setIsMobileView] = useState(false)
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set())
 
   async function refresh() {
     const res = await fetch('/api/asset-groups', { headers: tokenHeader() })
@@ -56,6 +58,16 @@ export function AssetsPage() {
       refresh()
     }
   }, [manualMonths])
+
+  // Auto-detect mobile view
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobileView(window.innerWidth < 768)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   const rows = useMemo(()=>{
     const r: { depth:number; isGroup:boolean; groupId?:number; item?:Item; name:string }[] = []
@@ -539,6 +551,197 @@ export function AssetsPage() {
     fixedScrollRef.current.style.width = '100%'
   }, [showFixedScrollbar, scrollContentWidth])
 
+  // Mobile Card View Component
+  const MobileView = () => {
+    const toggleGroup = (groupId: number) => {
+      setExpandedGroups(prev => {
+        const newSet = new Set(prev)
+        if (newSet.has(groupId)) {
+          newSet.delete(groupId)
+        } else {
+          newSet.add(groupId)
+        }
+        return newSet
+      })
+    }
+
+    return (
+      <div className="space-y-4 p-2">
+        {/* Total Summary Card */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 rounded-lg p-4 text-white shadow-lg">
+          <h3 className="text-sm font-medium opacity-90 mb-1">Total Net Worth</h3>
+          <div className="text-2xl font-bold">
+            <PrivacyNumber value={groups.reduce((sum, g)=>{
+              const roots = (g.items||[]).filter(it=> !it.parentItemId)
+              return sum + roots.reduce((acc, it)=> acc + valueFor(it, months[0], true), 0)
+            }, 0)}>
+              {formatEUR(groups.reduce((sum, g)=>{
+                const roots = (g.items||[]).filter(it=> !it.parentItemId)
+                return sum + roots.reduce((acc, it)=> acc + valueFor(it, months[0], true), 0)
+              }, 0))}
+            </PrivacyNumber>
+          </div>
+          <div className="text-xs opacity-75 mt-1">
+            {months[0] && formatDateMonthYear(new Date(months[0]))}
+          </div>
+        </div>
+
+        {/* Groups as expandable cards */}
+        {groups.map(group => {
+          const isExpanded = expandedGroups.has(group.id)
+          const groupTotal = (group.items||[]).filter(it=> !it.parentItemId).reduce((sum, it)=> sum + valueFor(it, months[0], true), 0)
+          
+          return (
+            <div key={group.id} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              {/* Group Header */}
+              <button
+                onClick={() => toggleGroup(group.id)}
+                className="w-full p-4 flex items-center justify-between bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">
+                    {isExpanded ? '▾' : '▸'}
+                  </span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">{group.name}</span>
+                </div>
+                <div className="text-right">
+                  <div className="font-bold text-gray-900 dark:text-gray-100">
+                    <PrivacyNumber value={groupTotal}>
+                      {formatEUR(groupTotal)}
+                    </PrivacyNumber>
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {(group.items||[]).filter(it => !it.hidden).length} items
+                  </div>
+                </div>
+              </button>
+
+              {/* Group Items - shown when expanded */}
+              {isExpanded && (
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {(group.items||[]).filter(it => !it.parentItemId && !it.hidden).map(item => {
+                    const itemValue = valueFor(item, months[0], false)
+                    
+                    return (
+                      <div key={item.id} className="p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                            {item.name}
+                          </span>
+                          <span className="font-semibold text-gray-900 dark:text-gray-100">
+                            <PrivacyNumber value={itemValue}>
+                              {formatEUR(itemValue)}
+                            </PrivacyNumber>
+                          </span>
+                        </div>
+                        
+                        {/* Last 3 months mini-trend */}
+                        <div className="flex gap-2 text-xs">
+                          {months.slice(0, 3).map((m, idx) => {
+                            const val = valueFor(item, m, false)
+                            return (
+                              <div key={m} className={`flex-1 ${idx === 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-gray-700/50'} rounded p-1.5`}>
+                                <div className="text-gray-500 dark:text-gray-400 text-xs mb-0.5">
+                                  {formatDateMonthYear(new Date(m))}
+                                </div>
+                                <div className={`font-medium ${idx === 0 ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
+                                  {val > 0 ? (
+                                    <PrivacyNumber value={val}>
+                                      {formatEUR(val)}
+                                    </PrivacyNumber>
+                                  ) : '—'}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {/* Show nested items if any */}
+                        {(group.items||[]).filter(it => it.parentItemId === item.id && !it.hidden).length > 0 && (
+                          <div className="mt-2 ml-4 space-y-1 pt-2 border-t border-gray-200 dark:border-gray-700">
+                            {(group.items||[]).filter(it => it.parentItemId === item.id && !it.hidden).map(child => {
+                              const childValue = valueFor(child, months[0], false)
+                              return (
+                                <div key={child.id} className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-600 dark:text-gray-400">↳ {child.name}</span>
+                                  <span className="text-gray-700 dark:text-gray-300 font-medium">
+                                    <PrivacyNumber value={childValue}>
+                                      {formatEUR(childValue)}
+                                    </PrivacyNumber>
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Growth Stats Card */}
+        {months.length > 1 && (() => {
+          const curr = groups.reduce((sum, g)=>{
+            const roots = (g.items||[]).filter(it=> !it.parentItemId)
+            return sum + roots.reduce((acc, it)=> acc + valueFor(it, months[0], true), 0)
+          }, 0)
+          const prev = groups.reduce((sum, g)=>{
+            const roots = (g.items||[]).filter(it=> !it.parentItemId)
+            return sum + roots.reduce((acc, it)=> acc + valueFor(it, months[1], true), 0)
+          }, 0)
+          const diff = curr - prev
+          const pct = prev !== 0 ? ((curr - prev) / prev) * 100 : 0
+          const isPositive = diff > 0
+
+          return (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
+                Growth vs Previous Month
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Amount</div>
+                  <div className={`text-lg font-bold ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    <PrivacyNumber value={diff}>
+                      {isPositive ? '+' : ''}{formatEUR(diff)}
+                    </PrivacyNumber>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Percentage</div>
+                  <div className={`text-lg font-bold ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    {isPositive ? '+' : ''}{pct.toFixed(2)}%
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* View all data button */}
+        <button
+          onClick={() => setIsMobileView(false)}
+          className="w-full py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+        >
+          📊 View Full Table
+        </button>
+      </div>
+    )
+  }
+
+  // If mobile view, show cards instead of table
+  if (isMobileView) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded shadow">
+        <MobileView />
+      </div>
+    )
+  }
+
   return (
     <div ref={wrapperRef} className="bg-white dark:bg-gray-800 p-2 sm:p-4 rounded shadow -mx-2 sm:-mx-4 md:-mx-6 lg:-mx-8 relative">
       <div 
@@ -549,9 +752,9 @@ export function AssetsPage() {
         <table className="min-w-full text-sm">
           <thead className="sticky top-0" style={{ zIndex: 90 }}>
             <tr className="border-b bg-slate-700 dark:bg-slate-900 text-white">
-              <th className="p-2 sticky top-0 left-0 text-left bg-slate-700 dark:bg-slate-900 text-white" style={{ zIndex: 100, minWidth: '340px', width: '380px' }}>
+              <th className="p-2 sticky top-0 left-0 text-left bg-slate-700 dark:bg-slate-900 text-white" style={{ zIndex: 100, minWidth: '280px', width: 'clamp(140px, 40vw, 450px)' }}>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold" style={{ fontSize: '1.08rem' }}>Asset</span>
+                  <span className="font-semibold text-sm sm:text-base">Asset</span>
                   {countHiddenRows() > 0 && (
                     <button 
                       onClick={showAllHidden}
@@ -562,6 +765,13 @@ export function AssetsPage() {
                       {countHiddenRows()}
                     </button>
                   )}
+                  <button
+                    onClick={() => setIsMobileView(true)}
+                    title="Switch to card view"
+                    className="ml-auto flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-500/20 text-blue-200 hover:bg-blue-500/30 transition-colors md:hidden"
+                  >
+                    📱 Cards
+                  </button>
                 </div>
               </th>
               {months.map((m, i)=> (
@@ -576,13 +786,13 @@ export function AssetsPage() {
                     await fetch(`/api/asset-valuations?month=${encodeURIComponent(m)}`, { method:'DELETE', headers: { ...tokenHeader() } })
                     await refresh() 
                   } 
-                }} className="p-2 whitespace-nowrap text-center border-l border-gray-200 dark:border-gray-700 relative sticky top-0 bg-slate-600 dark:bg-slate-800 text-white" style={{ zIndex: 95, minWidth: '140px' }}>
+                }} className="p-2 whitespace-nowrap text-center border-l border-gray-200 dark:border-gray-700 relative sticky top-0 bg-slate-600 dark:bg-slate-800 text-white" style={{ zIndex: 95, minWidth: '100px' }}>
                   {i===0 && (
-                    <button onClick={addNextMonth} className="absolute left-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200" title="Add next month" aria-label="Add next month">‹</button>
+                    <button onClick={addNextMonth} className="absolute left-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200 text-sm" title="Add next month" aria-label="Add next month">‹</button>
                   )}
-                  {formatDateMonthYear(new Date(m))}
+                  <span className="text-xs sm:text-sm">{formatDateMonthYear(new Date(m))}</span>
                   {i===months.length-1 && (
-                    <button onClick={addPrevMonth} className="absolute right-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200" title="Add previous month" aria-label="Add previous month">›</button>
+                    <button onClick={addPrevMonth} className="absolute right-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200 text-sm" title="Add previous month" aria-label="Add previous month">›</button>
                   )}
                 </th>
               ))}
@@ -591,15 +801,15 @@ export function AssetsPage() {
           <tbody>
             {rows.map((row, idx)=> (
               <tr key={idx} onMouseEnter={()=>setHoveredRowIdx(idx)} onMouseLeave={()=>setHoveredRowIdx(null)} className={`border-b ${row.isGroup? '' : (idx % 2 === 0 ? 'bg-white dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-700/50')}`}>
-                <td className={`p-2 sticky left-0 ${row.isGroup ? 'bg-slate-100 dark:bg-slate-900 font-semibold text-slate-900 dark:text-slate-100' : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100' } border-r border-gray-200 dark:border-gray-700`} style={{ zIndex: 80, paddingLeft: `${row.depth*26}px`, fontSize: row.isGroup? '0.95rem' : (row.depth>1? '0.85rem':'0.9rem') , minWidth: '340px', width: '380px', textAlign: 'center' }}>
+                <td className={`p-2 sticky left-0 ${row.isGroup ? 'bg-slate-100 dark:bg-slate-900 font-semibold text-slate-900 dark:text-slate-100' : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100' } border-r border-gray-200 dark:border-gray-700`} style={{ zIndex: 80, paddingLeft: `${row.depth*20}px`, fontSize: row.isGroup? '0.9rem' : (row.depth>1? '0.8rem':'0.85rem') , minWidth: '280px', width: 'clamp(140px, 40vw, 450px)', textAlign: 'left' }}>
                   {row.isGroup ? (
                     <div className="flex items-center justify-between">
-                      <span>{row.name}</span>
+                      <span className="truncate">{row.name}</span>
                       {hoveredRowIdx===idx && (
                         <button 
                           title="Hide group" 
                           onClick={()=> row.groupId && hideGroup(row.groupId)} 
-                          className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
+                          className="ml-2 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
                         >
                           <IconEyeSlash />
                         </button>
@@ -613,19 +823,19 @@ export function AssetsPage() {
                             const it = row.item!
                             if (hasVisibleChildren(it)) collapseItem(it); else expandItem(it)
                           }}
-                          className="bg-transparent border-0 p-0 text-gray-400 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none cursor-pointer"
+                          className="bg-transparent border-0 p-0 text-gray-400 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none cursor-pointer flex-shrink-0"
                           title={hasVisibleChildren(row.item) ? 'Collapse' : 'Expand'}
                           aria-label={hasVisibleChildren(row.item) ? 'Collapse' : 'Expand'}
                         >
                           {hasVisibleChildren(row.item) ? '▾' : '▸'}
                         </button>
                       )}
-                      <span>{row.name}</span>
+                      <span className="truncate">{row.name}</span>
                       {hoveredRowIdx===idx && (
                         <button 
                           title="Hide row" 
                           onClick={()=> toggleHidden(row.item!)} 
-                          className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
+                          className="ml-2 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
                         >
                           <IconEyeSlash />
                         </button>
@@ -639,8 +849,8 @@ export function AssetsPage() {
                     const group = groups.find(g=> g.id===row.groupId)
                     const items = (group?.items||[]).filter(it=> !it.parentItemId)
                     const v = items.reduce((sum, it)=> sum + valueFor(it, m, true), 0)
-                    return <td key={m} className="p-2 text-center font-semibold text-slate-900 dark:text-slate-100 border-l border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800" style={{ minWidth: '140px' }}>
-                      {v ? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber> : ''}
+                    return <td key={m} className="p-2 text-center font-semibold text-slate-900 dark:text-slate-100 border-l border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800" style={{ minWidth: '100px' }}>
+                      <div className="truncate">{v ? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber> : ''}</div>
                     </td>
                   }
                   const item = row.item!
@@ -653,8 +863,8 @@ export function AssetsPage() {
                       onClick={(e)=>{ if(!isEditing) onCellClick(item, m) }}
                       onMouseEnter={()=>{ if(!isEditing) setHoveredCell({ itemId: item.id, month: m }) }}
                       onMouseLeave={()=>setHoveredCell(null)}
-                      className="p-2 text-center border-l border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 cursor-text"
-                      style={{ minWidth: '140px' }}
+                      className="p-1 sm:p-2 text-center border-l border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 cursor-text"
+                      style={{ minWidth: '100px' }}
                     >
                       {isEditing ? (
                         <div className="relative">
@@ -690,7 +900,7 @@ export function AssetsPage() {
                           )}
                         </div>
                       ) : (
-                        <div className="w-32 mx-auto relative">
+                        <div className="w-20 sm:w-32 mx-auto relative text-xs sm:text-sm">
                           {val? <PrivacyNumber value={val}>{formatEUR(val)}</PrivacyNumber> : <span className="text-gray-400">—</span>}
                           
                           {/* --- MODIFICA: Stile dell'indicatore della nota (giallo post-it) --- */}
@@ -711,7 +921,7 @@ export function AssetsPage() {
           </tbody>
           <tfoot className="sticky bottom-0" style={{ zIndex: 90 }}>
             <tr className="bg-slate-200 dark:bg-slate-800">
-  <td className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-800" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Total Net Worth</td>
+  <td className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-800 text-xs sm:text-sm" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '280px', width: 'clamp(140px, 40vw, 450px)' }}>Total Net Worth</td>
   {months.map(m=>{
     const v = groups.reduce((sum, g)=>{
       const roots = (g.items||[]).filter(it=> !it.parentItemId)
@@ -724,7 +934,7 @@ export function AssetsPage() {
   })}
 </tr>
             <tr className="bg-slate-100 dark:bg-slate-900">
-  <td className="p-2 sticky left-0 bg-slate-100 dark:bg-slate-900" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth vs previous month</td>
+  <td className="p-2 sticky left-0 bg-slate-100 dark:bg-slate-900 text-xs sm:text-sm" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '280px', width: 'clamp(140px, 40vw, 450px)' }}>Growth vs prev</td>
   {months.map((m, i)=>{
     const curr = groups.reduce((sum, g)=>{
       const roots = (g.items||[]).filter(it=> !it.parentItemId)
@@ -744,7 +954,7 @@ export function AssetsPage() {
   })}
 </tr>
             <tr className="bg-white dark:bg-gray-800">
-  <td className="p-2 sticky left-0 bg-white dark:bg-gray-800" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '340px', width: '380px' }}>Growth percentage</td>
+  <td className="p-2 sticky left-0 bg-white dark:bg-gray-800 text-xs sm:text-sm" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '280px', width: 'clamp(140px, 40vw, 450px)' }}>Growth %</td>
   {months.map((m, i)=>{
     const curr = groups.reduce((sum, g)=>{
       const roots = (g.items||[]).filter(it=> !it.parentItemId)

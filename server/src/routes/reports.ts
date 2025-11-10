@@ -294,7 +294,7 @@ reportsRouter.get("/asset-growth-trend", requireAuth, async (req: AuthRequest, r
       });
       
       return { month: monthStr, value: total };
-    });
+    }).filter(item => item.value > 0); // Filtra mesi con valore 0
     
     return res.json(result);
   } catch (error) {
@@ -439,8 +439,22 @@ reportsRouter.get("/asset-group-comparison", requireAuth, async (req: AuthReques
         data
       };
     });
+
+    // Filtra i mesi in cui TUTTI i gruppi hanno valore 0
+    const validMonthIndices = months
+      .map((_, index) => {
+        const hasValue = series.some(s => s.data[index] > 0);
+        return hasValue ? index : -1;
+      })
+      .filter(i => i !== -1);
+
+    const filteredMonths = validMonthIndices.map(i => months[i]);
+    const filteredSeries = series.map(s => ({
+      name: s.name,
+      data: validMonthIndices.map(i => s.data[i])
+    }));
     
-    return res.json({ months, series });
+    return res.json({ months: filteredMonths, series: filteredSeries });
   } catch (error) {
     console.error('Error in asset-group-comparison:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -517,8 +531,22 @@ reportsRouter.get("/top-assets-evolution", requireAuth, async (req: AuthRequest,
         data
       };
     });
+
+    // Filtra i mesi in cui TUTTI gli asset hanno valore 0
+    const validMonthIndices = months
+      .map((_, index) => {
+        const hasValue = series.some(s => s.data[index] > 0);
+        return hasValue ? index : -1;
+      })
+      .filter(i => i !== -1);
+
+    const filteredMonths = validMonthIndices.map(i => months[i]);
+    const filteredSeries = series.map(s => ({
+      name: s.name,
+      data: validMonthIndices.map(i => s.data[i])
+    }));
     
-    return res.json({ months, series });
+    return res.json({ months: filteredMonths, series: filteredSeries });
   } catch (error) {
     console.error('Error in top-assets-evolution:', error);
     return res.status(500).json({ error: 'Internal server error' });
