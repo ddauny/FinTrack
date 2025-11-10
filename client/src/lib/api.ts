@@ -79,6 +79,10 @@ export const api = {
       monthlyExpenses: (start?: string, end?: string) => apiGet(`/api/reports/monthly-expenses?start=${start||''}&end=${end||''}`),
       categoryAnalysis: (start?: string, end?: string) => apiGet(`/api/reports/category-analysis?start=${start||''}&end=${end||''}`),
       netWorthTrend: (start?: string, end?: string) => apiGet(`/api/reports/net-worth-trend?start=${start||''}&end=${end||''}`),
+      assetGrowthTrend: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-growth-trend?start=${start||''}&end=${end||''}`),
+      assetDistribution: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-distribution?start=${start||''}&end=${end||''}`),
+      assetGroupComparison: (start?: string, end?: string) => apiGet<any>(`/api/reports/asset-group-comparison?start=${start||''}&end=${end||''}`),
+      topAssetsEvolution: (start?: string, end?: string, limit?: number) => apiGet<any>(`/api/reports/top-assets-evolution?start=${start||''}&end=${end||''}&limit=${limit||5}`),
       exportCsv: (path: string) => fetch(path + (path.includes('?')? '&':'?') + 'format=csv', { headers: { ...authHeaders() } }).then(r=>r.text()),
     },
   assets: {
