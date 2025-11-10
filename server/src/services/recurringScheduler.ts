@@ -53,6 +53,32 @@ export async function processRecurringTransactions() {
     
     for (const recurring of dueRecurring) {
       try {
+        // Check if a transaction already exists for this recurring transaction on this date
+        const existingTransaction = await prisma.transaction.findFirst({
+          where: {
+            recurringTransactionId: recurring.id,
+            date: recurring.nextDate
+          }
+        })
+        
+        if (existingTransaction) {
+          console.log(`Transaction already exists for recurring #${recurring.id} on ${recurring.nextDate.toISOString()}, skipping...`)
+          
+          // Still update nextDate to avoid checking this date again
+          const nextDate = calculateNextDate(recurring.nextDate, recurring.frequency)
+          const shouldDeactivate = recurring.endDate && nextDate > recurring.endDate
+          
+          await prisma.recurringTransaction.update({
+            where: { id: recurring.id },
+            data: {
+              nextDate: nextDate,
+              isActive: shouldDeactivate ? false : true
+            }
+          })
+          
+          continue
+        }
+        
         // Create the transaction
         await prisma.transaction.create({
           data: {
