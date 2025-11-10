@@ -309,6 +309,23 @@ reportsRouter.get("/asset-distribution", requireAuth, async (req: AuthRequest, r
     const userId = req.userId!;
     const { start, end } = parseRange(req.query);
     
+    // Trova il mese più recente con dati nel range selezionato
+    const latestValuation = await prisma.assetValuation.findFirst({
+      where: {
+        item: {
+          group: { userId }
+        },
+        month: { gte: start, lte: end }
+      },
+      orderBy: { month: 'desc' }
+    });
+
+    if (!latestValuation) {
+      return res.json([]);
+    }
+
+    const latestMonth = latestValuation.month;
+    
     const assetGroups = await prisma.assetGroup.findMany({
       where: { userId },
       include: {
@@ -316,14 +333,14 @@ reportsRouter.get("/asset-distribution", requireAuth, async (req: AuthRequest, r
           include: {
             valuations: {
               where: {
-                month: { gte: start, lte: end }
+                month: latestMonth
               }
             },
             children: {
               include: {
                 valuations: {
                   where: {
-                    month: { gte: start, lte: end }
+                    month: latestMonth
                   }
                 }
               }
@@ -333,29 +350,27 @@ reportsRouter.get("/asset-distribution", requireAuth, async (req: AuthRequest, r
       }
     });
     
-    // Calcola il valore medio per ogni gruppo nel periodo
+    // Calcola il valore totale per ogni gruppo per l'ultimo mese
     const result = assetGroups.map(group => {
       let totalValue = 0;
-      let count = 0;
       
+      // Somma solo gli items root (quelli senza parent)
       group.items.filter(i => !i.parentItemId).forEach(item => {
-        item.valuations.forEach(v => {
-          totalValue += Number(v.value);
-          count++;
-        });
-        item.children.forEach(child => {
-          child.valuations.forEach(v => {
-            totalValue += Number(v.value);
-            count++;
-          });
-        });
+        // Valore diretto dell'item
+        const directValue = item.valuations.reduce((sum, v) => sum + Number(v.value), 0);
+        
+        // Valore dei children (se l'item è parent)
+        const childrenValue = item.children.reduce((sum, child) => {
+          return sum + child.valuations.reduce((childSum, v) => childSum + Number(v.value), 0);
+        }, 0);
+        
+        // Se l'item ha un valore diretto, usa quello, altrimenti usa la somma dei children
+        totalValue += directValue > 0 ? directValue : childrenValue;
       });
-      
-      const avgValue = count > 0 ? totalValue / count : 0;
       
       return {
         name: group.name,
-        value: avgValue
+        value: totalValue
       };
     }).filter(g => g.value > 0);
     
