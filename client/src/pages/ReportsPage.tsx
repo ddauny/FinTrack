@@ -1111,6 +1111,17 @@ export function ReportsPage() {
           </svg>
           Asset Analytics
         </h2>
+
+        {/* Asset Distribution Chart - MOVED BEFORE PERIOD SELECTOR */}
+        {assetDistribution && assetDistribution.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Asset Distribution by Group</h3>
+            <ReactECharts option={assetDistributionOption} style={{height:400}} />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+              Current distribution of assets across different groups (latest available data)
+            </p>
+          </div>
+        )}
         
         {/* Date Range Selector for Asset Charts */}
         <div className="mb-6 flex flex-wrap gap-4 items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
@@ -1146,17 +1157,6 @@ export function ReportsPage() {
             <ReactECharts option={assetGrowthTrendOption} style={{height:350}} />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
               Evolution of your total asset value over time
-            </p>
-          </div>
-        )}
-
-        {/* Asset Distribution Chart */}
-        {assetDistribution && assetDistribution.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Asset Distribution by Group</h3>
-            <ReactECharts option={assetDistributionOption} style={{height:400}} />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-              Average distribution of assets across different groups
             </p>
           </div>
         )}

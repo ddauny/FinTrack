@@ -307,15 +307,14 @@ reportsRouter.get("/asset-growth-trend", requireAuth, async (req: AuthRequest, r
 reportsRouter.get("/asset-distribution", requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    const { start, end } = parseRange(req.query);
     
-    // Trova il mese più recente con dati nel range selezionato
+    // Trova il mese più recente con almeno un valore > 0
     const latestValuation = await prisma.assetValuation.findFirst({
       where: {
         item: {
           group: { userId }
         },
-        month: { gte: start, lte: end }
+        value: { gt: 0 }
       },
       orderBy: { month: 'desc' }
     });

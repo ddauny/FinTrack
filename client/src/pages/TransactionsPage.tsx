@@ -7,6 +7,10 @@ export function TransactionsPage() {
   const [items, setItems] = useState<any[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<number|null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [showImportInfo, setShowImportInfo] = useState(false)
   
   // Debug log for items changes
   useEffect(() => {
@@ -324,6 +328,76 @@ export function TransactionsPage() {
     else { setSortBy(column); setOrder('asc') }
   }
 
+  // Bulk selection functions
+  function toggleSelectAll() {
+    if (selectedIds.size === items.length && items.length > 0) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(items.map(t => t.id)))
+    }
+  }
+
+  function toggleSelectItem(id: number) {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return
+    
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} transactions?`)) return
+    
+    try {
+      await api.transactions.bulkDelete(Array.from(selectedIds))
+      setItems(prev => prev.filter(t => !selectedIds.has(t.id)))
+      setTotal(prev => Math.max(0, prev - selectedIds.size))
+      setSelectedIds(new Set())
+      setSelectionMode(false)
+    } catch (error) {
+      console.error('Error deleting transactions:', error)
+      alert('Error deleting transactions')
+    }
+  }
+
+  async function handleBulkUpdateCategory(categoryId: number) {
+    if (selectedIds.size === 0) return
+    
+    try {
+      await api.transactions.bulkUpdateCategory(Array.from(selectedIds), categoryId)
+      // Update items locally
+      setItems(prev => prev.map(t => {
+        if (selectedIds.has(t.id)) {
+          const category = categories.find(c => c.id === categoryId)
+          return {
+            ...t,
+            categoryId,
+            category,
+            type: category?.type || t.type
+          }
+        }
+        return t
+      }))
+      setSelectedIds(new Set())
+      setShowCategoryModal(false)
+      setSelectionMode(false)
+    } catch (error) {
+      console.error('Error updating category:', error)
+      alert('Error updating category')
+    }
+  }
+
+  function toggleSelectionMode() {
+    setSelectionMode(!selectionMode)
+    if (selectionMode) {
+      setSelectedIds(new Set())
+    }
+  }
+
   // Handle notes autocomplete
   async function handleNotesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const value = e.target.value
@@ -491,7 +565,7 @@ export function TransactionsPage() {
             
             {/* Import CSV Button */}
             <button 
-              onClick={()=>fileInputRef.current?.click()} 
+              onClick={() => setShowImportInfo(true)}
               className="flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors h-[30px]" 
               title="Import CSV"
             >
@@ -520,13 +594,64 @@ export function TransactionsPage() {
                 setShowModal(true);
               }} 
               className="flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:ring-1 focus:ring-blue-500 h-[30px]" 
-              title="Add Transaction"
+              title="Add new transaction"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-                <path d="M11 11V5a1 1 0 112 0v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H5a1 1 0 110-2h6z"/>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
               </svg>
               <span>Add</span>
             </button>
+            
+            {/* Select Button - toggles selection mode */}
+            <button 
+              onClick={toggleSelectionMode}
+              className={`flex items-center justify-center px-3 py-1 text-sm font-medium rounded-md transition-colors h-[30px] ${
+                selectionMode 
+                  ? 'text-white bg-blue-600 border-blue-600 hover:bg-blue-700' 
+                  : 'text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+              }`}
+              title={selectionMode ? "Exit selection mode" : "Select transactions"}
+            >
+              {selectionMode ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                  <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                  <path fillRule="evenodd" d="M2.25 6a3 3 0 013-3h13.5a3 3 0 013 3v12a3 3 0 01-3 3H5.25a3 3 0 01-3-3V6zm3.97.97a.75.75 0 011.06 0l2.25 2.25a.75.75 0 010 1.06l-2.25 2.25a.75.75 0 01-1.06-1.06l1.72-1.72-1.72-1.72a.75.75 0 010-1.06zm4.28 4.28a.75.75 0 000 1.5h5.69a.75.75 0 000-1.5H10.5z" clipRule="evenodd" />
+                </svg>
+              )}
+            </button>
+            
+            {/* Bulk actions - shown inline when items are selected */}
+            {selectionMode && selectedIds.size > 0 && (
+              <>
+                <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-md border border-blue-200 dark:border-blue-700">
+                  <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    {selectedIds.size} selected
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowCategoryModal(true)}
+                  className="flex items-center justify-center px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 h-[30px]"
+                  title="Change category"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                    <path d="M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-8.4 8.4a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32l8.4-8.4z" />
+                    <path d="M5.25 5.25a3 3 0 00-3 3v10.5a3 3 0 003 3h10.5a3 3 0 003-3V13.5a.75.75 0 00-1.5 0v5.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V8.25a1.5 1.5 0 011.5-1.5h5.25a.75.75 0 000-1.5H5.25z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  className="flex items-center justify-center px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 h-[30px]"
+                  title="Delete selected"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                    <path fillRule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.07a3 3 0 01-2.991 2.77H8.084a3 3 0 01-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 013.369 0c1.603.051 2.815 1.387 2.815 2.951zm-6.136-1.452a51.196 51.196 0 013.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 00-6 0v-.113c0-.794.609-1.428 1.364-1.452zm-.355 5.945a.75.75 0 10-1.5.058l.347 9a.75.75 0 101.499-.058l-.346-9zm5.48.058a.75.75 0 10-1.498-.058l-.347 9a.75.75 0 001.5.058l.345-9z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </>
+            )}
           </div>
           
           {/* Filter Indicator */}
@@ -554,6 +679,16 @@ export function TransactionsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
               <tr className="text-left select-none">
+                {selectionMode && (
+                  <th className="p-2 w-[40px]">
+                    <input
+                      type="checkbox"
+                      checked={items.length > 0 && selectedIds.size === items.length}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
+                )}
                 <th className="p-2 cursor-pointer w-[25%] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('date')}>Date {sortBy==='date' && sortIcon}</th>
                 <th className="p-2 cursor-pointer w-[25%] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('amount')}>Amount {sortBy==='amount' && sortIcon}</th>
                 <th className="p-2 cursor-pointer w-[25%] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('categoryId')}>Category {sortBy==='categoryId' && sortIcon}</th>
@@ -570,17 +705,27 @@ export function TransactionsPage() {
         <div className="block sm:hidden space-y-2">
         {items.map((t)=> (
           <div key={t.id} className="bg-gray-50 dark:bg-gray-700/10 p-3 rounded border border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between items-start mb-2">
-              <div className="text-sm font-medium dark:text-gray-200">{formatDateDMY(t.date)}</div>
-              <div className={`text-sm font-bold ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                <PrivacyNumber value={t.amount}>
-                  {formatEUR(t.amount)}
-                </PrivacyNumber>
-              </div>
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</div>
-            {t.notes && <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t.notes}</div>}
-            <div className="flex gap-2">
+            <div className="flex items-start gap-3 mb-2">
+              {selectionMode && (
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(t.id)}
+                  onChange={() => toggleSelectItem(t.id)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                />
+              )}
+              <div className="flex-1">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="text-sm font-medium dark:text-gray-200">{formatDateDMY(t.date)}</div>
+                  <div className={`text-sm font-bold ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    <PrivacyNumber value={t.amount}>
+                      {formatEUR(t.amount)}
+                    </PrivacyNumber>
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</div>
+                {t.notes && <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t.notes}</div>}
+                <div className="flex gap-2">
               <button title="Edit" onClick={()=>{ 
                 setEditingId(t.id); 
                 const category = categoryMap[t.categoryId] || t.category;
@@ -610,6 +755,8 @@ export function TransactionsPage() {
                 </div>
               )}
             </div>
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -621,6 +768,17 @@ export function TransactionsPage() {
             {/* Debug: {console.log('Rendering items:', items.length, 'items')} */}
             {items.map((t)=> (
               <tr key={t.id} className="group border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/20 relative">
+                {selectionMode && (
+                  <td className="p-2 w-[40px]">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(t.id)}
+                      onChange={() => toggleSelectItem(t.id)}
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </td>
+                )}
                 <td className="p-2 w-[25%] dark:text-gray-200">
                   <div className="flex items-center gap-2">
                     {formatDateDMY(t.date)}
@@ -829,6 +987,143 @@ export function TransactionsPage() {
               <button type="submit" disabled={!form.categoryId || !form.amount} className="px-3 py-2 rounded bg-blue-600 disabled:bg-blue-400 dark:disabled:bg-blue-800 text-white hover:bg-blue-700 disabled:cursor-not-allowed">Save</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* CSV Import Info Modal */}
+      {showImportInfo && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-2 sm:p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
+            <h3 className="font-semibold text-xl mb-4 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-blue-600">
+                <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 01.67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 11-.671-1.34l.041-.022zM12 9a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+              </svg>
+              CSV Import Format
+            </h3>
+            
+            <div className="space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                  Your CSV file should contain transaction data with the following structure:
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">CSV Format:</h4>
+                <div className="bg-gray-50 dark:bg-gray-900/50 rounded p-3 border border-gray-200 dark:border-gray-700">
+                  <code className="text-sm bg-white dark:bg-gray-800 px-3 py-2 rounded block font-mono text-gray-800 dark:text-gray-200">
+                    date,amount,category,notes
+                  </code>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">or using semicolon as delimiter:</p>
+                  <code className="text-sm bg-white dark:bg-gray-800 px-3 py-2 rounded block font-mono text-gray-800 dark:text-gray-200 mt-1">
+                    date;amount;category;notes
+                  </code>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">Field Details:</h4>
+                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                  <li className="flex gap-2">
+                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">date</span>
+                    <span>Date in DD/MM/YYYY or YYYY-MM-DD format</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">amount</span>
+                    <span>Transaction amount (use dot as decimal separator, e.g., 45.50)</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">category</span>
+                    <span>Category name (will be created if doesn't exist)</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">notes</span>
+                    <span>Optional transaction notes</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <p className="text-xs text-amber-800 dark:text-amber-200 font-medium mb-1">📌 Notes:</p>
+                <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-1 ml-4 list-disc">
+                  <li>Both comma (,) and semicolon (;) are supported as column delimiters</li>
+                  <li>Use dot (.) as decimal separator for amounts</li>
+                  <li>Header row is optional - if missing, default order is assumed</li>
+                  <li>Invalid rows will be skipped automatically</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">Example CSV:</h4>
+                <div className="bg-gray-900 dark:bg-gray-950 rounded p-3 overflow-x-auto">
+                  <pre className="text-xs text-green-400 font-mono">
+{`date,amount,category,notes
+25/10/2024,45.50,Groceries,Weekly shopping
+26/10/2024,120.00,Utilities,Electric bill
+27/10/2024,15.99,Entertainment,Netflix`}
+                  </pre>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowImportInfo(false)}
+                className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowImportInfo(false)
+                  fileInputRef.current?.click()
+                }}
+                className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 font-medium"
+              >
+                Select CSV File
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category Selection Modal for Bulk Update */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-2 sm:p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg p-6 w-full max-w-md">
+            <h3 className="font-semibold text-lg mb-4">Select Category</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Change category for {selectedIds.size} selected transactions
+            </p>
+            <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => handleBulkUpdateCategory(cat.id)}
+                  className="w-full text-left px-4 py-3 rounded border border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{cat.name}</span>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      cat.type === 'Income' 
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
+                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                    }`}>
+                      {cat.type}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowCategoryModal(false)}
+                className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

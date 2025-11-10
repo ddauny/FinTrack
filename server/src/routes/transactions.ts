@@ -613,4 +613,72 @@ transactionsRouter.post("/import", requireAuth, upload.single("file"), async (re
   res.json({ imported: created.length, ids: created });
 });
 
+// Bulk delete transactions
+const bulkDeleteSchema = z.object({
+  ids: z.array(z.number().int()).min(1, "At least one ID required"),
+});
+
+transactionsRouter.post("/bulk-delete", requireAuth, async (req: AuthRequest, res) => {
+  const parse = bulkDeleteSchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  
+  const { ids } = parse.data;
+  const userId = req.userId!;
+  
+  // Delete only transactions belonging to the current user
+  const result = await prisma.transaction.deleteMany({
+    where: {
+      id: { in: ids },
+      userId: userId,
+    },
+  });
+  
+  res.json({ deleted: result.count });
+});
+
+// Bulk update category
+const bulkUpdateCategorySchema = z.object({
+  ids: z.array(z.number().int()).min(1, "At least one ID required"),
+  categoryId: z.number().int("Category ID is required"),
+});
+
+transactionsRouter.patch("/bulk-update-category", requireAuth, async (req: AuthRequest, res) => {
+  const parse = bulkUpdateCategorySchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  
+  const { ids, categoryId } = parse.data;
+  const userId = req.userId!;
+  
+  // Verify category exists and belongs to user
+  const category = await prisma.category.findFirst({
+    where: {
+      id: categoryId,
+      userId: userId,
+    },
+  });
+  
+  if (!category) {
+    return res.status(404).json({ error: "Category not found or not authorized" });
+  }
+  
+  // Update type based on new category
+  const type = category.type === "Income" ? "Income" : "Expense";
+  
+  // Update only transactions belonging to the current user
+  const result = await prisma.transaction.updateMany({
+    where: {
+      id: { in: ids },
+      userId: userId,
+    },
+    data: {
+      categoryId: categoryId,
+      type: type,
+    },
+  });
+  
+  res.json({ updated: result.count });
+});
+
+
+
 

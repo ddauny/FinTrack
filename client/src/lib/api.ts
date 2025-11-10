@@ -46,6 +46,8 @@ export const api = {
     create: (data: Partial<Transaction>) => apiJson<Transaction>('/api/transactions', 'POST', data),
     update: (id: number, data: Partial<Transaction>) => apiJson<Transaction>(`/api/transactions/${id}`, 'PUT', data),
     remove: (id: number) => apiJson<void>(`/api/transactions/${id}`, 'DELETE'),
+    bulkDelete: (ids: number[]) => apiJson<{ deleted: number }>('/api/transactions/bulk-delete', 'POST', { ids }),
+    bulkUpdateCategory: (ids: number[], categoryId: number) => apiJson<{ updated: number }>('/api/transactions/bulk-update-category', 'PATCH', { ids, categoryId }),
     importCsv: (file: File) => {
       const form = new FormData()
       form.append('file', file)
