@@ -587,12 +587,12 @@ export function AssetsPage() {
         </div>
 
         {/* Groups as expandable cards */}
-        {groups.map(group => {
+        {groups.map((group, groupIndex) => {
           const isExpanded = expandedGroups.has(group.id)
           const groupTotal = (group.items||[]).filter(it=> !it.parentItemId).reduce((sum, it)=> sum + valueFor(it, months[0], true), 0)
           
           return (
-            <div key={group.id} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <div key={group.id} className={`bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden ${groupIndex > 0 ? 'mt-6' : ''}`}>
               {/* Group Header */}
               <button
                 onClick={() => toggleGroup(group.id)}
@@ -799,9 +799,12 @@ export function AssetsPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, idx)=> (
-              <tr key={idx} onMouseEnter={()=>setHoveredRowIdx(idx)} onMouseLeave={()=>setHoveredRowIdx(null)} className={`border-b ${row.isGroup? '' : (idx % 2 === 0 ? 'bg-white dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-700/50')}`}>
-                <td className={`p-2 sticky left-0 ${row.isGroup ? 'bg-slate-100 dark:bg-slate-900 font-semibold text-slate-900 dark:text-slate-100' : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100' } border-r border-gray-200 dark:border-gray-700`} style={{ zIndex: 80, paddingLeft: `${row.depth*20}px`, fontSize: row.isGroup? '0.9rem' : (row.depth>1? '0.8rem':'0.85rem') , minWidth: '280px', width: 'clamp(140px, 40vw, 450px)', textAlign: 'left' }}>
+            {rows.map((row, idx)=> {
+              // Check if this is a new group (not the first row)
+              const isNewGroup = row.isGroup && idx > 0
+              return (
+              <tr key={idx} onMouseEnter={()=>setHoveredRowIdx(idx)} onMouseLeave={()=>setHoveredRowIdx(null)} className={`border-b ${isNewGroup ? 'border-t-[16px] border-t-white dark:border-t-gray-900' : ''} ${row.isGroup? '' : (idx % 2 === 0 ? 'bg-white dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-700/50')}`}>
+                <td className={`sticky left-0 border-r border-gray-200 dark:border-gray-700 ${row.isGroup ? 'p-2 text-center bg-slate-100 dark:bg-slate-900 font-semibold text-slate-900 dark:text-slate-100' : 'p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'}`} style={{ zIndex: 80, paddingLeft: row.isGroup ? undefined : `${row.depth*20}px`, fontSize: row.isGroup? '0.9rem' : (row.depth>1? '0.8rem':'0.85rem') , minWidth: '280px', width: 'clamp(140px, 40vw, 450px)' }}>
                   {row.isGroup ? (
                     <div className="flex items-center justify-between">
                       <span className="truncate">{row.name}</span>
@@ -917,7 +920,8 @@ export function AssetsPage() {
                   )
                 })}
               </tr>
-            ))}
+              )
+            })}
           </tbody>
           <tfoot className="sticky bottom-0" style={{ zIndex: 90 }}>
             <tr className="bg-slate-200 dark:bg-slate-800">

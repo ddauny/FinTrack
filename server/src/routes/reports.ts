@@ -566,3 +566,127 @@ reportsRouter.get("/top-assets-evolution", requireAuth, async (req: AuthRequest,
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Asset Allocation Changes - Variazioni percentuali di allocazione tra mesi
+reportsRouter.get("/asset-allocation-changes", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { start, end } = parseRange(req.query);
+    
+    const assetGroups = await prisma.assetGroup.findMany({
+      where: { userId },
+      include: {
+        items: {
+          include: {
+            valuations: {
+              where: {
+                month: { gte: start, lte: end }
+              },
+              orderBy: { month: 'asc' }
+            },
+            children: {
+              include: {
+                valuations: {
+                  where: {
+                    month: { gte: start, lte: end }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    // Raccogli tutti i mesi unici
+    const monthsSet = new Set<string>();
+    assetGroups.forEach(group => {
+      group.items.forEach(item => {
+        item.valuations.forEach(v => {
+          monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+        });
+        item.children.forEach(child => {
+          child.valuations.forEach(v => {
+            monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+          });
+        });
+      });
+    });
+    
+    const months = Array.from(monthsSet).sort();
+    
+    // Calcola il valore totale e per gruppo per ogni mese
+    const monthlyData = months.map(monthStr => {
+      let total = 0;
+      const groups: { [key: string]: number } = {};
+      
+      assetGroups.forEach(group => {
+        let groupTotal = 0;
+        
+        group.items.filter(i => !i.parentItemId).forEach(item => {
+          const val = item.valuations.find(v => 
+            v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
+          );
+          if (val) {
+            groupTotal += Number(val.value);
+          }
+          
+          // Aggiungi figli
+          item.children.forEach(child => {
+            const childVal = child.valuations.find(v =>
+              v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
+            );
+            if (childVal) groupTotal += Number(childVal.value);
+          });
+        });
+        
+        groups[group.name] = groupTotal;
+        total += groupTotal;
+      });
+      
+      return { month: monthStr, total, groups };
+    });
+    
+    // Filtra i mesi con valore totale = 0
+    const validMonthlyData = monthlyData.filter(m => m.total > 0);
+    
+    // Calcola le percentuali di allocazione e le variazioni
+    const result = validMonthlyData.map((current, index) => {
+      const allocations: { [key: string]: number } = {};
+      const changes: { [key: string]: number } = {};
+      
+      // Calcola percentuali di allocazione per il mese corrente
+      Object.keys(current.groups).forEach(groupName => {
+        allocations[groupName] = current.total > 0 
+          ? (current.groups[groupName] / current.total) * 100 
+          : 0;
+      });
+      
+      // Calcola variazioni rispetto al mese precedente
+      if (index > 0) {
+        const previous = validMonthlyData[index - 1];
+        
+        Object.keys(current.groups).forEach(groupName => {
+          const currentAllocation = allocations[groupName];
+          const previousAllocation = previous.total > 0 
+            ? (previous.groups[groupName] / previous.total) * 100 
+            : 0;
+          
+          changes[groupName] = currentAllocation - previousAllocation;
+        });
+      }
+      
+      return {
+        month: current.month,
+        total: current.total,
+        allocations,
+        changes: index > 0 ? changes : null
+      };
+    });
+    
+    return res.json(result);
+  } catch (error) {
+    console.error('Error in asset-allocation-changes:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});

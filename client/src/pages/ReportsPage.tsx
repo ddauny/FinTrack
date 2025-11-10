@@ -51,6 +51,7 @@ export function ReportsPage() {
   const [assetDistribution, setAssetDistribution] = useState<any[]>([])
   const [assetGroupComparison, setAssetGroupComparison] = useState<any>(null)
   const [topAssetsEvolution, setTopAssetsEvolution] = useState<any>(null)
+  const [assetAllocationChanges, setAssetAllocationChanges] = useState<any[]>([])
   const [assetStartDate, setAssetStartDate] = useState(dayjs().subtract(5, 'month').startOf('month').toDate())
   const [assetEndDate, setAssetEndDate] = useState(dayjs().endOf('month').toDate())
 
@@ -197,17 +198,19 @@ export function ReportsPage() {
         const startStr = dayjs(assetStartDate).startOf('month').format('YYYY-MM-DD')
         const endStr = dayjs(assetEndDate).endOf('month').format('YYYY-MM-DD')
         
-        const [growthData, distributionData, comparisonData, topAssetsData] = await Promise.allSettled([
+        const [growthData, distributionData, comparisonData, topAssetsData, allocationChangesData] = await Promise.allSettled([
           api.reports.assetGrowthTrend(startStr, endStr),
           api.reports.assetDistribution(startStr, endStr),
           api.reports.assetGroupComparison(startStr, endStr),
-          api.reports.topAssetsEvolution(startStr, endStr, 5)
+          api.reports.topAssetsEvolution(startStr, endStr, 5),
+          api.reports.assetAllocationChanges(startStr, endStr)
         ])
         
         if (growthData.status === 'fulfilled') setAssetGrowthTrend(growthData.value as any[])
         if (distributionData.status === 'fulfilled') setAssetDistribution(distributionData.value as any[])
         if (comparisonData.status === 'fulfilled') setAssetGroupComparison(comparisonData.value)
         if (topAssetsData.status === 'fulfilled') setTopAssetsEvolution(topAssetsData.value)
+        if (allocationChangesData.status === 'fulfilled') setAssetAllocationChanges(allocationChangesData.value as any[])
       } catch (error) {
         console.error('Error loading asset data:', error)
       }
@@ -784,6 +787,104 @@ export function ReportsPage() {
     grid: { left: '3%', right: '4%', bottom: '15%', top: '15%', containLabel: true }
   } : {}
 
+  // Asset Allocation Changes Option
+  const assetAllocationChangesOption = assetAllocationChanges && assetAllocationChanges.length > 0 ? (() => {
+    // Estrai i nomi dei gruppi
+    const groupNames = assetAllocationChanges[0].allocations ? Object.keys(assetAllocationChanges[0].allocations) : [];
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+    
+    return {
+      textStyle: { color: chartTextColor },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
+        textStyle: { color: chartTextColor },
+        formatter: (params: any) => {
+          const monthIndex = params[0].dataIndex;
+          const monthData = assetAllocationChanges[monthIndex];
+          
+          let result = `<div style="font-weight: bold; margin-bottom: 8px;">${dayjs(monthData.month).format('MMM YYYY')}</div>`;
+          
+          // Mostra allocazioni
+          result += `<div style="margin-bottom: 6px; font-weight: 600; color: ${isDark ? '#94a3b8' : '#64748b'};">Current Allocation:</div>`;
+          groupNames.forEach((name, i) => {
+            const allocation = monthData.allocations[name] || 0;
+            const color = colors[i % colors.length];
+            result += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">`;
+            result += `<span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${color}; margin-right: 6px;"></span>${name}:</span>`;
+            result += `<span style="margin-left: 12px; font-weight: 600;">${allocation.toFixed(1)}%</span>`;
+            result += `</div>`;
+          });
+          
+          // Mostra variazioni se disponibili
+          if (monthData.changes) {
+            result += `<div style="margin-top: 8px; margin-bottom: 4px; font-weight: 600; color: ${isDark ? '#94a3b8' : '#64748b'}; border-top: 1px solid ${isDark ? '#475569' : '#cbd5e1'}; padding-top: 6px;">Change from Previous Month:</div>`;
+            groupNames.forEach((name, i) => {
+              const change = monthData.changes[name] || 0;
+              const color = colors[i % colors.length];
+              const changeColor = change > 0 ? '#10b981' : change < 0 ? '#ef4444' : '#6b7280';
+              const changeSymbol = change > 0 ? '+' : '';
+              result += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">`;
+              result += `<span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${color}; margin-right: 6px;"></span>${name}:</span>`;
+              result += `<span style="margin-left: 12px; font-weight: 600; color: ${changeColor};">${changeSymbol}${change.toFixed(2)}%</span>`;
+              result += `</div>`;
+            });
+          }
+          
+          return result;
+        }
+      },
+      legend: {
+        data: groupNames,
+        textStyle: { color: chartTextColor },
+        top: 0,
+        type: 'scroll'
+      },
+      xAxis: {
+        type: 'category',
+        data: assetAllocationChanges.map(d => dayjs(d.month).format('MMM YYYY')),
+        axisLabel: { 
+          color: chartTextColor, 
+          rotate: 45,
+          fontSize: 10,
+          interval: 0
+        },
+        axisLine: { lineStyle: { color: axisLineColor } }
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: {
+          formatter: (value: number) => `${value.toFixed(0)}%`,
+          color: chartTextColor,
+          fontSize: 10
+        },
+        splitLine: { lineStyle: { color: gridLineColor } },
+        max: 100
+      },
+      series: groupNames.map((name, i) => ({
+        name: name,
+        type: 'line',
+        data: assetAllocationChanges.map(d => d.allocations[name] || 0),
+        smooth: true,
+        lineStyle: { width: 2 },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: colors[i % colors.length] + '40' },
+              { offset: 1, color: colors[i % colors.length] + '10' }
+            ]
+          }
+        },
+        itemStyle: {
+          color: colors[i % colors.length]
+        }
+      })),
+      grid: { left: '5%', right: '3%', bottom: '20%', top: '15%', containLabel: true }
+    };
+  })() : {}
+
   async function exportCsv(path: string) {
     const csv = await api.reports.exportCsv(path)
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -1144,6 +1245,17 @@ export function ReportsPage() {
             />
           </div>
         </div>
+
+        {/* Asset Allocation Changes Chart */}
+        {assetAllocationChanges && assetAllocationChanges.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Asset Allocation Changes Over Time</h3>
+            <ReactECharts option={assetAllocationChangesOption} style={{height:400}} />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+              Track how your asset allocation percentages change month over month
+            </p>
+          </div>
+        )}
 
         {/* Asset Growth Trend Chart */}
         {assetGrowthTrend && assetGrowthTrend.length > 0 && (
