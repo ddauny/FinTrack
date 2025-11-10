@@ -105,6 +105,8 @@ export const api = {
   settings: {
     profile: () => apiGet<any>('/api/settings/profile'),
     updateProfile: (data: any) => apiJson<any>('/api/settings/profile', 'PUT', data),
+    getAutomationToken: () => apiGet<{ token: string | null }>('/api/settings/automation-token'),
+    generateAutomationToken: () => apiJson<{ token: string }>('/api/settings/automation-token', 'POST', {}),
   },
   recurringTransactions: {
     list: () => apiGet<any[]>('/api/recurring-transactions'),

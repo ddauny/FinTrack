@@ -67,24 +67,29 @@ export function SettingsPage() {
   const [accountMap, setAccountMap] = useState<Record<number, any>>({})
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
   const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [automationToken, setAutomationToken] = useState<string | null>(null)
+  const [showToken, setShowToken] = useState(false)
+  
   function tokenHeader(): Record<string, string> {
     const token = localStorage.getItem('token')
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
   async function refresh() {
-    const [p, c, g, r, accounts] = await Promise.all([
+    const [p, c, g, r, accounts, tokenData] = await Promise.all([
       api.settings.profile(), 
       api.categories.list(), 
       fetch('/api/asset-groups', { headers: tokenHeader() }).then(r=>r.json()),
       api.recurringTransactions.list(),
-      api.accounts.list()
+      api.accounts.list(),
+      api.settings.getAutomationToken()
     ])
     setProfile(p)
     setEmail((p as any)?.email||'')
     setCategories(c as any[])
     setGroups(g as Group[])
     setRecurringTransactions(r)
+    setAutomationToken(tokenData.token)
     
     // Create maps for easier lookups
     const catMap: Record<number, any> = {}
@@ -270,6 +275,94 @@ export function SettingsPage() {
             <p className="text-xs text-blue-800 dark:text-blue-200">
               <strong>Note:</strong> Exported files contain your complete data including hidden items and historical valuations. 
               Store them securely and use them for backup or data migration purposes.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Automation & Integration Section */}
+      <section className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+          </svg>
+          Automation & Integration
+        </h2>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Generate a personal API token for iPhone Shortcuts, external apps, or automation tools.
+          </p>
+          
+          {automationToken ? (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Your Automation Token</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Use this token with the Authorization header: <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs">Bearer YOUR_TOKEN</code>
+                  </p>
+                  <div className="relative">
+                    <input
+                      type={showToken ? "text" : "password"}
+                      value={automationToken}
+                      readOnly
+                      className="w-full p-2.5 pr-24 rounded-md bg-gray-50 dark:bg-gray-700 text-slate-900 dark:text-slate-100 border border-gray-300 dark:border-gray-600 font-mono text-xs"
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-2">
+                      <button
+                        onClick={() => setShowToken(!showToken)}
+                        className="px-2 py-1 text-xs rounded bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                      >
+                        {showToken ? '🙈' : '👁️'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(automationToken)
+                          alert('Token copied to clipboard!')
+                        }}
+                        className="px-2 py-1 text-xs rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to generate a new token? The old token will stop working.')) {
+                    const { token } = await api.settings.generateAutomationToken()
+                    setAutomationToken(token)
+                    setShowToken(true)
+                  }
+                }}
+                className="w-full px-4 py-2.5 rounded-md bg-orange-600 hover:bg-orange-700 text-white font-medium transition-colors"
+              >
+                Regenerate Token
+              </button>
+            </div>
+          ) : (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                You don't have an automation token yet. Generate one to start using the API with external tools.
+              </p>
+              <button
+                onClick={async () => {
+                  const { token } = await api.settings.generateAutomationToken()
+                  setAutomationToken(token)
+                  setShowToken(true)
+                }}
+                className="w-full px-4 py-2.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+              >
+                Generate Token
+              </button>
+            </div>
+          )}
+          
+          <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+            <p className="text-xs text-yellow-800 dark:text-yellow-200">
+              <strong>⚠️ Security Warning:</strong> Treat this token like a password. Anyone with this token can access your FinTrack data. 
+              Don't share it publicly and regenerate it if compromised.
             </p>
           </div>
         </div>

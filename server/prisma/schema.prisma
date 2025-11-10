@@ -13,6 +13,7 @@ model User {
   email        String    @unique
   passwordHash String
   createdAt    DateTime  @default(now())
+  automationToken String? // JWT token for iPhone Shortcuts and automation
 
   accounts     Account[]
   categories   Category[]

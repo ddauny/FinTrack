@@ -2,6 +2,8 @@ import { Router } from "express";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
 import { z } from "zod";
+import jwt from "jsonwebtoken";
+import { env } from "../config/env.js";
 
 export const settingsRouter = Router();
 
@@ -132,4 +134,26 @@ settingsRouter.get("/export/assets", requireAuth, async (req: AuthRequest, res) 
   res.json(exportData);
 });
 
+// Get automation token for current user
+settingsRouter.get("/automation-token", requireAuth, async (req: AuthRequest, res) => {
+  const user = await prisma.user.findUnique({ 
+    where: { id: req.userId! },
+    select: { automationToken: true }
+  });
+  
+  res.json({ token: user?.automationToken || null });
+});
 
+// Generate new automation token for current user
+settingsRouter.post("/automation-token", requireAuth, async (req: AuthRequest, res) => {
+  const payload = { sub: req.userId! };
+  const token = jwt.sign(payload, env.jwtSecret); // No expiration for automation
+  
+  // Update user with new token
+  await prisma.user.update({
+    where: { id: req.userId! },
+    data: { automationToken: token }
+  });
+  
+  res.json({ token });
+});
