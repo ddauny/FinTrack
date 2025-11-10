@@ -33,6 +33,7 @@ export function AssetsPage() {
   const [noteValue, setNoteValue] = useState<string>('')
   const [hoveredRowIdx, setHoveredRowIdx] = useState<number | null>(null)
   const [hoveredCell, setHoveredCell] = useState<{ itemId:number; month:string } | null>(null)
+  const [suggestion, setSuggestion] = useState<number | null>(null)
 
   async function refresh() {
     const res = await fetch('/api/asset-groups', { headers: tokenHeader() })
@@ -153,9 +154,88 @@ export function AssetsPage() {
     
     const valuation = item.valuations?.find(v=> new Date(v.month).toISOString().slice(0,10) === month)
     const raw = valuation && valuation.formula ? String(valuation.formula) : String(valueFor(item, month) || '')
+    
+    // Calculate suggestion if cell is empty and item has depreciation
+    let suggestedValue: number | null = null
+    const currentValue = valueFor(item, month)
+    
+    console.log('Cell click debug:', {
+      itemName: item.name,
+      month,
+      hasValuation: !!valuation,
+      currentValue,
+      hasDepreciation: !!item.depreciationAmount,
+      depreciationAmount: item.depreciationAmount
+    })
+    
+    // Show suggestion if cell is empty (no value or value is 0) and item has depreciation
+    if (item.depreciationAmount && currentValue === 0) {
+      // Find previous month value - use direct valuation, not aggregated
+      const currentMonthDate = new Date(month)
+      const prevMonthDate = new Date(currentMonthDate)
+      prevMonthDate.setUTCMonth(prevMonthDate.getUTCMonth() - 1)
+      const prevMonthKey = monthKey(prevMonthDate)
+      
+      // Get direct valuation value, not aggregated from children
+      const prevValuation = item.valuations?.find(v=> monthKey(new Date(v.month)) === prevMonthKey)
+      const prevValue = prevValuation ? Number(prevValuation.value) : 0
+      
+      console.log('Depreciation calculation:', {
+        item: item.name,
+        currentMonth: month,
+        prevMonth: prevMonthKey,
+        prevValuation: prevValuation ? Number(prevValuation.value) : 'not found',
+        depreciation: item.depreciationAmount,
+        suggested: prevValue - Number(item.depreciationAmount)
+      })
+      
+      if (prevValue > 0) {
+        suggestedValue = Math.max(0, prevValue - Number(item.depreciationAmount))
+      }
+    }
+    
+    setSuggestion(suggestedValue)
     setEditing({ itemId: item.id, month, initial: raw })
     setEditValue(raw)
     setSelectedCell({ itemId: item.id, month })
+  }
+
+  function acceptSuggestion() {
+    if (suggestion !== null) {
+      setEditValue(String(suggestion))
+      // Don't clear suggestion yet, will be cleared on save
+    }
+  }
+
+  async function acceptAndSaveSuggestion() {
+    if (!editing || suggestion === null) return
+    const { itemId, month } = editing
+    
+    // Save the suggestion value directly
+    const payload: any = { 
+      month,
+      value: suggestion,
+      formula: null
+    }
+    
+    const item = groups.flatMap(g=> g.items||[]).find(it=> it.id===itemId)
+    const existingVal = item?.valuations?.find(v=> new Date(v.month).toISOString().slice(0,10) === month)
+    if (existingVal && existingVal.note) payload.note = existingVal.note
+    
+    try {
+      await fetch(`/api/asset-items/${itemId}/valuations`, { 
+        method:'POST', 
+        headers:{ 'Content-Type':'application/json', ...tokenHeader() }, 
+        body: JSON.stringify(payload) 
+      })
+      await refresh()
+    } catch (err) {
+      console.error('Error saving valuation:', err)
+    } finally {
+      setEditing(null)
+      setEditValue('')
+      setSuggestion(null)
+    }
   }
 
   async function saveEdit() {
@@ -163,6 +243,9 @@ export function AssetsPage() {
     const { itemId, month } = editing
     let payload: any = { month }
     const trimmed = (editValue || '').trim()
+    
+    // Clear suggestion after we've used editValue
+    setSuggestion(null)
     if (trimmed.startsWith('=')) {
       try {
         const parser = new Parser()
@@ -197,6 +280,29 @@ export function AssetsPage() {
 
   async function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!editing) return;
+    
+    // If there's a suggestion and Tab is pressed, accept and save it, then navigate
+    if (e.key === 'Tab' && suggestion !== null && !editValue.trim()) {
+      e.preventDefault();
+      const { itemId, month } = editing;
+      await acceptAndSaveSuggestion();
+      
+      // Navigate to next/previous row after saving
+      const currentRowIndex = rows.findIndex(r => r.item?.id === itemId);
+      if (currentRowIndex === -1) return;
+      const direction = e.shiftKey ? -1 : 1;
+      let nextRowIndex = currentRowIndex + direction;
+      while (nextRowIndex >= 0 && nextRowIndex < rows.length) {
+        const nextRow = rows[nextRowIndex];
+        if (nextRow.item && isLeaf(nextRow.item)) {
+          onCellClick(nextRow.item, month);
+          return;
+        }
+        nextRowIndex += direction;
+      }
+      return;
+    }
+    
     if (e.key === 'Enter') {
       e.preventDefault();
       await saveEdit();
@@ -205,6 +311,7 @@ export function AssetsPage() {
       e.preventDefault();
       setEditing(null);
       setEditValue('');
+      setSuggestion(null);
     } 
     else if (e.key === 'Tab') {
       e.preventDefault(); 
@@ -550,16 +657,38 @@ export function AssetsPage() {
                       style={{ minWidth: '140px' }}
                     >
                       {isEditing ? (
-                        <input
-                          autoFocus
-                          type="text"
-                          step="0.01"
-                          value={editValue}
-                          onChange={e=>setEditValue(e.target.value)}
-                          onBlur={()=>{ saveEdit() }}
-                          onKeyDown={handleKeyDown}
-                          className="no-spin w-full text-center bg-transparent outline-none focus:outline-none focus:ring-0 border-0 p-0 m-0 appearance-none"
-                        />
+                        <div className="relative">
+                          <input
+                            autoFocus
+                            type="text"
+                            step="0.01"
+                            value={editValue}
+                            onChange={e=>setEditValue(e.target.value)}
+                            onBlur={()=>{ saveEdit(); setSuggestion(null); }}
+                            onKeyDown={handleKeyDown}
+                            className="no-spin w-full text-center bg-transparent outline-none focus:outline-none focus:ring-0 border-0 p-0 m-0 appearance-none"
+                          />
+                          {suggestion !== null && !editValue.trim() && (
+                            <div 
+                              onMouseDown={(e) => {
+                                // Prevent input blur when clicking suggestion
+                                e.preventDefault();
+                              }}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await acceptAndSaveSuggestion();
+                              }}
+                              className="absolute left-1/2 -translate-x-1/2 top-full mt-1 bg-blue-100 dark:bg-blue-900/80 border border-blue-300 dark:border-blue-700 rounded-md px-3 py-2 text-sm cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors shadow-lg z-50"
+                            >
+                              <div className="flex items-center gap-2 justify-center whitespace-nowrap">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+                                </svg>
+                                <span className="font-medium text-blue-700 dark:text-blue-300">{formatEUR(suggestion)}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <div className="w-32 mx-auto relative">
                           {val? <PrivacyNumber value={val}>{formatEUR(val)}</PrivacyNumber> : <span className="text-gray-400">—</span>}
