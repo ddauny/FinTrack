@@ -390,6 +390,8 @@ transactionsRouter.post(
     }
     // Altrimenti, se è stato fornito categoryName, cercala o creala
     else if (data.categoryName) {
+      console.log("Searching for category:", data.categoryName, "userId:", userId, "type:", data.type);
+      
       let category = await prisma.category.findFirst({
         where: {
           userId: userId,
@@ -397,15 +399,28 @@ transactionsRouter.post(
         },
       });
       
-      // Se non esiste, creala
+      console.log("Found category:", category);
+      
+      // Se non esiste, creala con TitleCase
       if (!category) {
+        // Formatta il nome in TitleCase (prima lettera maiuscola)
+        const formattedName = data.categoryName
+          .toLowerCase()
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+        
+        console.log("Creating new category:", formattedName);
+        
         category = await prisma.category.create({
           data: {
             userId: userId,
-            name: data.categoryName,
+            name: formattedName,
             type: data.type, // Usa il tipo della transazione
           },
         });
+        
+        console.log("Created category:", category);
       }
       
       categoryId = category.id;
@@ -721,6 +736,124 @@ transactionsRouter.patch("/bulk-update-category", requireAuth, async (req: AuthR
   });
   
   res.json({ updated: result.count });
+});
+
+// Delete transaction by notes, category and date
+const deleteByDetailsSchema = z.object({
+  notes: z.string().optional(),
+  categoryName: z.string().optional(),
+  categoryId: z.number().int().optional(),
+  date: z.string(), // Required - format: YYYY-MM-DD or DD/MM/YYYY
+}).refine(
+  (data) => data.categoryName || data.categoryId,
+  { message: "Either categoryName or categoryId must be provided" }
+);
+
+transactionsRouter.post("/delete-by-details", requireAuth, async (req: AuthRequest, res) => {
+  const parse = deleteByDetailsSchema.safeParse(req.body);
+  if (!parse.success) {
+    return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  }
+  
+  const data = parse.data;
+  const userId = req.userId!;
+  
+  console.log("Delete by details request:", data);
+  
+  // Parse the date to get start and end of day
+  const parsedDate = dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY"], true);
+  if (!parsedDate.isValid()) {
+    return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD or DD/MM/YYYY" });
+  }
+  
+  const startOfDay = parsedDate.startOf('day').toDate();
+  const endOfDay = parsedDate.endOf('day').toDate();
+  
+  // Build where clause
+  const where: any = {
+    userId: userId,
+    date: {
+      gte: startOfDay,
+      lte: endOfDay,
+    },
+  };
+  
+  // Add notes filter if provided
+  if (data.notes !== undefined && data.notes !== null) {
+    where.notes = data.notes;
+  }
+  
+  // Find category ID
+  let categoryId: number | undefined;
+  if (data.categoryId) {
+    // Verify category belongs to user
+    const category = await prisma.category.findFirst({
+      where: {
+        id: data.categoryId,
+        userId: userId,
+      },
+    });
+    
+    if (!category) {
+      return res.status(404).json({ error: "Category not found or not authorized" });
+    }
+    
+    categoryId = category.id;
+  } else if (data.categoryName) {
+    // Find category by name
+    const category = await prisma.category.findFirst({
+      where: {
+        userId: userId,
+        name: { equals: data.categoryName, mode: "insensitive" },
+      },
+    });
+    
+    if (!category) {
+      return res.status(404).json({ error: "Category not found" });
+    }
+    
+    categoryId = category.id;
+  }
+  
+  if (categoryId) {
+    where.categoryId = categoryId;
+  }
+  
+  console.log("Delete where clause:", JSON.stringify(where, null, 2));
+  
+  // Find matching transactions first
+  const matchingTransactions = await prisma.transaction.findMany({
+    where,
+    select: {
+      id: true,
+      date: true,
+      amount: true,
+      notes: true,
+      category: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+  
+  console.log("Found matching transactions:", matchingTransactions.length);
+  
+  if (matchingTransactions.length === 0) {
+    return res.status(404).json({ error: "No matching transaction found" });
+  }
+  
+  // Delete the transactions
+  const result = await prisma.transaction.deleteMany({
+    where,
+  });
+  
+  console.log("Deleted transactions:", result.count);
+  
+  res.json({ 
+    deleted: result.count,
+    transactions: matchingTransactions,
+  });
 });
 
 
