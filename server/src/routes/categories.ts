@@ -15,6 +15,45 @@ categoriesRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
   res.json(items);
 });
 
+// Endpoint for iPhone Shortcuts - Returns categories in a simple format
+categoriesRouter.get("/list-for-automation", requireAuth, async (req: AuthRequest, res) => {
+  const userId = req.userId!;
+  
+  console.log("Categories list requested by user:", userId);
+  
+  const categories = await prisma.category.findMany({ 
+    where: { userId },
+    orderBy: [
+      { type: 'asc' },  // Income first, then Expense
+      { name: 'asc' }   // Alphabetically
+    ],
+    select: {
+      id: true,
+      name: true,
+      type: true
+    }
+  });
+  
+  // Group by type for easier use in automations
+  const grouped = {
+    income: categories.filter(c => c.type === 'Income').map(c => ({
+      id: c.id,
+      name: c.name
+    })),
+    expense: categories.filter(c => c.type === 'Expense').map(c => ({
+      id: c.id,
+      name: c.name
+    })),
+    all: categories.map(c => ({
+      id: c.id,
+      name: c.name,
+      type: c.type
+    }))
+  };
+  
+  res.json(grouped);
+});
+
 categoriesRouter.post("/", requireAuth, async (req: AuthRequest, res) => {
   const parse = upsertSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
