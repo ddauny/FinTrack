@@ -228,6 +228,8 @@ const shortcutExpenseSchema = z.object({
   userId: z.number().int("accountId must be an integer"), // O z.string() se usi CUID/UUID
   notes: z.string().optional(),
   type: z.enum(["Expense", "Income"]).default("Expense"),
+  categoryId: z.number().int("categoryId must be an integer").optional(), // Categoria opzionale
+  categoryName: z.string().optional(), // Nome categoria opzionale (alternativa a categoryId)
 });
 
 // 2. Crea il nuovo endpoint
@@ -366,30 +368,72 @@ transactionsRouter.post(
     }
     const data = parse.data;
 
-    // 4. LOGICA DI BUSINESS (Categoria di default)
-    // Dobbiamo trovare una categoria "di servizio" (es. "Da categorizzare")
-    // che sia di tipo "Expense" e appartenga a questo utente.
-    
+    // 4. LOGICA DI BUSINESS (Categoria)
     const userId = req.userId!; // Ottenuto da requireAuth
-    const defaultCategoryName = "Da categorizzare"; // O "Uncategorized"
-
-    let defaultCategory = await prisma.category.findFirst({
-      where: {
-        userId: userId,
-        name: defaultCategoryName,
-        type: "Expense",
-      },
-    });
-
-    // Se non esiste, creala al volo
-    if (!defaultCategory) {
-      defaultCategory = await prisma.category.create({
-        data: {
+    let categoryId: number;
+    
+    // Se è stato fornito categoryId, usalo direttamente
+    if (data.categoryId) {
+      // Verifica che la categoria esista e appartenga all'utente
+      const category = await prisma.category.findFirst({
+        where: {
+          id: data.categoryId,
           userId: userId,
-          name: defaultCategoryName,
-          type: "Expense",
         },
       });
+      
+      if (!category) {
+        return res.status(404).json({ error: "Category not found or not authorized" });
+      }
+      
+      categoryId = category.id;
+    }
+    // Altrimenti, se è stato fornito categoryName, cercala o creala
+    else if (data.categoryName) {
+      let category = await prisma.category.findFirst({
+        where: {
+          userId: userId,
+          name: { equals: data.categoryName, mode: "insensitive" },
+        },
+      });
+      
+      // Se non esiste, creala
+      if (!category) {
+        category = await prisma.category.create({
+          data: {
+            userId: userId,
+            name: data.categoryName,
+            type: data.type, // Usa il tipo della transazione
+          },
+        });
+      }
+      
+      categoryId = category.id;
+    }
+    // Altrimenti, usa la categoria di default "Da categorizzare"
+    else {
+      const defaultCategoryName = "Da categorizzare";
+      
+      let defaultCategory = await prisma.category.findFirst({
+        where: {
+          userId: userId,
+          name: defaultCategoryName,
+          type: data.type,
+        },
+      });
+
+      // Se non esiste, creala al volo
+      if (!defaultCategory) {
+        defaultCategory = await prisma.category.create({
+          data: {
+            userId: userId,
+            name: defaultCategoryName,
+            type: data.type,
+          },
+        });
+      }
+      
+      categoryId = defaultCategory.id;
     }
 
     // 5. CREAZIONE TRANSAZIONE (Sicuro grazie a Prisma)
@@ -398,10 +442,10 @@ transactionsRouter.post(
         data: {
           userId: userId,
           accountId: data.userId,
-          categoryId: defaultCategory.id, // <-- Usiamo l'ID della categoria di default
+          categoryId: categoryId,
           date: new Date(), // <-- Usiamo la data odierna
           amount: data.amount,
-          type: data.type, // <-- Tipo fisso, come da nome endpoint
+          type: data.type,
           notes: data.notes,
         },
       });
