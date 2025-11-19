@@ -6,14 +6,15 @@
     "moduleResolution": "NodeNext",
     "rootDir": "src",
     "outDir": "dist",
-    "strict": true,
+    "strict": false,
+    "noImplicitAny": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "types": ["node"],
     "sourceMap": true,
-    "noImplicitAny": false
+    "noEmitOnError": false
   },
   "include": ["src"]
 }

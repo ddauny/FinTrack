@@ -269,31 +269,6 @@ export function TransactionsPage() {
     e.preventDefault()
     if (!form.categoryId) { alert('Please select a category.'); return }
     const acctId = await ensureAccountId()
-<<<<<<< HEAD
-    const payload = { ...form, accountId: acctId, amount: Number(form.amount) }
-    try {
-      if (editingId) await api.transactions.update(editingId, payload)
-      else await api.transactions.create(payload)
-    } catch (err: any) {
-      // Show a user-friendly error and log details
-      console.error('Error creating/updating transaction:', err)
-      let message = 'Errore durante il salvataggio della transazione.'
-      try {
-        const txt = String(err.message || err)
-        // if server returned JSON error body, try to parse
-        const parsed = JSON.parse(txt)
-        if (parsed && parsed.error) message = parsed.error
-        else message = txt
-      } catch (_) {
-        // fallback to raw message
-      }
-      alert(message)
-      return
-    }
-    // Reset the form to defaults so the modal is clean for the next add
-    setForm({ date: new Date().toISOString().slice(0,10), amount: 0, accountId: '', categoryId: '', notes: '' })
-    setCategoryQuery('')
-=======
     
     if (form.isRecurring) {
       // Create recurring transaction
@@ -332,7 +307,6 @@ export function TransactionsPage() {
       else await api.transactions.create(payload)
     }
     
->>>>>>> main
     setShowModal(false)
     setEditingId(null)
     setShowNotesSuggestions(false)
@@ -697,84 +671,6 @@ export function TransactionsPage() {
             </div>
           )}
         </div>
-<<<<<<< HEAD
-          
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 mt-6">
-          <input ref={fileInputRef} type="file" accept=".csv" onChange={onFileSelected} className="hidden" />
-          <button 
-            title="Import CSV" 
-            onClick={()=>fileInputRef.current?.click()} 
-            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-2 focus:ring-blue-500" 
-            aria-label="Import CSV"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-              <path d="M12 3a1 1 0 011 1v9.586l2.293-2.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L11 13.586V4a1 1 0 011-1z"/>
-              <path d="M5 20a2 2 0 01-2-2v-2a1 1 0 112 0v2h14v-2a1 1 0 112 0v2a2 2 0 01-2 2H5z"/>
-            </svg>
-            <span>Import CSV</span>
-          </button>
-          <button
-            title="Export CSV"
-            onClick={async () => {
-              // Build same query used for listing (but without pagination)
-              let q = `?limit=10000&sortBy=${sortBy}&order=${order}`;
-              if (startDate) q += `&startDate=${startDate}`;
-              if (endDate) q += `&endDate=${endDate}`;
-              if (selectedCategory) q += `&category=${encodeURIComponent(selectedCategory)}`;
-              if (searchQuery.trim()) q += `&search=${encodeURIComponent(searchQuery.trim())}`;
-              try {
-                const res: any = await api.transactions.list(q);
-                const itemsToExport = res.items || [];
-                if (!itemsToExport.length) { alert('Nessuna transazione da esportare'); return }
-                const headers = ['date','amount','category','notes'];
-                const escapeCsv = (val: any) => {
-                  const str = String(val ?? '');
-                  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                    return `"${str.replace(/"/g,'""')}"`;
-                  }
-                  return str;
-                };
-                const rows = itemsToExport.map((t: any) => ({
-                  date: String(t.date).slice(0,10),
-                  amount: Number(t.amount),
-                  category: t.category?.name || (t.categoryId ?? ''),
-                  notes: t.notes || ''
-                }));
-                const csv = [headers.join(',')].concat(rows.map((r: any) => headers.map(h => escapeCsv(r[h])).join(','))).join('\n');
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `transactions_${new Date().toISOString().slice(0,10)}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(url);
-              } catch (err) {
-                console.error('Export failed', err);
-                alert('Esportazione fallita');
-              }
-            }}
-            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-2 focus:ring-green-500"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-              <path d="M12 5v10m0 0-4-4m4 4 4-4M4 19h16" strokeWidth="1.5" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span>Export CSV</span>
-          </button>
-          <button 
-            title="Add Transactioooooosdsn" 
-            onClick={()=>setShowModal(true)} 
-            className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500" 
-            aria-label="Add Transaction"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-              <path d="M11 11V5a1 1 0 112 0v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H5a1 1 0 110-2h6z"/>
-            </svg>
-            <span>Add Transaction</span>
-          </button>
-=======
         
         <input ref={fileInputRef} type="file" accept=".csv" onChange={onFileSelected} className="hidden" />
       </div>
@@ -802,7 +698,6 @@ export function TransactionsPage() {
               </tr>
             </thead>
           </table>
->>>>>>> main
         </div>
       </div>
       
@@ -812,24 +707,6 @@ export function TransactionsPage() {
         <div className="block sm:hidden space-y-2">
         {items.map((t)=> (
           <div key={t.id} className="bg-gray-50 dark:bg-gray-700/10 p-3 rounded border border-gray-200 dark:border-gray-700">
-<<<<<<< HEAD
-            <div className="flex justify-between items-start mb-2">
-              <div className="text-sm font-medium">{formatDateDMY(t.date)}</div>
-              <div className={`text-sm font-bold ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-700' : 'text-red-700'}`}>
-                <PrivacyNumber value={t.amount}>
-                  {formatEUR(t.amount)}
-                </PrivacyNumber>
-              </div>
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</div>
-            {t.notes && <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t.notes}</div>}
-            <div className="flex gap-2">
-              <button title="Edit" onClick={()=>{ setEditingId(t.id); setForm({ date: String(t.date).slice(0,10), amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, notes: t.notes||'' }); setShowModal(true) }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400" aria-label="Edit Transaction">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
-                Edit
-              </button>
-              <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400" aria-label="Delete Transaction">
-=======
             <div className="flex items-start gap-3 mb-2">
               {selectionMode && (
                 <input
@@ -871,7 +748,6 @@ export function TransactionsPage() {
                 Edit
               </button>
               <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-600" aria-label="Delete Transaction">
->>>>>>> main
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
                 Delete
               </button>
@@ -920,17 +796,6 @@ export function TransactionsPage() {
                     {formatEUR(t.amount)}
                   </PrivacyNumber>
                 </td>
-<<<<<<< HEAD
-                <td className="p-2 min-w-[120px]">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</td>
-                <td className="p-2 min-w-[150px] hidden sm:table-cell">{t.notes}</td>
-                <td className="p-2 min-w-[100px]">
-                  <div className="flex flex-col sm:flex-row gap-1">
-                    <button title="Edit" onClick={()=>{ setEditingId(t.id); setForm({ date: String(t.date).slice(0,10), amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, notes: t.notes||'' }); setShowModal(true) }} className="p-1 sm:p-2 text-xs sm:text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400" aria-label="Edit Transaction">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 sm:w-4 sm:h-4"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
-                    </button>
-                    <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="p-1 sm:p-2 text-xs sm:text-sm bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400" aria-label="Delete Transaction">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 sm:w-4 sm:h-4"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
-=======
                 <td className="p-2 w-[25%] dark:text-gray-200">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</td>
                 <td className="p-2 w-[25%] hidden sm:table-cell dark:text-gray-300">{t.notes}</td>
                 
@@ -957,7 +822,6 @@ export function TransactionsPage() {
                     </button>
                     <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="p-1.5 text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800" aria-label="Delete Transaction">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
->>>>>>> main
                     </button>
                   </div>
                 </div>
@@ -1121,26 +985,8 @@ export function TransactionsPage() {
               </div>
             )}
             <div className="flex justify-end gap-2 pt-2">
-<<<<<<< HEAD
-              <button type="button" onClick={()=>{ 
-                // Close modal and fully reset transient form state
-                setShowModal(false); 
-                setEditingId(null); 
-                setShowNotesSuggestions(false); 
-                setNotesSuggestions([]); 
-                setSelectedSuggestionIndex(-1); 
-                setShowCategorySuggestions(false); 
-                setCategorySuggestions([]); 
-                setSelectedCategoryIndex(-1);
-                // Reset the form fields so the modal is clean next time
-                setForm({ date: new Date().toISOString().slice(0,10), amount: 0, accountId: '', categoryId: '', notes: '' });
-                setCategoryQuery('');
-              }} className="px-3 py-2 rounded">Cancel</button>
-              <button type="submit" disabled={!form.categoryId || !form.amount} className="px-3 py-2 rounded bg-blue-600 disabled:bg-blue-400 text-white">Save</button>
-=======
               <button type="button" onClick={()=>{ setShowModal(false); setEditingId(null); setShowNotesSuggestions(false); setNotesSuggestions([]); setSelectedSuggestionIndex(-1); setShowCategorySuggestions(false); setCategorySuggestions([]); setSelectedCategoryIndex(-1) }} className="px-3 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600">Cancel</button>
               <button type="submit" disabled={!form.categoryId || !form.amount} className="px-3 py-2 rounded bg-blue-600 disabled:bg-blue-400 dark:disabled:bg-blue-800 text-white hover:bg-blue-700 disabled:cursor-not-allowed">Save</button>
->>>>>>> main
             </div>
           </form>
         </div>

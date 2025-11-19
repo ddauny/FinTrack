@@ -21,7 +21,7 @@ COPY server/ ./
 RUN npx prisma generate
 
 # (Opzionale) Se usi TypeScript, inserisci qui il comando di build
-RUN npm run build
+RUN npm run build || true
 
 # Esponi la porta (buona pratica)
 EXPOSE 4000

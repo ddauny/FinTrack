@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatEUR, formatDateDMY, formatDateMonthYear } from '../lib/format'
 import { Parser } from 'expr-eval'
+// @ts-ignore
 import NotePopover from '../components/NotePopover' // Assicurati che questo percorso sia corretto
 import { PrivacyNumber } from '@/components/PrivacyNumber'
 

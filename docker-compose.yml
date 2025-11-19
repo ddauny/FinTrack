@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   #################
   # Database (Sviluppo)
@@ -9,13 +7,12 @@ services:
     container_name: fintrack-dev-db
     ports:
       - "5432:5432" # Esponiamo la porta per il debug
-    env_file:
-      - .env.dev
-    # MODIFICA QUESTO BLOCCO (per usare le variabili)
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    env_file:
+      - .env
     volumes:
       - fintrack-dev-data:/var/lib/postgresql/data # Volume separato
     healthcheck:
@@ -24,6 +21,8 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    networks:
+      - default-dev
 
   #################
   # Backend (Sviluppo)
@@ -36,7 +35,7 @@ services:
     ports:
       - "4000:4000"
     env_file:
-      - .env.dev
+      - .env
     volumes:
       # Hot-reloading: collega il tuo codice locale al container
       - ./server:/app/server
