@@ -29,7 +29,7 @@ export function TopNav() {
     </Link>
   )
   return (
-    <nav className="w-full border-b bg-white dark:bg-gray-800 dark:border-gray-700">
+    <nav className="sticky top-0 z-50 w-full border-b bg-white dark:bg-gray-800 dark:border-gray-700 shadow-sm">
       <div className="mx-auto max-w-7xl flex items-center justify-between p-3">
         <div className="flex items-center gap-2">
           <span className="font-bold text-xl text-blue-700 dark:text-blue-300">FinTrack</span>

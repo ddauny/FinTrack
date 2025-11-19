@@ -29,18 +29,38 @@ export function DashboardPage() {
     textStyle: {
       color: resolved === 'dark' ? '#f3f4f6' : '#111827'
     },
+    grid: {
+      left: '5%',
+      right: '3%',
+      bottom: '20%',
+      top: '10%',
+      containLabel: true
+    },
     xAxis: { 
       type: 'category', 
       data: data.netWorthHistory?.map((d:any)=> formatDateDMY(d.date)) ?? [],
       axisLabel: {
-        color: resolved === 'dark' ? '#d1d5db' : '#6b7280'
+        color: resolved === 'dark' ? '#d1d5db' : '#6b7280',
+        rotate: 45,
+        fontSize: 10,
+        interval: 0
       }
     },
     yAxis: { 
       type: 'value',
       axisLabel: {
-        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value),
-        color: resolved === 'dark' ? '#d1d5db' : '#6b7280'
+        formatter: (value: number) => {
+          if (hideNumbers) return '••••••';
+          if (value >= 1000) return `€${(value/1000).toFixed(0)}k`;
+          return `€${value}`;
+        },
+        color: resolved === 'dark' ? '#d1d5db' : '#6b7280',
+        fontSize: 10
+      },
+      splitLine: {
+        lineStyle: {
+          color: resolved === 'dark' ? '#374151' : '#e5e7eb'
+        }
       }
     },
     tooltip: { 
@@ -55,7 +75,8 @@ export function DashboardPage() {
           return `${params[0].name}<br/>Net Worth: ••••••`
         }
         return `${params[0].name}<br/>Net Worth: ${formatEUR(params[0].value)}`
-      }
+      },
+      confine: true
     },
     series: [{
       type: 'line',
@@ -92,15 +113,30 @@ export function DashboardPage() {
       textStyle: {
         color: resolved === 'dark' ? '#f3f4f6' : '#111827'
       },
-      formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`
+      formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`,
+      confine: true
+    },
+    legend: {
+      orient: 'horizontal',
+      bottom: 0,
+      left: 'center',
+      textStyle: {
+        color: resolved === 'dark' ? '#f3f4f6' : '#111827',
+        fontSize: 10
+      }
     },
     series: [{
       type: 'pie', 
-      radius: ['50%','70%'],
+      radius: ['40%','65%'],
+      center: ['50%', '45%'],
       data: (data.assetAllocation||[]).map((a:any)=>({ 
         name: a.class, 
         value: Number(a.value).toFixed(2) // Limit to 2 decimal places
-      }))
+      })),
+      label: {
+        fontSize: 10,
+        color: resolved === 'dark' ? '#f3f4f6' : '#111827'
+      }
     }]
   }
   const barOption = {
@@ -109,10 +145,11 @@ export function DashboardPage() {
       color: resolved === 'dark' ? '#f3f4f6' : '#111827'
     },
     grid: {
-      left: '15%',
-      right: '5%',
+      left: '5%',
+      right: '3%',
       top: '10%',
-      bottom: '20%'
+      bottom: '25%',
+      containLabel: true
     },
     tooltip: { 
       trigger: 'axis',
@@ -125,25 +162,40 @@ export function DashboardPage() {
       formatter: (params: any) => {
         const data = params[0]
         return hideNumbers ? `${data.name}: ••••••` : `${data.name}: ${formatEUR(data.value)}`
-      }
+      },
+      confine: true
     },
     xAxis: { 
       type: 'category', 
       data: (data.expenseBreakdown||[]).map((e:any)=>e.category),
       axisLabel: {
         show: true,
-        interval: 0, // Show all labels
-        rotate: 45, // Rotate labels for better readability
+        interval: 0,
+        rotate: 45,
         fontSize: 10,
         color: resolved === 'dark' ? '#d1d5db' : '#6b7280'
+      },
+      axisLine: {
+        lineStyle: {
+          color: resolved === 'dark' ? '#4b5563' : '#d1d5db'
+        }
       }
     },
     yAxis: { 
       type: 'value',
       axisLabel: {
-        formatter: (value: number) => hideNumbers ? '••••••' : formatEUR(value),
+        formatter: (value: number) => {
+          if (hideNumbers) return '••••••';
+          if (value >= 1000) return `€${(value/1000).toFixed(0)}k`;
+          return `€${value}`;
+        },
         fontSize: 10,
         color: resolved === 'dark' ? '#d1d5db' : '#6b7280'
+      },
+      splitLine: {
+        lineStyle: {
+          color: resolved === 'dark' ? '#374151' : '#e5e7eb'
+        }
       }
     },
     series: [{ 
@@ -155,8 +207,13 @@ export function DashboardPage() {
       label: {
         show: true,
         position: 'top',
-        formatter: (params: any) => hideNumbers ? '••••••' : formatEUR(params.value),
-        fontSize: 10,
+        formatter: (params: any) => {
+          if (hideNumbers) return '••••••';
+          const val = params.value;
+          if (val >= 1000) return `€${(val/1000).toFixed(1)}k`;
+          return `€${val.toFixed(0)}`;
+        },
+        fontSize: 9,
         color: resolved === 'dark' ? '#f3f4f6' : '#111827'
       }
     }]

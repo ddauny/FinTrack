@@ -46,6 +46,8 @@ export const api = {
     create: (data: Partial<Transaction>) => apiJson<Transaction>('/api/transactions', 'POST', data),
     update: (id: number, data: Partial<Transaction>) => apiJson<Transaction>(`/api/transactions/${id}`, 'PUT', data),
     remove: (id: number) => apiJson<void>(`/api/transactions/${id}`, 'DELETE'),
+    bulkDelete: (ids: number[]) => apiJson<{ deleted: number }>('/api/transactions/bulk-delete', 'POST', { ids }),
+    bulkUpdateCategory: (ids: number[], categoryId: number) => apiJson<{ updated: number }>('/api/transactions/bulk-update-category', 'PATCH', { ids, categoryId }),
     importCsv: (file: File) => {
       const form = new FormData()
       form.append('file', file)
@@ -79,6 +81,11 @@ export const api = {
       monthlyExpenses: (start?: string, end?: string) => apiGet(`/api/reports/monthly-expenses?start=${start||''}&end=${end||''}`),
       categoryAnalysis: (start?: string, end?: string) => apiGet(`/api/reports/category-analysis?start=${start||''}&end=${end||''}`),
       netWorthTrend: (start?: string, end?: string) => apiGet(`/api/reports/net-worth-trend?start=${start||''}&end=${end||''}`),
+      assetGrowthTrend: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-growth-trend?start=${start||''}&end=${end||''}`),
+      assetDistribution: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-distribution?start=${start||''}&end=${end||''}`),
+      assetGroupComparison: (start?: string, end?: string) => apiGet<any>(`/api/reports/asset-group-comparison?start=${start||''}&end=${end||''}`),
+      topAssetsEvolution: (start?: string, end?: string, limit?: number) => apiGet<any>(`/api/reports/top-assets-evolution?start=${start||''}&end=${end||''}&limit=${limit||5}`),
+      assetAllocationChanges: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-allocation-changes?start=${start||''}&end=${end||''}`),
       exportCsv: (path: string) => fetch(path + (path.includes('?')? '&':'?') + 'format=csv', { headers: { ...authHeaders() } }).then(r=>r.text()),
     },
   assets: {
@@ -105,6 +112,14 @@ export const api = {
   settings: {
     profile: () => apiGet<any>('/api/settings/profile'),
     updateProfile: (data: any) => apiJson<any>('/api/settings/profile', 'PUT', data),
+    getAutomationToken: () => apiGet<{ token: string | null }>('/api/settings/automation-token'),
+    generateAutomationToken: () => apiJson<{ token: string }>('/api/settings/automation-token', 'POST', {}),
+  },
+  recurringTransactions: {
+    list: () => apiGet<any[]>('/api/recurring-transactions'),
+    create: (data: any) => apiJson<any>('/api/recurring-transactions', 'POST', data),
+    update: (id: number, data: any) => apiJson<any>(`/api/recurring-transactions/${id}`, 'PATCH', data),
+    remove: (id: number) => apiJson<void>(`/api/recurring-transactions/${id}`, 'DELETE'),
   }
 }
 

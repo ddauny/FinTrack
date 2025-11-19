@@ -18,6 +18,7 @@ const createSchema = z.object({
   date: z.string(),
   amount: z.number(),
   notes: z.string().optional(),
+  recurringTransactionId: z.number().int().optional(),
 });
 
 transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
@@ -127,8 +128,17 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
   const [items, total] = await Promise.all([
     prisma.transaction.findMany({ 
       where, 
-      orderBy, 
-      include: { 
+      orderBy,
+      select: {
+        id: true,
+        date: true,
+        amount: true,
+        notes: true,
+        accountId: true,
+        categoryId: true,
+        userId: true,
+        type: true,
+        recurringTransactionId: true,
         category: {
           select: {
             id: true,
@@ -206,6 +216,7 @@ transactionsRouter.post("/", requireAuth, async (req: AuthRequest, res) => {
       amount: data.amount,
       type,
       notes: data.notes,
+      recurringTransactionId: data.recurringTransactionId,
     },
   });
   res.status(201).json(item);
@@ -217,6 +228,8 @@ const shortcutExpenseSchema = z.object({
   userId: z.number().int("accountId must be an integer"), // O z.string() se usi CUID/UUID
   notes: z.string().optional(),
   type: z.enum(["Expense", "Income"]).default("Expense"),
+  categoryId: z.number().int("categoryId must be an integer").optional(), // Categoria opzionale
+  categoryName: z.string().optional(), // Nome categoria opzionale (alternativa a categoryId)
 });
 
 // 2. Crea il nuovo endpoint
@@ -355,30 +368,87 @@ transactionsRouter.post(
     }
     const data = parse.data;
 
-    // 4. LOGICA DI BUSINESS (Categoria di default)
-    // Dobbiamo trovare una categoria "di servizio" (es. "Da categorizzare")
-    // che sia di tipo "Expense" e appartenga a questo utente.
-    
+    // 4. LOGICA DI BUSINESS (Categoria)
     const userId = req.userId!; // Ottenuto da requireAuth
-    const defaultCategoryName = "Da categorizzare"; // O "Uncategorized"
-
-    let defaultCategory = await prisma.category.findFirst({
-      where: {
-        userId: userId,
-        name: defaultCategoryName,
-        type: "Expense",
-      },
-    });
-
-    // Se non esiste, creala al volo
-    if (!defaultCategory) {
-      defaultCategory = await prisma.category.create({
-        data: {
+    let categoryId: number;
+    
+    // Se è stato fornito categoryId, usalo direttamente
+    if (data.categoryId) {
+      // Verifica che la categoria esista e appartenga all'utente
+      const category = await prisma.category.findFirst({
+        where: {
+          id: data.categoryId,
           userId: userId,
-          name: defaultCategoryName,
-          type: "Expense",
         },
       });
+      
+      if (!category) {
+        return res.status(404).json({ error: "Category not found or not authorized" });
+      }
+      
+      categoryId = category.id;
+    }
+    // Altrimenti, se è stato fornito categoryName, cercala o creala
+    else if (data.categoryName) {
+      console.log("Searching for category:", data.categoryName, "userId:", userId, "type:", data.type);
+      
+      let category = await prisma.category.findFirst({
+        where: {
+          userId: userId,
+          name: { equals: data.categoryName, mode: "insensitive" },
+        },
+      });
+      
+      console.log("Found category:", category);
+      
+      // Se non esiste, creala con TitleCase
+      if (!category) {
+        // Formatta il nome in TitleCase (prima lettera maiuscola)
+        const formattedName = data.categoryName
+          .toLowerCase()
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+        
+        console.log("Creating new category:", formattedName);
+        
+        category = await prisma.category.create({
+          data: {
+            userId: userId,
+            name: formattedName,
+            type: data.type, // Usa il tipo della transazione
+          },
+        });
+        
+        console.log("Created category:", category);
+      }
+      
+      categoryId = category.id;
+    }
+    // Altrimenti, usa la categoria di default "Da categorizzare"
+    else {
+      const defaultCategoryName = "Da categorizzare";
+      
+      let defaultCategory = await prisma.category.findFirst({
+        where: {
+          userId: userId,
+          name: defaultCategoryName,
+          type: data.type,
+        },
+      });
+
+      // Se non esiste, creala al volo
+      if (!defaultCategory) {
+        defaultCategory = await prisma.category.create({
+          data: {
+            userId: userId,
+            name: defaultCategoryName,
+            type: data.type,
+          },
+        });
+      }
+      
+      categoryId = defaultCategory.id;
     }
 
     // 5. CREAZIONE TRANSAZIONE (Sicuro grazie a Prisma)
@@ -387,10 +457,10 @@ transactionsRouter.post(
         data: {
           userId: userId,
           accountId: data.userId,
-          categoryId: defaultCategory.id, // <-- Usiamo l'ID della categoria di default
+          categoryId: categoryId,
           date: new Date(), // <-- Usiamo la data odierna
           amount: data.amount,
-          type: data.type, // <-- Tipo fisso, come da nome endpoint
+          type: data.type,
           notes: data.notes,
         },
       });
@@ -601,5 +671,191 @@ transactionsRouter.post("/import", requireAuth, upload.single("file"), async (re
   console.log(`${logPrefix} imported=${created.length}`);
   res.json({ imported: created.length, ids: created });
 });
+
+// Bulk delete transactions
+const bulkDeleteSchema = z.object({
+  ids: z.array(z.number().int()).min(1, "At least one ID required"),
+});
+
+transactionsRouter.post("/bulk-delete", requireAuth, async (req: AuthRequest, res) => {
+  const parse = bulkDeleteSchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  
+  const { ids } = parse.data;
+  const userId = req.userId!;
+  
+  // Delete only transactions belonging to the current user
+  const result = await prisma.transaction.deleteMany({
+    where: {
+      id: { in: ids },
+      userId: userId,
+    },
+  });
+  
+  res.json({ deleted: result.count });
+});
+
+// Bulk update category
+const bulkUpdateCategorySchema = z.object({
+  ids: z.array(z.number().int()).min(1, "At least one ID required"),
+  categoryId: z.number().int("Category ID is required"),
+});
+
+transactionsRouter.patch("/bulk-update-category", requireAuth, async (req: AuthRequest, res) => {
+  const parse = bulkUpdateCategorySchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  
+  const { ids, categoryId } = parse.data;
+  const userId = req.userId!;
+  
+  // Verify category exists and belongs to user
+  const category = await prisma.category.findFirst({
+    where: {
+      id: categoryId,
+      userId: userId,
+    },
+  });
+  
+  if (!category) {
+    return res.status(404).json({ error: "Category not found or not authorized" });
+  }
+  
+  // Update type based on new category
+  const type = category.type === "Income" ? "Income" : "Expense";
+  
+  // Update only transactions belonging to the current user
+  const result = await prisma.transaction.updateMany({
+    where: {
+      id: { in: ids },
+      userId: userId,
+    },
+    data: {
+      categoryId: categoryId,
+      type: type,
+    },
+  });
+  
+  res.json({ updated: result.count });
+});
+
+// Delete transaction by notes, category and date
+const deleteByDetailsSchema = z.object({
+  notes: z.string().optional(),
+  categoryName: z.string().optional(),
+  categoryId: z.number().int().optional(),
+  date: z.string(), // Required - format: YYYY-MM-DD or DD/MM/YYYY
+}).refine(
+  (data) => data.categoryName || data.categoryId,
+  { message: "Either categoryName or categoryId must be provided" }
+);
+
+transactionsRouter.post("/delete-by-details", requireAuth, async (req: AuthRequest, res) => {
+  const parse = deleteByDetailsSchema.safeParse(req.body);
+  if (!parse.success) {
+    return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  }
+  
+  const data = parse.data;
+  const userId = req.userId!;
+  
+  console.log("Delete by details request:", data);
+  
+  // Parse the date to get start and end of day
+  const parsedDate = dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY"], true);
+  if (!parsedDate.isValid()) {
+    return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD or DD/MM/YYYY" });
+  }
+  
+  const startOfDay = parsedDate.startOf('day').toDate();
+  const endOfDay = parsedDate.endOf('day').toDate();
+  
+  // Build where clause
+  const where: any = {
+    userId: userId,
+    date: {
+      gte: startOfDay,
+      lte: endOfDay,
+    },
+  };
+  
+  // Add notes filter if provided
+  if (data.notes !== undefined && data.notes !== null) {
+    where.notes = data.notes;
+  }
+  
+  // Find category ID
+  let categoryId: number | undefined;
+  if (data.categoryId) {
+    // Verify category belongs to user
+    const category = await prisma.category.findFirst({
+      where: {
+        id: data.categoryId,
+        userId: userId,
+      },
+    });
+    
+    if (!category) {
+      return res.status(404).json({ error: "Category not found or not authorized" });
+    }
+    
+    categoryId = category.id;
+  } else if (data.categoryName) {
+    // Find category by name
+    const category = await prisma.category.findFirst({
+      where: {
+        userId: userId,
+        name: { equals: data.categoryName, mode: "insensitive" },
+      },
+    });
+    
+    if (!category) {
+      return res.status(404).json({ error: "Category not found" });
+    }
+    
+    categoryId = category.id;
+  }
+  
+  if (categoryId) {
+    where.categoryId = categoryId;
+  }
+  
+  console.log("Delete where clause:", JSON.stringify(where, null, 2));
+  
+  // Find matching transactions first
+  const matchingTransactions = await prisma.transaction.findMany({
+    where,
+    select: {
+      id: true,
+      date: true,
+      amount: true,
+      notes: true,
+      category: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+  
+  console.log("Found matching transactions:", matchingTransactions.length);
+  
+  if (matchingTransactions.length === 0) {
+    return res.status(404).json({ error: "No matching transaction found" });
+  }
+  
+  // Delete the transactions
+  const result = await prisma.transaction.deleteMany({
+    where,
+  });
+  
+  console.log("Deleted transactions:", result.count);
+  
+  res.json({ 
+    deleted: result.count,
+    transactions: matchingTransactions,
+  });
+});
+
+
 
 

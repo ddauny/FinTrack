@@ -223,3 +223,470 @@ reportsRouter.get("/net-worth-trend", requireAuth, async (req: AuthRequest, res)
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Asset Growth Trend - Andamento del valore totale degli asset nel tempo
+reportsRouter.get("/asset-growth-trend", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { start, end } = parseRange(req.query);
+    
+    const assetGroups = await prisma.assetGroup.findMany({
+      where: { userId },
+      include: {
+        items: {
+          include: {
+            valuations: {
+              where: {
+                month: { gte: start, lte: end }
+              },
+              orderBy: { month: 'asc' }
+            },
+            children: {
+              include: {
+                valuations: {
+                  where: {
+                    month: { gte: start, lte: end }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    // Raccogli tutti i mesi unici
+    const monthsSet = new Set<string>();
+    assetGroups.forEach(group => {
+      group.items.forEach(item => {
+        item.valuations.forEach(v => {
+          monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+        });
+        item.children.forEach(child => {
+          child.valuations.forEach(v => {
+            monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+          });
+        });
+      });
+    });
+    
+    const months = Array.from(monthsSet).sort();
+    
+    // Calcola il valore totale per ogni mese
+    const result = months.map(monthStr => {
+      let total = 0;
+      assetGroups.forEach(group => {
+        group.items.filter(i => !i.parentItemId).forEach(item => {
+          const val = item.valuations.find(v => 
+            v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
+          );
+          if (val) {
+            total += Number(val.value);
+          }
+          // Aggiungi figli
+          item.children.forEach(child => {
+            const childVal = child.valuations.find(v =>
+              v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
+            );
+            if (childVal) total += Number(childVal.value);
+          });
+        });
+      });
+      
+      return { month: monthStr, value: total };
+    }).filter(item => item.value > 0); // Filtra mesi con valore 0
+    
+    return res.json(result);
+  } catch (error) {
+    console.error('Error in asset-growth-trend:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Asset Distribution - Distribuzione percentuale per gruppo in un periodo
+reportsRouter.get("/asset-distribution", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    
+    // Trova il mese più recente con almeno un valore > 0
+    const latestValuation = await prisma.assetValuation.findFirst({
+      where: {
+        item: {
+          group: { userId }
+        },
+        value: { gt: 0 }
+      },
+      orderBy: { month: 'desc' }
+    });
+
+    if (!latestValuation) {
+      return res.json([]);
+    }
+
+    const latestMonth = latestValuation.month;
+    
+    const assetGroups = await prisma.assetGroup.findMany({
+      where: { userId },
+      include: {
+        items: {
+          include: {
+            valuations: {
+              where: {
+                month: latestMonth
+              }
+            },
+            children: {
+              include: {
+                valuations: {
+                  where: {
+                    month: latestMonth
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    // Calcola il valore totale per ogni gruppo per l'ultimo mese
+    const result = assetGroups.map(group => {
+      let totalValue = 0;
+      
+      // Somma solo gli items root (quelli senza parent)
+      group.items.filter(i => !i.parentItemId).forEach(item => {
+        // Valore diretto dell'item
+        const directValue = item.valuations.reduce((sum, v) => sum + Number(v.value), 0);
+        
+        // Valore dei children (se l'item è parent)
+        const childrenValue = item.children.reduce((sum, child) => {
+          return sum + child.valuations.reduce((childSum, v) => childSum + Number(v.value), 0);
+        }, 0);
+        
+        // Se l'item ha un valore diretto, usa quello, altrimenti usa la somma dei children
+        totalValue += directValue > 0 ? directValue : childrenValue;
+      });
+      
+      return {
+        name: group.name,
+        value: totalValue
+      };
+    }).filter(g => g.value > 0);
+    
+    return res.json(result);
+  } catch (error) {
+    console.error('Error in asset-distribution:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Asset Group Comparison - Confronto tra gruppi nel tempo
+reportsRouter.get("/asset-group-comparison", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { start, end } = parseRange(req.query);
+    
+    const assetGroups = await prisma.assetGroup.findMany({
+      where: { userId },
+      include: {
+        items: {
+          include: {
+            valuations: {
+              where: {
+                month: { gte: start, lte: end }
+              },
+              orderBy: { month: 'asc' }
+            },
+            children: {
+              include: {
+                valuations: {
+                  where: {
+                    month: { gte: start, lte: end }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    // Raccogli tutti i mesi
+    const monthsSet = new Set<string>();
+    assetGroups.forEach(group => {
+      group.items.forEach(item => {
+        item.valuations.forEach(v => {
+          monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+        });
+        item.children.forEach(child => {
+          child.valuations.forEach(v => {
+            monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+          });
+        });
+      });
+    });
+    
+    const months = Array.from(monthsSet).sort();
+    
+    // Crea serie per ogni gruppo
+    const series = assetGroups.map(group => {
+      const data = months.map(monthStr => {
+        let total = 0;
+        group.items.filter(i => !i.parentItemId).forEach(item => {
+          const val = item.valuations.find(v => 
+            v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
+          );
+          if (val) total += Number(val.value);
+          
+          item.children.forEach(child => {
+            const childVal = child.valuations.find(v =>
+              v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
+            );
+            if (childVal) total += Number(childVal.value);
+          });
+        });
+        return total;
+      });
+      
+      return {
+        name: group.name,
+        data
+      };
+    });
+
+    // Filtra i mesi in cui TUTTI i gruppi hanno valore 0
+    const validMonthIndices = months
+      .map((_, index) => {
+        const hasValue = series.some(s => s.data[index] > 0);
+        return hasValue ? index : -1;
+      })
+      .filter(i => i !== -1);
+
+    const filteredMonths = validMonthIndices.map(i => months[i]);
+    const filteredSeries = series.map(s => ({
+      name: s.name,
+      data: validMonthIndices.map(i => s.data[i])
+    }));
+    
+    return res.json({ months: filteredMonths, series: filteredSeries });
+  } catch (error) {
+    console.error('Error in asset-group-comparison:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Top Assets Evolution - Evoluzione dei principali asset
+reportsRouter.get("/top-assets-evolution", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { start, end } = parseRange(req.query);
+    const limit = parseInt(req.query.limit as string) || 5;
+    
+    const assetGroups = await prisma.assetGroup.findMany({
+      where: { userId },
+      include: {
+        items: {
+          where: {
+            parentItemId: null // Solo root items
+          },
+          include: {
+            valuations: {
+              where: {
+                month: { gte: start, lte: end }
+              },
+              orderBy: { month: 'asc' }
+            }
+          }
+        }
+      }
+    });
+    
+    // Calcola il valore medio di ogni asset
+    const assetValues = assetGroups.flatMap(group =>
+      group.items.map(item => {
+        const valuations = item.valuations;
+        const avgValue = valuations.length > 0
+          ? valuations.reduce((sum, v) => sum + Number(v.value), 0) / valuations.length
+          : 0;
+        
+        return {
+          name: item.name,
+          avgValue,
+          valuations
+        };
+      })
+    );
+    
+    // Ordina per valore medio e prendi i top N
+    const topAssets = assetValues
+      .sort((a, b) => b.avgValue - a.avgValue)
+      .slice(0, limit);
+    
+    // Raccogli tutti i mesi
+    const monthsSet = new Set<string>();
+    topAssets.forEach(asset => {
+      asset.valuations.forEach(v => {
+        monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+      });
+    });
+    const months = Array.from(monthsSet).sort();
+    
+    // Crea serie per ogni asset
+    const series = topAssets.map(asset => {
+      const data = months.map(monthStr => {
+        const val = asset.valuations.find(v =>
+          v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
+        );
+        return val ? Number(val.value) : 0;
+      });
+      
+      return {
+        name: asset.name,
+        data
+      };
+    });
+
+    // Filtra i mesi in cui TUTTI gli asset hanno valore 0
+    const validMonthIndices = months
+      .map((_, index) => {
+        const hasValue = series.some(s => s.data[index] > 0);
+        return hasValue ? index : -1;
+      })
+      .filter(i => i !== -1);
+
+    const filteredMonths = validMonthIndices.map(i => months[i]);
+    const filteredSeries = series.map(s => ({
+      name: s.name,
+      data: validMonthIndices.map(i => s.data[i])
+    }));
+    
+    return res.json({ months: filteredMonths, series: filteredSeries });
+  } catch (error) {
+    console.error('Error in top-assets-evolution:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Asset Allocation Changes - Variazioni percentuali di allocazione tra mesi
+reportsRouter.get("/asset-allocation-changes", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { start, end } = parseRange(req.query);
+    
+    const assetGroups = await prisma.assetGroup.findMany({
+      where: { userId },
+      include: {
+        items: {
+          include: {
+            valuations: {
+              where: {
+                month: { gte: start, lte: end }
+              },
+              orderBy: { month: 'asc' }
+            },
+            children: {
+              include: {
+                valuations: {
+                  where: {
+                    month: { gte: start, lte: end }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    // Raccogli tutti i mesi unici
+    const monthsSet = new Set<string>();
+    assetGroups.forEach(group => {
+      group.items.forEach(item => {
+        item.valuations.forEach(v => {
+          monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+        });
+        item.children.forEach(child => {
+          child.valuations.forEach(v => {
+            monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+          });
+        });
+      });
+    });
+    
+    const months = Array.from(monthsSet).sort();
+    
+    // Calcola il valore totale e per gruppo per ogni mese
+    const monthlyData = months.map(monthStr => {
+      let total = 0;
+      const groups: { [key: string]: number } = {};
+      
+      assetGroups.forEach(group => {
+        let groupTotal = 0;
+        
+        group.items.filter(i => !i.parentItemId).forEach(item => {
+          const val = item.valuations.find(v => 
+            v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
+          );
+          if (val) {
+            groupTotal += Number(val.value);
+          }
+          
+          // Aggiungi figli
+          item.children.forEach(child => {
+            const childVal = child.valuations.find(v =>
+              v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
+            );
+            if (childVal) groupTotal += Number(childVal.value);
+          });
+        });
+        
+        groups[group.name] = groupTotal;
+        total += groupTotal;
+      });
+      
+      return { month: monthStr, total, groups };
+    });
+    
+    // Filtra i mesi con valore totale = 0
+    const validMonthlyData = monthlyData.filter(m => m.total > 0);
+    
+    // Calcola le percentuali di allocazione e le variazioni
+    const result = validMonthlyData.map((current, index) => {
+      const allocations: { [key: string]: number } = {};
+      const changes: { [key: string]: number } = {};
+      
+      // Calcola percentuali di allocazione per il mese corrente
+      Object.keys(current.groups).forEach(groupName => {
+        allocations[groupName] = current.total > 0 
+          ? (current.groups[groupName] / current.total) * 100 
+          : 0;
+      });
+      
+      // Calcola variazioni rispetto al mese precedente
+      if (index > 0) {
+        const previous = validMonthlyData[index - 1];
+        
+        Object.keys(current.groups).forEach(groupName => {
+          const currentAllocation = allocations[groupName];
+          const previousAllocation = previous.total > 0 
+            ? (previous.groups[groupName] / previous.total) * 100 
+            : 0;
+          
+          changes[groupName] = currentAllocation - previousAllocation;
+        });
+      }
+      
+      return {
+        month: current.month,
+        total: current.total,
+        allocations,
+        changes: index > 0 ? changes : null
+      };
+    });
+    
+    return res.json(result);
+  } catch (error) {
+    console.error('Error in asset-allocation-changes:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});

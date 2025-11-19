@@ -8,7 +8,7 @@ export interface AuthRequest extends Request {
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
-  console.log('authHeader', authHeader);
+  //console.log('authHeader', authHeader);
   if (!authHeader?.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
   const token = authHeader.slice("Bearer ".length);
   try {

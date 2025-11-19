@@ -3,8 +3,9 @@ import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
 import { env } from "./config/env.js";
-import { authRouter, dashboardRouter, accountsRouter, categoriesRouter, transactionsRouter, budgetsRouter, reportsRouter, assetsRouter, settingsRouter } from "./routes/index.js";
+import { authRouter, dashboardRouter, accountsRouter, categoriesRouter, transactionsRouter, budgetsRouter, reportsRouter, assetsRouter, settingsRouter, recurringTransactionsRouter } from "./routes/index.js";
 import { refreshMarketData } from "./services/marketData.js";
+import { startRecurringScheduler } from "./services/recurringScheduler.js";
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use("/api/budgets", budgetsRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api", assetsRouter); // exposes /portfolios, /holdings, /manual-assets, /market-data
 app.use("/api/settings", settingsRouter);
+app.use("/api/recurring-transactions", recurringTransactionsRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not Found" });
@@ -40,5 +42,8 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 // kick off once on boot
 refreshMarketData().catch(() => {});
+
+// Start recurring transactions scheduler
+startRecurringScheduler();
 
 

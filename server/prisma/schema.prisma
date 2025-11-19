@@ -13,10 +13,12 @@ model User {
   email        String    @unique
   passwordHash String
   createdAt    DateTime  @default(now())
+  automationToken String? // JWT token for iPhone Shortcuts and automation
 
   accounts     Account[]
   categories   Category[]
   transactions Transaction[]
+  recurringTransactions RecurringTransaction[]
   budgets      Budget[]
   portfolios   Portfolio[]
   manualAssets ManualAsset[]
@@ -55,12 +57,35 @@ model Transaction {
   type       String    // 'Income' | 'Expense'
   notes      String?
   createdAt  DateTime  @default(now())
+  recurringTransactionId Int? // Link to recurring transaction if generated automatically
 
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   account    Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   category   Category  @relation("TxnCategory", fields: [categoryId], references: [id])
+  recurringTransaction RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
 
   @@index([userId, date])
+}
+
+model RecurringTransaction {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  accountId    Int
+  categoryId   Int
+  amount       Decimal
+  type         String    // 'Income' | 'Expense'
+  notes        String?
+  frequency    String    // 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'BIMONTHLY' | 'QUARTERLY' | 'YEARLY'
+  startDate    DateTime  // When to start generating transactions
+  nextDate     DateTime  // Next scheduled transaction date
+  endDate      DateTime? // Optional end date
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generatedTransactions Transaction[]
+
+  @@index([userId, nextDate, isActive])
 }
 
 model Budget {
@@ -109,7 +134,7 @@ model AssetGroup {
   id        Int      @id @default(autoincrement())
   userId    Int
   name      String   // e.g., 'Stock & ETF', 'Cash', 'Real Estate'
-  // order removed per UX change
+  order     Int      @default(0) // Display order
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   items     AssetItem[]
@@ -123,6 +148,7 @@ model AssetItem {
   description       String?
   hidden            Boolean     @default(false)
   depreciationAmount Decimal?   // Monthly depreciation amount (e.g., 250.00)
+  order             Int         @default(0) // Display order within group or parent
 
   group             AssetGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
   parentItem        AssetItem?  @relation("AssetItemToChildren", fields: [parentItemId], references: [id], onDelete: Cascade)
@@ -136,6 +162,8 @@ model AssetValuation {
   itemId    Int
   month     DateTime  // use first day of month
   value     Decimal
+  formula   String?   // optional raw formula string (eg: =10+10)
+  note      String?   // optional note attached to this valuation cell
 
   item      AssetItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
   @@unique([itemId, month])
