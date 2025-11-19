@@ -10,7 +10,7 @@ services:
     ports:
       - "5432:5432" # Esponiamo la porta per il debug
     env_file:
-      - .env.dev
+      - .env
     # MODIFICA QUESTO BLOCCO (per usare le variabili)
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -36,7 +36,7 @@ services:
     ports:
       - "4000:4000"
     env_file:
-      - .env.dev # Usa un file .env separato
+      - .env # Usa un file .env separato
     volumes:
       # Hot-reloading: collega il tuo codice locale al container
       - ./server:/app/server
