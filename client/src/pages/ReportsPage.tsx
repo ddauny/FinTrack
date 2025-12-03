@@ -935,7 +935,6 @@ export function ReportsPage() {
           <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
               <div className="font-semibold text-gray-900 dark:text-gray-100">Cash Flow</div>
-              <button className="text-sm text-blue-700 dark:text-blue-300 whitespace-nowrap" onClick={()=>exportCsv('/api/reports/cashflow')}>Export CSV</button>
             </div>
             <ReactECharts option={cashflowOption} style={{height:300}} onEvents={{ click: handleCashflowClick }} />
           </div>
@@ -943,7 +942,6 @@ export function ReportsPage() {
           <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow">
             <div className="flex justify-between items-center mb-2">
               <div className="font-semibold text-gray-900 dark:text-gray-100">Income vs Expense Trend</div>
-              <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/trends')}>Export CSV</button>
             </div>
             <ReactECharts option={trendsOption} style={{height:300}} onEvents={{ click: handleTrendsClick }} />
           </div>
@@ -951,7 +949,6 @@ export function ReportsPage() {
           <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow">
             <div className="flex justify-between items-center mb-2">
               <div className="font-semibold text-gray-900 dark:text-gray-100">Monthly Expenses Breakdown</div>
-              <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/monthly-expenses')}>Export CSV</button>
             </div>
             <ReactECharts 
               option={monthlyExpensesOption} 
@@ -976,7 +973,7 @@ export function ReportsPage() {
 
         {/* Unified Period Selection */}
         <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+          <div className="flex flex-row justify-between items-center mb-4 gap-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Period Selection</label>
             <button 
               onClick={() => setIsCompareMode(!isCompareMode)}
@@ -1173,14 +1170,7 @@ export function ReportsPage() {
           </>
         )}
 
-        {/* Export CSV Button */}
-        <div className="mt-4 flex justify-end">
-          <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>{
-            const startStr = dayjs(startDate1).startOf('month').format('YYYY-MM-DD')
-            const endStr = dayjs(endDate1).endOf('month').format('YYYY-MM-DD')
-            exportCsv(`/api/reports/category-analysis?start=${startStr}&end=${endStr}`)
-          }}>Export CSV (Period 1)</button>
-        </div>
+        {/* Export CSV Button removed */}
         </div>
       </div>
       
@@ -1197,7 +1187,6 @@ export function ReportsPage() {
           <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow">
             <div className="flex justify-between items-center mb-2">
               <div className="font-semibold text-gray-900 dark:text-gray-100">Net Worth Trend</div>
-              <button className="text-sm text-blue-700 dark:text-blue-300" onClick={()=>exportCsv('/api/reports/net-worth-trend')}>Export CSV</button>
             </div>
             <ReactECharts option={netWorthTrendOption} style={{height:300}} onEvents={{ click: handleNetWorthClick }} />
           </div>
@@ -1225,24 +1214,32 @@ export function ReportsPage() {
         )}
         
         {/* Date Range Selector for Asset Charts */}
-        <div className="mb-6 flex flex-wrap gap-4 items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Period:</label>
-            <DatePickerComponent
-              selected={assetStartDate}
-              onChange={(date: Date) => setAssetStartDate(date)}
-              dateFormat="MMM yyyy"
-              showMonthYearPicker
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
-            />
-            <span className="text-gray-500 dark:text-gray-400">to</span>
-            <DatePickerComponent
-              selected={assetEndDate}
-              onChange={(date: Date) => setAssetEndDate(date)}
-              dateFormat="MMM yyyy"
-              showMonthYearPicker
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
-            />
+        <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+          <div className="mb-4">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Period Selection</label>
+          </div>
+          
+          <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[60px]">Period</label>
+              <div className="flex items-center gap-2">
+                <DatePickerComponent
+                  selected={assetStartDate}
+                  onChange={(date: Date) => setAssetStartDate(date)}
+                  dateFormat="MMM yyyy"
+                  showMonthYearPicker
+                  className="border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
+                />
+                <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">to</span>
+                <DatePickerComponent
+                  selected={assetEndDate}
+                  onChange={(date: Date) => setAssetEndDate(date)}
+                  dateFormat="MMM yyyy"
+                  showMonthYearPicker
+                  className="border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
+                />
+              </div>
+            </div>
           </div>
         </div>
 

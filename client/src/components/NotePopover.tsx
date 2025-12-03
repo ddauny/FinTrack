@@ -8,74 +8,109 @@ type NotePopoverProps = {
 };
 
 export default function NotePopover({ visible, initial, onClose, onSave }: NotePopoverProps) {
-  // --- MODIFICA: Ho riunito i tuoi due state 'note' e 'value' in uno solo ---
   const [value, setValue] = useState(initial || '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const valueRef = useRef(initial || '');
 
-  // Gestisce Escape e Autofocus
+  // Keep ref in sync with state for event handlers
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  const handleClose = () => {
+    if (valueRef.current !== (initial || '')) {
+      onSave(valueRef.current);
+    } else {
+      onClose();
+    }
+  };
+
   useEffect(() => {
     if (!visible) return;
     
-    // Aggiorna il valore quando il popover si apre
     setValue(initial || '');
+    valueRef.current = initial || '';
 
-    // Autofocus sulla textarea
-    setTimeout(() => {
-      textareaRef.current?.focus();
-      textareaRef.current?.select();
-    }, 100); 
+    // Autofocus with a slight delay to ensure render
+    const timer = setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        // Place cursor at end of text
+        textareaRef.current.setSelectionRange(textareaRef.current.value.length, textareaRef.current.value.length);
+      }
+    }, 50); 
 
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        // Use the ref to get the latest value without needing to recreate the listener
+        if (valueRef.current !== (initial || '')) {
+          onSave(valueRef.current);
+        } else {
+          onClose();
+        }
       }
     };
     
     window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [visible, initial, onClose]);
-
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+      clearTimeout(timer);
+    };
+  }, [visible, initial, onClose, onSave]);
 
   if (!visible) return null;
 
- return (
-    // --- MODIFICA CHIAVE: z-index portato da 50 a 110 per coprire la tabella ---
+  return (
     <div 
-      className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-[110] backdrop-blur-sm"
-      onClick={onClose} // Chiudi cliccando sullo sfondo
+      className="fixed inset-0 flex items-center justify-center z-[110]"
+      role="dialog"
+      aria-modal="true"
     >
+      {/* Backdrop */}
       <div 
-        className="bg-yellow-50 dark:bg-gray-800 p-6 rounded-xl shadow-lg max-w-md w-full border border-yellow-200 dark:border-gray-700"
-        onClick={(e) => e.stopPropagation()} // Impedisce al click di chiudere il modal
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+        onClick={handleClose}
+      />
+
+      {/* Modal Content */}
+      <div 
+        className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden border border-gray-100 dark:border-gray-800 transform transition-all"
+        onClick={(e) => e.stopPropagation()}
       >
-        <label className="block mb-2 font-semibold text-gray-900 dark:text-gray-100">
-          {/* --- MODIFICA: Testo tradotto --- */}
-          Cell note 
-          <span className="text-xs text-gray-500 font-normal"> (max 250 characters)</span>
-        </label>
-        <textarea
-          ref={textareaRef}
-          className="w-full p-3 rounded border focus:ring-yellow-400 focus:border-yellow-400 resize-none bg-white dark:bg-gray-700 dark:text-gray-100 min-h-[120px] text-base"
-          maxLength={250}
-          value={value}
-          onChange={e => setValue(e.target.value)}
-          placeholder="Add a note..."
-        />
-        <div className="flex mt-4 gap-2 justify-end">
-          <button
-            className="px-3 py-1 rounded text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500"
-            onClick={onClose}
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-blue-500">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+            </svg>
+            Edit Note
+          </h3>
+          <button 
+            onClick={handleClose}
+            className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
-            Cancel
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
-          <button
-            className="px-4 py-1 rounded text-white bg-blue-600 hover:bg-blue-700 font-medium"
-            onClick={() => onSave(value)}
-            disabled={value.length > 250}
-          >
-            Save
-          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6">
+          <div className="relative">
+            <textarea
+              ref={textareaRef}
+              className="w-full p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all resize-none min-h-[140px] text-sm leading-relaxed shadow-sm placeholder:text-gray-400"
+              maxLength={250}
+              value={value}
+              onChange={e => setValue(e.target.value)}
+              placeholder="Enter your note here..."
+            />
+            <div className="absolute bottom-3 right-3 text-xs text-gray-400 pointer-events-none bg-white/80 dark:bg-gray-950/80 px-1 rounded">
+              {value.length}/250
+            </div>
+          </div>
         </div>
       </div>
     </div>

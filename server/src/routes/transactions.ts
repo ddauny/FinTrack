@@ -63,8 +63,8 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
     console.log('Filtering by category name:', categoryName);
   }
 
-  // Handle transaction type filtering (Expense/Income)
-  if (txnType && (txnType === 'Expense' || txnType === 'Income')) {
+  // Handle transaction type filtering (Expense/Income/Transfer)
+  if (txnType && (txnType === 'Expense' || txnType === 'Income' || txnType === 'Transfer')) {
     where.type = txnType;
     console.log('Filtering by type:', txnType);
   }
@@ -204,7 +204,7 @@ transactionsRouter.post("/", requireAuth, async (req: AuthRequest, res) => {
   const data = parse.data;
   // Infer type from category
   const category = await prisma.category.findUnique({ where: { id: data.categoryId } });
-  const type = category?.type === "Income" ? "Income" : "Expense";
+  const type = category?.type || "Expense";
   const item = await prisma.transaction.create({
     data: {
       userId: req.userId!,
@@ -479,7 +479,7 @@ transactionsRouter.put("/:id", requireAuth, async (req: AuthRequest, res) => {
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const data = parse.data;
   const category = await prisma.category.findUnique({ where: { id: data.categoryId } });
-  const type = category?.type === "Income" ? "Income" : "Expense";
+  const type = category?.type || "Expense";
   const updated = await prisma.transaction.updateMany({
     where: { id, userId: req.userId! },
     data: {
@@ -636,7 +636,7 @@ transactionsRouter.post("/import", requireAuth, upload.single("file"), async (re
       if (!cat) {
         cat = await prisma.category.findUnique({ where: { id: catId } });
       }
-      const inferredType = cat?.type === "Income" ? "Income" : "Expense";
+      const inferredType = cat?.type || "Expense";
       const accountId = idx["accountid"] !== undefined && cells[idx["accountid"]]
         ? Number(cells[idx["accountid"]])
         : await ensurePrimaryAccount(req.userId!);
@@ -721,7 +721,7 @@ transactionsRouter.patch("/bulk-update-category", requireAuth, async (req: AuthR
   }
   
   // Update type based on new category
-  const type = category.type === "Income" ? "Income" : "Expense";
+  const type = category.type || "Expense";
   
   // Update only transactions belonging to the current user
   const result = await prisma.transaction.updateMany({

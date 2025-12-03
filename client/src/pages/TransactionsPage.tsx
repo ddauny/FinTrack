@@ -3,6 +3,128 @@ import { api } from '../lib/api'
 import { formatEUR, formatDateDMY } from '../lib/format'
 import { PrivacyNumber } from '@/components/PrivacyNumber'
 
+// Mobile Transaction Card Component  
+function MobileTransactionCard({ 
+  transaction, 
+  selectionMode, 
+  selectedIds, 
+  toggleSelectItem, 
+  categoryMap,
+  setEditingId,
+  setForm,
+  setCategoryQuery,
+  setShowModal,
+  setItems,
+  setTotal
+}: any) {
+  const [showMenu, setShowMenu] = useState(false);
+  const t = transaction;
+
+  return (
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-start gap-3 flex-1">
+          {selectionMode && (
+            <input
+              type="checkbox"
+              checked={selectedIds.has(t.id)}
+              onChange={() => toggleSelectItem(t.id)}
+              className="mt-1 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-slate-900 focus:ring-slate-500"
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-xs font-medium text-gray-500 dark:text-gray-400">{formatDateDMY(t.date)}</div>
+              <div className={`text-lg font-bold ${
+                ((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-600 dark:text-green-400' : 
+                ((t as any).type==='Transfer' || categoryMap[t.categoryId]?.type==='Transfer' || t.category?.type==='Transfer') ? 'text-blue-600 dark:text-blue-400' :
+                'text-red-600 dark:text-red-400'
+              }`}>
+                <PrivacyNumber value={t.amount}>
+                  {formatEUR(t.amount)}
+                </PrivacyNumber>
+              </div>
+            </div>
+            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</div>
+            {t.notes && <div className="text-sm text-gray-600 dark:text-gray-400 mt-2 italic">{t.notes}</div>}
+            {(t as any).recurringTransactionId && (
+              <div className="inline-flex items-center gap-1 mt-2 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 rounded text-yellow-700 dark:text-yellow-400 text-xs font-medium">
+                ⟳ Recurring
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Menu 3 puntini */}
+        <div className="relative">
+          <button 
+            onClick={() => setShowMenu(!showMenu)}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+            aria-label="Menu"
+          >
+            <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="5" r="2"/>
+              <circle cx="12" cy="12" r="2"/>
+              <circle cx="12" cy="19" r="2"/>
+            </svg>
+          </button>
+          
+          {showMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+              <div className="absolute right-0 top-10 z-20 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button 
+                  onClick={()=>{ 
+                    setShowMenu(false);
+                    setEditingId(t.id); 
+                    const category = categoryMap[t.categoryId] || t.category;
+                    setForm({ 
+                      date: String(t.date).slice(0,10), 
+                      amount: t.amount, 
+                      accountId: t.accountId, 
+                      categoryId: t.categoryId, 
+                      notes: t.notes||'',
+                      isRecurring: false,
+                      frequency: 'MONTHLY',
+                      endDate: ''
+                    }); 
+                    setCategoryQuery(category?.name || '');
+                    setShowModal(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                    <path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/>
+                    <path d="M5.25 19.5h13.5"/>
+                  </svg>
+                  Edit
+                </button>
+                <button 
+                  onClick={async()=>{ 
+                    setShowMenu(false);
+                    if(!confirm('Delete this transaction?')) return;
+                    try { 
+                      await api.transactions.remove(t.id); 
+                      setItems((prev: any[])=> prev.filter(x=> x.id!==t.id)); 
+                      setTotal((prev: number)=> Math.max(0, prev-1)); 
+                    } catch { /* ignore */ } 
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-gray-100 dark:border-gray-700"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                    <path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/>
+                  </svg>
+                  Delete
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TransactionsPage() {
   const [items, setItems] = useState<any[]>([])
   const [showModal, setShowModal] = useState(false)
@@ -10,7 +132,6 @@ export function TransactionsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [selectionMode, setSelectionMode] = useState(false)
-  const [showImportInfo, setShowImportInfo] = useState(false)
   
   // Debug log for items changes
   useEffect(() => {
@@ -19,7 +140,6 @@ export function TransactionsPage() {
       console.log('First item:', items[0])
     }
   }, [items])
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialAutoRefreshSkipped = useRef(false)
   const initialLoadDone = useRef(false)
@@ -33,6 +153,7 @@ export function TransactionsPage() {
   const [categorySuggestions, setCategorySuggestions] = useState<any[]>([])
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false)
   const [selectedCategoryIndex, setSelectedCategoryIndex] = useState(-1)
+  const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false)
   const [sortBy, setSortBy] = useState<'date'|'amount'|'type'|'accountId'|'categoryId'|'notes'>('date')
   const [order, setOrder] = useState<'asc'|'desc'>('desc')
   const [page, setPage] = useState(1)
@@ -238,16 +359,31 @@ export function TransactionsPage() {
   useEffect(()=>{
     function onScroll() {
       const container = scrollContainerRef.current
+      
+      // Mobile: window scroll
+      if (window.innerWidth < 640) {
+        const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 500
+        const hasMore = items.length < total
+        if (nearBottom && hasMore && !loading) fetchPage(page + 1, 'append')
+        return
+      }
+
+      // Desktop: container scroll
       if (!container) return
       const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200
       const hasMore = items.length < total
       // Only trigger infinite scroll if we're not changing sort/filters
       if (nearBottom && hasMore && !loading) fetchPage(page + 1, 'append')
     }
+    
+    window.addEventListener('scroll', onScroll)
     const container = scrollContainerRef.current
     if (container) {
       container.addEventListener('scroll', onScroll)
-      return () => container.removeEventListener('scroll', onScroll)
+    }
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (container) container.removeEventListener('scroll', onScroll)
     }
   }, [items.length, total, loading, page])
   async function ensureAccountId(): Promise<number> {
@@ -316,13 +452,6 @@ export function TransactionsPage() {
     setForm({ date: new Date().toISOString().slice(0,10), amount: 0, accountId: '', categoryId: '', notes: '', isRecurring: false, frequency: 'MONTHLY', endDate: '' })
     refresh()
   }
-  async function onFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
-    if (!f) return
-    await api.transactions.importCsv(f)
-    e.target.value = ''
-    refresh()
-  }
   function toggleSort(column: typeof sortBy) {
     if (sortBy === column) setOrder(order === 'asc' ? 'desc' : 'asc')
     else { setSortBy(column); setOrder('asc') }
@@ -332,8 +461,10 @@ export function TransactionsPage() {
   function toggleSelectAll() {
     if (selectedIds.size === items.length && items.length > 0) {
       setSelectedIds(new Set())
+      setSelectionMode(false)
     } else {
       setSelectedIds(new Set(items.map(t => t.id)))
+      setSelectionMode(true)
     }
   }
 
@@ -345,6 +476,13 @@ export function TransactionsPage() {
       newSelected.add(id)
     }
     setSelectedIds(newSelected)
+    
+    // Auto-manage selection mode
+    if (newSelected.size > 0 && !selectionMode) {
+      setSelectionMode(true)
+    } else if (newSelected.size === 0 && selectionMode) {
+      setSelectionMode(false)
+    }
   }
 
   async function handleBulkDelete() {
@@ -512,71 +650,104 @@ export function TransactionsPage() {
     return m
   }, [categories])
 
+  const groupedCategories = useMemo(() => {
+    const filtered = categories.filter(c => c.name.toLowerCase().includes(categoryQuery.toLowerCase()));
+    const groups: Record<string, any[]> = { 'Expense': [], 'Income': [], 'Transfer': [] };
+    
+    filtered.forEach(c => {
+      if (groups[c.type]) {
+        groups[c.type].push(c);
+      }
+    });
+
+    // Sort each group alphabetically
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    return groups;
+  }, [categories, categoryQuery]);
+
   return (
-    <div className="bg-white dark:bg-gray-800 p-2 sm:p-4 rounded shadow flex flex-col h-[calc(100vh-120px)]">
+    <div className="bg-white dark:bg-gray-800 p-2 sm:p-4 rounded shadow flex flex-col sm:h-[calc(100vh-120px)]">
       {/* Fixed Header with Filters */}
-      <div className="flex-shrink-0 mb-3">
-        {/* Filter Controls - All in one compact row */}
-        <div className="space-y-2">
-          {/* Date Filters + Search + Actions in one row */}
-          <div className="flex flex-wrap items-end gap-2">
-            {/* From Date */}
-            <div className="flex-shrink-0" style={{width: '140px'}}>
-              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">From</label>
-              <input 
-                type="date" 
-                value={startDate} 
-                onChange={e=>setStartDate(e.target.value)} 
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              />
+      <div className="flex-shrink-0 mb-6">
+        <div className="flex flex-col gap-3 bg-white dark:bg-gray-800 p-1">
+          
+          {/* Toolbar Container */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            
+            {/* Search & Filters Group */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 bg-slate-50 dark:bg-slate-900/50 p-2 sm:p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+              
+              {/* Search */}
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="block w-full pl-9 pr-3 py-1.5 border-none rounded-lg bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-0 focus:outline-none sm:text-sm"
+                />
+              </div>
+
+              {/* Divider - Hidden on mobile */}
+              <div className="hidden sm:block h-6 w-px bg-slate-300 dark:bg-slate-700 mx-1"></div>
+
+              {/* Date Range */}
+              <div className="flex items-center justify-between sm:justify-start bg-white dark:bg-slate-800 rounded-lg border border-slate-300 dark:border-slate-600 px-2 py-1.5 shadow-sm gap-2">
+                <div className="flex items-center gap-1.5 relative">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-slate-400 shrink-0 pointer-events-none">
+                    <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4h.25V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
+                  </svg>
+                  <input 
+                    type="date" 
+                    value={startDate} 
+                    onChange={e=>setStartDate(e.target.value)} 
+                    className="bg-transparent border-none text-slate-700 dark:text-slate-300 text-sm focus:ring-0 p-0 w-full sm:w-[110px] cursor-pointer min-w-[90px]"
+                    placeholder="Start Date"
+                  />
+                </div>
+                
+                <span className="text-slate-400">→</span>
+                
+                <div className="flex items-center gap-1.5 relative">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-slate-400 shrink-0 pointer-events-none">
+                    <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4h.25V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
+                  </svg>
+                  <input 
+                    type="date" 
+                    value={endDate} 
+                    onChange={e=>setEndDate(e.target.value)} 
+                    className="bg-transparent border-none text-slate-700 dark:text-slate-300 text-sm focus:ring-0 p-0 w-full sm:w-[110px] cursor-pointer min-w-[90px]"
+                    placeholder="End Date"
+                  />
+                </div>
+              </div>
+
+              {/* Clear Filters Button - Desktop */}
+              {(startDate || endDate || selectedCategory || searchQuery || txnType) && (
+                 <>
+                 <div className="hidden sm:block h-6 w-px bg-slate-300 dark:bg-slate-700 mx-1"></div>
+                 <button 
+                  onClick={()=>{setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery(''); setTxnType('')}} 
+                  className="hidden sm:block p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors rounded-md hover:bg-slate-200 dark:hover:bg-slate-800"
+                  title="Clear all filters"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                  </svg>
+                </button>
+                </>
+              )}
             </div>
-            
-            {/* To Date */}
-            <div className="flex-shrink-0" style={{width: '140px'}}>
-              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">To</label>
-              <input 
-                type="date" 
-                value={endDate} 
-                onChange={e=>setEndDate(e.target.value)} 
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            
-            {/* Search */}
-            <div className="flex-1 min-w-[200px]">
-              <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">Search</label>
-              <input
-                type="text"
-                placeholder="Category, amount, notes..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            
-            {/* Clear Button */}
-            <button 
-              onClick={()=>{setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery('')}} 
-              className="px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 focus:ring-1 focus:ring-blue-500 whitespace-nowrap h-[30px]"
-              title="Clear filters"
-            >
-              Clear
-            </button>
-            
-            {/* Import CSV Button */}
-            <button 
-              onClick={() => setShowImportInfo(true)}
-              className="flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors h-[30px]" 
-              title="Import CSV"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-                <path d="M12 3a1 1 0 011 1v9.586l2.293-2.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L11 13.586V4a1 1 0 011-1z"/>
-                <path d="M5 20a2 2 0 01-2-2v-2a1 1 0 112 0v2h14v-2a1 1 0 112 0v2a2 2 0 01-2 2H5z"/>
-              </svg>
-              <span>Import</span>
-            </button>
-            
-            {/* Add Transaction Button */}
+
+            {/* Add Button */}
             <button 
               onClick={()=>{
                 setForm({ 
@@ -593,106 +764,80 @@ export function TransactionsPage() {
                 setEditingId(null);
                 setShowModal(true);
               }} 
-              className="flex items-center gap-1.5 px-3 py-1 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:ring-1 focus:ring-blue-500 h-[30px]" 
-              title="Add new transaction"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-200 transition-all shadow-sm hover:shadow-md w-full sm:w-auto" 
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
               </svg>
-              <span>Add</span>
+              Add Transaction
             </button>
-            
-            {/* Select Button - toggles selection mode */}
-            <button 
-              onClick={toggleSelectionMode}
-              className={`flex items-center justify-center px-3 py-1 text-sm font-medium rounded-md transition-colors h-[30px] ${
-                selectionMode 
-                  ? 'text-white bg-blue-600 border-blue-600 hover:bg-blue-700' 
-                  : 'text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
-              }`}
-              title={selectionMode ? "Exit selection mode" : "Select transactions"}
-            >
-              {selectionMode ? (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                  <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" />
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                  <path fillRule="evenodd" d="M2.25 6a3 3 0 013-3h13.5a3 3 0 013 3v12a3 3 0 01-3 3H5.25a3 3 0 01-3-3V6zm3.97.97a.75.75 0 011.06 0l2.25 2.25a.75.75 0 010 1.06l-2.25 2.25a.75.75 0 01-1.06-1.06l1.72-1.72-1.72-1.72a.75.75 0 010-1.06zm4.28 4.28a.75.75 0 000 1.5h5.69a.75.75 0 000-1.5H10.5z" clipRule="evenodd" />
-                </svg>
-              )}
-            </button>
-            
-            {/* Bulk actions - shown inline when items are selected */}
-            {selectionMode && selectedIds.size > 0 && (
-              <>
-                <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-md border border-blue-200 dark:border-blue-700">
-                  <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                    {selectedIds.size} selected
-                  </span>
-                </div>
-                <button
-                  onClick={() => setShowCategoryModal(true)}
-                  className="flex items-center justify-center px-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 h-[30px]"
-                  title="Change category"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                    <path d="M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-8.4 8.4a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32l8.4-8.4z" />
-                    <path d="M5.25 5.25a3 3 0 00-3 3v10.5a3 3 0 003 3h10.5a3 3 0 003-3V13.5a.75.75 0 00-1.5 0v5.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V8.25a1.5 1.5 0 011.5-1.5h5.25a.75.75 0 000-1.5H5.25z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={handleBulkDelete}
-                  className="flex items-center justify-center px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 h-[30px]"
-                  title="Delete selected"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                    <path fillRule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.07a3 3 0 01-2.991 2.77H8.084a3 3 0 01-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 013.369 0c1.603.051 2.815 1.387 2.815 2.951zm-6.136-1.452a51.196 51.196 0 013.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 00-6 0v-.113c0-.794.609-1.428 1.364-1.452zm-.355 5.945a.75.75 0 10-1.5.058l.347 9a.75.75 0 101.499-.058l-.346-9zm5.48.058a.75.75 0 10-1.498-.058l-.347 9a.75.75 0 001.5.058l.345-9z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </>
-            )}
           </div>
-          
-          {/* Filter Indicator */}
+
+          {/* Mobile Clear Filters Button */}
           {(startDate || endDate || selectedCategory || searchQuery || txnType) && (
-            <div className="flex items-center gap-2">
-              <div className="text-xs text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 px-2 py-1 rounded-md">
-                {txnType ? `Type: ${txnType}` : (selectedCategory ? `Category: ${selectedCategory}` : (searchQuery ? `Search: "${searchQuery}"` : 'Date filtered'))}
-              </div>
-              <button 
-                onClick={()=>{setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery(''); setTxnType('')}} 
-                className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-              >
-                ×
-              </button>
-            </div>
+            <button 
+              onClick={()=>{setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery(''); setTxnType('')}} 
+              className="sm:hidden flex items-center justify-center gap-2 w-full p-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+              Clear Filters
+            </button>
           )}
         </div>
-        
-        <input ref={fileInputRef} type="file" accept=".csv" onChange={onFileSelected} className="hidden" />
+
+        {/* Bulk Actions Bar (conditionally rendered) */}
+        {selectionMode && selectedIds.size > 0 && (
+          <div className="mt-3 flex items-center gap-3 p-2 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg animate-in fade-in slide-in-from-top-2">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 px-2">
+              {selectedIds.size} selected
+            </span>
+            <div className="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
+            <button
+              onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }}
+              className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium transition-colors"
+            >
+              Cancel
+            </button>
+            <div className="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
+            <button
+              onClick={() => setShowCategoryModal(true)}
+              className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium transition-colors"
+            >
+              Change Category
+            </button>
+            <div className="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
+            <button
+              onClick={handleBulkDelete}
+              className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        )}
       </div>
       
       {/* Desktop Table Header - Fixed */}
-      <div className="hidden sm:block flex-shrink-0">
+      <div className="hidden sm:block flex-shrink-0 rounded-t-lg overflow-hidden">
         <div className="overflow-x-auto -mx-4 sm:mx-0">
           <table className="min-w-full text-sm">
-            <thead className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <thead className="bg-slate-900 text-white border-b border-slate-800">
               <tr className="text-left select-none">
                 {selectionMode && (
-                  <th className="p-2 w-[40px]">
+                  <th className="p-3 w-[40px]">
                     <input
                       type="checkbox"
                       checked={items.length > 0 && selectedIds.size === items.length}
                       onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                      className="w-4 h-4 rounded border-slate-600 text-slate-500 focus:ring-slate-500 bg-slate-800"
                     />
                   </th>
                 )}
-                <th className="p-2 cursor-pointer w-[25%] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('date')}>Date {sortBy==='date' && sortIcon}</th>
-                <th className="p-2 cursor-pointer w-[25%] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('amount')}>Amount {sortBy==='amount' && sortIcon}</th>
-                <th className="p-2 cursor-pointer w-[25%] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold" onClick={()=>toggleSort('categoryId')}>Category {sortBy==='categoryId' && sortIcon}</th>
-                <th className="p-2 cursor-pointer w-[25%] bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-semibold hidden sm:table-cell" onClick={()=>toggleSort('notes')}>Notes {sortBy==='notes' && sortIcon}</th>
+                <th className="p-3 cursor-pointer w-[25%] font-medium hover:bg-slate-800 transition-colors" onClick={()=>toggleSort('date')}>Date {sortBy==='date' && sortIcon}</th>
+                <th className="p-3 cursor-pointer w-[25%] font-medium hover:bg-slate-800 transition-colors" onClick={()=>toggleSort('amount')}>Amount {sortBy==='amount' && sortIcon}</th>
+                <th className="p-3 cursor-pointer w-[25%] font-medium hover:bg-slate-800 transition-colors" onClick={()=>toggleSort('categoryId')}>Category {sortBy==='categoryId' && sortIcon}</th>
+                <th className="p-3 cursor-pointer w-[25%] font-medium hover:bg-slate-800 transition-colors hidden sm:table-cell" onClick={()=>toggleSort('notes')}>Notes {sortBy==='notes' && sortIcon}</th>
               </tr>
             </thead>
           </table>
@@ -700,64 +845,24 @@ export function TransactionsPage() {
       </div>
       
       {/* Scrollable Content Area */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar">
+      <div ref={scrollContainerRef} className="flex-1 sm:overflow-y-auto hide-scrollbar">
         {/* Mobile Card View */}
-        <div className="block sm:hidden space-y-2">
+        <div className="block sm:hidden space-y-3 p-2">
         {items.map((t)=> (
-          <div key={t.id} className="bg-gray-50 dark:bg-gray-700/10 p-3 rounded border border-gray-200 dark:border-gray-700">
-            <div className="flex items-start gap-3 mb-2">
-              {selectionMode && (
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(t.id)}
-                  onChange={() => toggleSelectItem(t.id)}
-                  className="mt-0.5 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                />
-              )}
-              <div className="flex-1">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="text-sm font-medium dark:text-gray-200">{formatDateDMY(t.date)}</div>
-                  <div className={`text-sm font-bold ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                    <PrivacyNumber value={t.amount}>
-                      {formatEUR(t.amount)}
-                    </PrivacyNumber>
-                  </div>
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</div>
-                {t.notes && <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t.notes}</div>}
-                <div className="flex gap-2">
-              <button title="Edit" onClick={()=>{ 
-                setEditingId(t.id); 
-                const category = categoryMap[t.categoryId] || t.category;
-                setForm({ 
-                  date: String(t.date).slice(0,10), 
-                  amount: t.amount, 
-                  accountId: t.accountId, 
-                  categoryId: t.categoryId, 
-                  notes: t.notes||'',
-                  isRecurring: false,
-                  frequency: 'MONTHLY',
-                  endDate: ''
-                }); 
-                setCategoryQuery(category?.name || '');
-                setShowModal(true);
-              }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-100 rounded hover:bg-gray-300 dark:hover:bg-gray-500" aria-label="Edit Transaction">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
-                Edit
-              </button>
-              <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs bg-red-600 dark:bg-red-700 text-white rounded hover:bg-red-700 dark:hover:bg-red-600" aria-label="Delete Transaction">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
-                Delete
-              </button>
-              {(t as any).recurringTransactionId && (
-                <div className="col-span-2 flex items-center justify-center px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 rounded text-yellow-700 dark:text-yellow-400 text-xs font-medium">
-                  ⟳ Recurring transaction
-                </div>
-              )}
-            </div>
-              </div>
-            </div>
-          </div>
+          <MobileTransactionCard
+            key={t.id}
+            transaction={t}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            toggleSelectItem={toggleSelectItem}
+            categoryMap={categoryMap}
+            setEditingId={setEditingId}
+            setForm={setForm}
+            setCategoryQuery={setCategoryQuery}
+            setShowModal={setShowModal}
+            setItems={setItems}
+            setTotal={setTotal}
+          />
         ))}
       </div>
 
@@ -767,21 +872,21 @@ export function TransactionsPage() {
           <tbody>
             {/* Debug: {console.log('Rendering items:', items.length, 'items')} */}
             {items.map((t)=> (
-              <tr key={t.id} className="group border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/20 relative">
+              <tr key={t.id} className="group border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 relative transition-colors">
                 {selectionMode && (
-                  <td className="p-2 w-[40px]">
+                  <td className="p-3 w-[40px]">
                     <input
                       type="checkbox"
                       checked={selectedIds.has(t.id)}
                       onChange={() => toggleSelectItem(t.id)}
-                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-slate-900 focus:ring-slate-500"
                       onClick={(e) => e.stopPropagation()}
                     />
                   </td>
                 )}
-                <td className="p-2 w-[25%] dark:text-gray-200">
+                <td className="p-3 w-[25%] dark:text-gray-200">
                   <div className="flex items-center gap-2">
-                    {formatDateDMY(t.date)}
+                    <span className="text-gray-900 dark:text-gray-100">{formatDateDMY(t.date)}</span>
                     {(t as any).recurringTransactionId && (
                       <span className="inline-flex items-center px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 rounded text-yellow-600 dark:text-yellow-400 text-xs font-medium" title="Recurring transaction">
                         ⟳
@@ -789,17 +894,35 @@ export function TransactionsPage() {
                     )}
                   </div>
                 </td>
-                <td className={`p-2 w-[25%] font-semibold ${((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                <td className={`p-3 w-[25%] font-semibold tabular-nums ${
+                  ((t as any).type==='Income' || categoryMap[t.categoryId]?.type==='Income' || t.category?.type==='Income') ? 'text-emerald-600 dark:text-emerald-400' : 
+                  ((t as any).type==='Transfer' || categoryMap[t.categoryId]?.type==='Transfer' || t.category?.type==='Transfer') ? 'text-blue-600 dark:text-blue-400' :
+                  'text-rose-600 dark:text-rose-400'
+                }`}>
                   <PrivacyNumber value={t.amount}>
                     {formatEUR(t.amount)}
                   </PrivacyNumber>
                 </td>
-                <td className="p-2 w-[25%] dark:text-gray-200">{t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}</td>
-                <td className="p-2 w-[25%] hidden sm:table-cell dark:text-gray-300">{t.notes}</td>
+                <td className="p-3 w-[25%] dark:text-gray-200">
+                  <span className="px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs font-medium text-gray-700 dark:text-gray-300">
+                    {t.category?.name || categoryMap[t.categoryId]?.name || t.categoryId}
+                  </span>
+                </td>
+                <td className="p-3 w-[25%] hidden sm:table-cell text-gray-500 dark:text-gray-400 italic">{t.notes}</td>
                 
                 {/* Floating action buttons on hover */}
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
-                  <div className="flex items-center gap-1 bg-white dark:bg-gray-800 rounded shadow-lg px-1 py-1">
+                  <div className="flex items-center gap-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-1 py-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(t.id)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        toggleSelectItem(t.id);
+                      }}
+                      className="mx-1 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-slate-900 focus:ring-slate-500 cursor-pointer"
+                    />
+                    <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1"></div>
                     <button title="Edit" onClick={()=>{ 
                       setEditingId(t.id); 
                       const category = categoryMap[t.categoryId] || t.category;
@@ -815,10 +938,10 @@ export function TransactionsPage() {
                       }); 
                       setCategoryQuery(category?.name || '');
                       setShowModal(true);
-                    }} className="p-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600" aria-label="Edit Transaction">
+                    }} className="p-1.5 text-xs text-gray-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors" aria-label="Edit Transaction">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z"/><path d="M5.25 19.5h13.5"/></svg>
                     </button>
-                    <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="p-1.5 text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800" aria-label="Delete Transaction">
+                    <button title="Delete" onClick={async()=>{ try { await api.transactions.remove(t.id); setItems(prev=> prev.filter(x=> x.id!==t.id)); setTotal(prev=> Math.max(0, prev-1)); } catch { /* ignore */ } }} className="p-1.5 text-xs text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors" aria-label="Delete Transaction">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M9 3a1 1 0 00-1 1v1H5a1 1 0 100 2h14a1 1 0 100-2h-3V4a1 1 0 00-1-1H9zm-2 6a1 1 0 011 1v8a1 1 0 102 0v-8a1 1 0 112 0v8a1 1 0 102 0v-8a1 1 0 112 0v8a3 3 0 01-3 3H10a3 3 0 01-3-3V10a1 1 0 011-1z"/></svg>
                     </button>
                   </div>
@@ -835,257 +958,317 @@ export function TransactionsPage() {
       {/* End of Scrollable Content Area */}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-2 sm:p-4">
-          <form onSubmit={createTxn} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded p-4 w-full max-w-sm space-y-2 max-h-[90vh] overflow-y-auto">
-            <div className="font-semibold mb-2 dark:text-gray-100">{editingId ? 'Edit Transaction' : 'Add Transaction'}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">All fields are required except Notes.</div>
-            <label className="text-sm font-medium dark:text-gray-200">Date</label>
-            <input type="date" value={form.date} onChange={e=>setForm({...form, date:e.target.value})} className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded focus:ring-2 focus:ring-blue-500" />
-            <label className="text-sm font-medium dark:text-gray-200">Amount (e.g., 24.99)</label>
-            <input type="number" step="0.01" value={form.amount} onChange={e=>setForm({...form, amount:e.target.value})} placeholder="Amount" className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded focus:ring-2 focus:ring-blue-500" />
-            {/* Type removed (inferred from category); Account removed as requested */}
-            <label className="text-sm font-medium dark:text-gray-200">Category</label>
-            <div className="relative">
-              {/* Show selected category as badge */}
-              {form.categoryId && categoryMap[form.categoryId] && (
-                <div 
-                  onClick={() => {
-                    setCategoryQuery('');
-                    setForm({...form, categoryId: ''});
-                  }}
-                  className={`mb-2 flex items-center justify-between w-full px-3 py-2 rounded-md cursor-pointer border ${
-                    categoryMap[form.categoryId].type === 'Income' 
-                      ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700' 
-                      : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700'
-                  }`}
-                >
-                  <span className="font-medium">{categoryMap[form.categoryId].name}</span>
-                  <span className="text-xs opacity-70">✕ Click to change</span>
-                </div>
-              )}
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-white dark:bg-gray-900 sm:bg-black/60 sm:backdrop-blur-sm p-0 sm:p-4">
+          <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-md bg-white dark:bg-gray-900 sm:rounded-2xl shadow-none sm:shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-5 sm:slide-in-from-bottom-0 sm:zoom-in-95">
+            
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center shrink-0 bg-white dark:bg-gray-900 z-10">
+              <div>
+                <h3 className="font-bold text-xl text-gray-900 dark:text-white">
+                  {editingId ? 'Edit Transaction' : 'New Transaction'}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Enter transaction details below</p>
+              </div>
+              <button 
+                onClick={()=>{ setShowModal(false); setEditingId(null); setShowNotesSuggestions(false); setNotesSuggestions([]); setSelectedSuggestionIndex(-1); setShowCategorySuggestions(false); setCategorySuggestions([]); setSelectedCategoryIndex(-1) }}
+                className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <form onSubmit={createTxn} className="flex-1 overflow-y-auto p-6 space-y-5 hide-scrollbar">
               
-              {/* Search input - only show when no category selected */}
-              {!form.categoryId && (
-                <>
-                  <input
-                    placeholder="Search category..."
-                    value={categoryQuery}
-                    onChange={handleCategoryChange}
-                    onKeyDown={handleCategoryKeyDown}
-                    onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
-                    onFocus={() => categoryQuery.length >= 1 && categorySuggestions.length > 0 && setShowCategorySuggestions(true)}
-                    className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded"
+              {/* Amount Input - Prominent */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Amount</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg font-medium">€</span>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={form.amount} 
+                    onChange={e=>setForm({...form, amount:e.target.value})} 
+                    placeholder="0.00" 
+                    className="w-full pl-10 pr-4 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-2xl font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-gray-300 dark:placeholder-gray-600"
+                    autoFocus={!editingId}
                   />
-                  {showCategorySuggestions && categorySuggestions.length > 0 && (
-                    <div className="absolute z-10 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-b shadow-lg max-h-40 overflow-y-auto">
-                      {categorySuggestions.map((c, index) => (
+                </div>
+              </div>
+
+              {/* Date Input */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Date</label>
+                <div className="relative">
+                  <input 
+                    type="date" 
+                    value={form.date} 
+                    onChange={e=>setForm({...form, date:e.target.value})} 
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-base font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all appearance-none min-w-0" 
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              {/* Category Selection */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Category</label>
+                
+                {/* Selected Category Display */}
+                {form.categoryId && categoryMap[form.categoryId] ? (
+                  <div 
+                    onClick={() => {
+                      setCategoryQuery('');
+                      setForm({...form, categoryId: ''});
+                    }}
+                    className={`flex items-center justify-between w-full px-4 py-3 rounded-xl cursor-pointer border-2 transition-all ${
+                      categoryMap[form.categoryId].type === 'Income' 
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/50' 
+                        : categoryMap[form.categoryId].type === 'Transfer'
+                        ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/50'
+                        : 'bg-rose-50 dark:bg-rose-900/20 border-rose-100 dark:border-rose-900/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${
+                        categoryMap[form.categoryId].type === 'Income' ? 'bg-emerald-500' : 
+                        categoryMap[form.categoryId].type === 'Transfer' ? 'bg-blue-500' : 'bg-rose-500'
+                      }`}></div>
+                      <span className={`font-bold ${
+                        categoryMap[form.categoryId].type === 'Income' ? 'text-emerald-700 dark:text-emerald-400' : 
+                        categoryMap[form.categoryId].type === 'Transfer' ? 'text-blue-700 dark:text-blue-400' : 'text-rose-700 dark:text-rose-400'
+                      }`}>
+                        {categoryMap[form.categoryId].name}
+                      </span>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-gray-400">
+                      <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-gray-400">
+                        <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <input
+                      placeholder="Search category..."
+                      value={categoryQuery}
+                      onChange={handleCategoryChange}
+                      onKeyDown={handleCategoryKeyDown}
+                      onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
+                      onFocus={() => categoryQuery.length >= 1 && categorySuggestions.length > 0 && setShowCategorySuggestions(true)}
+                      className="w-full pl-11 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-base font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                    />
+                    
+                    {/* Suggestions Dropdown */}
+                    {showCategorySuggestions && categorySuggestions.length > 0 && (
+                      <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-xl max-h-60 overflow-y-auto hide-scrollbar">
+                        {categorySuggestions.map((c, index) => (
+                          <div
+                            key={c.id}
+                            onClick={() => selectCategorySuggestion(c)}
+                            className={`px-4 py-3 cursor-pointer flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                              index === selectedCategoryIndex ? 'bg-gray-50 dark:bg-gray-700/50' : ''
+                            }`}
+                          >
+                            <span className="font-medium text-gray-900 dark:text-white">{c.name}</span>
+                            <span className={`text-xs font-bold px-2 py-1 rounded-md ${
+                              c.type==='Income' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 
+                              c.type==='Transfer' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 
+                              'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                            }`}>
+                              {c.type}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Category List (when no category selected) */}
+                {!form.categoryId && (
+                  <div className="mt-3 max-h-48 overflow-y-auto hide-scrollbar border border-gray-100 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900">
+                    {['Expense', 'Income', 'Transfer'].map(type => {
+                      const group = groupedCategories[type];
+                      if (!group || group.length === 0) return null;
+                      return (
+                        <div key={type}>
+                          <div className="px-4 py-2 text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800/50 uppercase tracking-wider sticky top-0 border-b border-gray-100 dark:border-gray-800">
+                            {type}
+                          </div>
+                          {group.map((c: any) => (
+                            <div
+                              key={c.id}
+                              onClick={()=>{setForm({...form, categoryId: c.id}); setCategoryQuery(c.name)}}
+                              className="px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 border-b border-gray-50 dark:border-gray-800 last:border-0 flex items-center gap-3 transition-colors"
+                            >
+                              <div className={`w-1.5 h-1.5 rounded-full ${
+                                c.type==='Income' ? 'bg-emerald-500' : 
+                                c.type==='Transfer' ? 'bg-blue-500' : 'bg-rose-500'
+                              }`}></div>
+                              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{c.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Notes Input */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Notes</label>
+                <div className="relative">
+                  {showNotesSuggestions && notesSuggestions.length > 0 && (
+                    <div className="absolute bottom-full mb-1 z-10 w-full bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-xl max-h-40 overflow-y-auto hide-scrollbar">
+                      {notesSuggestions.map((suggestion, index) => (
                         <div
-                          key={c.id}
-                          onClick={() => selectCategorySuggestion(c)}
-                          className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${
-                            index === selectedCategoryIndex ? 'bg-blue-100 dark:bg-blue-900' : ''
-                          } ${c.type==='Income'?'text-green-600 dark:text-green-400':'text-red-600 dark:text-red-400'}`}
+                          key={index}
+                          onClick={() => selectSuggestion(suggestion)}
+                          className={`px-4 py-2.5 cursor-pointer text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                            index === selectedSuggestionIndex ? 'bg-gray-50 dark:bg-gray-700/50' : ''
+                          }`}
                         >
-                          {c.name}
+                          {suggestion}
                         </div>
                       ))}
                     </div>
                   )}
-                </>
-              )}
-            </div>
-            
-            {/* Category list - only show when no category selected */}
-            {!form.categoryId && (
-              <div className="max-h-40 overflow-auto border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-750 rounded">
-                {categories
-                  .filter(c=> c.name.toLowerCase().includes(categoryQuery.toLowerCase()))
-                  .map(c=> (
-                    <div
-                      key={c.id}
-                      onClick={()=>{setForm({...form, categoryId: c.id}); setCategoryQuery(c.name)}}
-                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${form.categoryId===c.id? 'bg-gray-100 dark:bg-gray-600':''} ${c.type==='Income'?'text-green-600 dark:text-green-400':'text-red-600 dark:text-red-400'}`}
-                    >
-                      {c.name}
-                    </div>
-                  ))}
-              </div>
-            )}
-            <label className="text-sm font-medium dark:text-gray-200">Notes</label>
-            <div className="relative">
-              {/* Notes suggestions ABOVE the input */}
-              {showNotesSuggestions && notesSuggestions.length > 0 && (
-                <div className="absolute bottom-full mb-1 z-10 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-t shadow-lg max-h-40 overflow-y-auto">
-                  {notesSuggestions.map((suggestion, index) => (
-                    <div
-                      key={index}
-                      onClick={() => selectSuggestion(suggestion)}
-                      className={`px-3 py-2 cursor-pointer text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600 ${
-                        index === selectedSuggestionIndex ? 'bg-blue-100 dark:bg-blue-900' : ''
-                      }`}
-                    >
-                      {suggestion}
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              <input 
-                value={form.notes} 
-                onChange={handleNotesChange}
-                onKeyDown={handleNotesKeyDown}
-                onBlur={() => setTimeout(() => setShowNotesSuggestions(false), 200)}
-                onFocus={() => form.notes.length >= 2 && notesSuggestions.length > 0 && setShowNotesSuggestions(true)}
-                placeholder="Optional notes" 
-                className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400 dark:placeholder:text-gray-500" 
-              />
-            </div>
-            
-            {/* Recurring Transaction Section */}
-            {!editingId && (
-              <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-                <label className="flex items-center gap-2 text-sm font-medium dark:text-gray-200 cursor-pointer">
                   <input 
-                    type="checkbox" 
-                    checked={form.isRecurring} 
-                    onChange={e => setForm({...form, isRecurring: e.target.checked})}
-                    className="w-4 h-4 text-blue-600 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
+                    value={form.notes} 
+                    onChange={handleNotesChange}
+                    onKeyDown={handleNotesKeyDown}
+                    onBlur={() => setTimeout(() => setShowNotesSuggestions(false), 200)}
+                    onFocus={() => form.notes.length >= 2 && notesSuggestions.length > 0 && setShowNotesSuggestions(true)}
+                    placeholder="Add a note..." 
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-base font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-gray-400" 
                   />
-                  Make this a recurring transaction
-                </label>
-                
-                {form.isRecurring && (
-                  <div className="mt-3 space-y-2 pl-6">
-                    <label className="text-sm font-medium dark:text-gray-200">Frequency</label>
-                    <select 
-                      value={form.frequency} 
-                      onChange={e => setForm({...form, frequency: e.target.value})}
-                      className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="WEEKLY">Weekly</option>
-                      <option value="BIWEEKLY">Every 2 weeks</option>
-                      <option value="MONTHLY">Monthly</option>
-                      <option value="BIMONTHLY">Every 2 months</option>
-                      <option value="QUARTERLY">Quarterly</option>
-                      <option value="YEARLY">Yearly</option>
-                    </select>
-                    
-                    <label className="text-sm font-medium dark:text-gray-200">End Date (Optional)</label>
-                    <input 
-                      type="date" 
-                      value={form.endDate} 
-                      onChange={e => setForm({...form, endDate: e.target.value})}
-                      className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 rounded focus:ring-2 focus:ring-blue-500"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Leave empty for no end date</p>
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={()=>{ setShowModal(false); setEditingId(null); setShowNotesSuggestions(false); setNotesSuggestions([]); setSelectedSuggestionIndex(-1); setShowCategorySuggestions(false); setCategorySuggestions([]); setSelectedCategoryIndex(-1) }} className="px-3 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600">Cancel</button>
-              <button type="submit" disabled={!form.categoryId || !form.amount} className="px-3 py-2 rounded bg-blue-600 disabled:bg-blue-400 dark:disabled:bg-blue-800 text-white hover:bg-blue-700 disabled:cursor-not-allowed">Save</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* CSV Import Info Modal */}
-      {showImportInfo && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-2 sm:p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
-            <h3 className="font-semibold text-xl mb-4 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-blue-600">
-                <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 01.67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 11-.671-1.34l.041-.022zM12 9a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-              </svg>
-              CSV Import Format
-            </h3>
-            
-            <div className="space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-                  Your CSV file should contain transaction data with the following structure:
-                </p>
-              </div>
-
-              <div>
-                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">CSV Format:</h4>
-                <div className="bg-gray-50 dark:bg-gray-900/50 rounded p-3 border border-gray-200 dark:border-gray-700">
-                  <code className="text-sm bg-white dark:bg-gray-800 px-3 py-2 rounded block font-mono text-gray-800 dark:text-gray-200">
-                    date,amount,category,notes
-                  </code>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">or using semicolon as delimiter:</p>
-                  <code className="text-sm bg-white dark:bg-gray-800 px-3 py-2 rounded block font-mono text-gray-800 dark:text-gray-200 mt-1">
-                    date;amount;category;notes
-                  </code>
                 </div>
               </div>
 
-              <div>
-                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">Field Details:</h4>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
-                  <li className="flex gap-2">
-                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">date</span>
-                    <span>Date in DD/MM/YYYY or YYYY-MM-DD format</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">amount</span>
-                    <span>Transaction amount (use dot as decimal separator, e.g., 45.50)</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">category</span>
-                    <span>Category name (will be created if doesn't exist)</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">notes</span>
-                    <span>Optional transaction notes</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-                <p className="text-xs text-amber-800 dark:text-amber-200 font-medium mb-1">📌 Notes:</p>
-                <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-1 ml-4 list-disc">
-                  <li>Both comma (,) and semicolon (;) are supported as column delimiters</li>
-                  <li>Use dot (.) as decimal separator for amounts</li>
-                  <li>Header row is optional - if missing, default order is assumed</li>
-                  <li>Invalid rows will be skipped automatically</li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">Example CSV:</h4>
-                <div className="bg-gray-900 dark:bg-gray-950 rounded p-3 overflow-x-auto">
-                  <pre className="text-xs text-green-400 font-mono">
-{`date,amount,category,notes
-25/10/2024,45.50,Groceries,Weekly shopping
-26/10/2024,120.00,Utilities,Electric bill
-27/10/2024,15.99,Entertainment,Netflix`}
-                  </pre>
+              {/* Recurring Toggle */}
+              {!editingId && (
+                <div className="pt-2">
+                  <label className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    <div className="relative flex items-center">
+                      <input 
+                        type="checkbox" 
+                        checked={form.isRecurring} 
+                        onChange={e => setForm({...form, isRecurring: e.target.checked})}
+                        className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-gray-300 dark:border-gray-600 transition-all checked:border-blue-500 checked:bg-blue-500"
+                      />
+                      <svg className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path fillRule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Recurring Transaction</span>
+                  </label>
+                  
+                  {form.isRecurring && (
+                    <div className="mt-3 pl-3 border-l-2 border-gray-100 dark:border-gray-800 space-y-3 animate-in slide-in-from-top-2">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Frequency</label>
+                        <div className="relative">
+                          <div 
+                            onClick={() => setShowFrequencyDropdown(!showFrequencyDropdown)}
+                            className={`w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-white cursor-pointer flex items-center justify-between transition-all ${showFrequencyDropdown ? 'ring-2 ring-blue-500 border-transparent' : ''}`}
+                          >
+                            <span>
+                              {form.frequency === 'WEEKLY' && 'Weekly'}
+                              {form.frequency === 'BIWEEKLY' && 'Every 2 weeks'}
+                              {form.frequency === 'MONTHLY' && 'Monthly'}
+                              {form.frequency === 'BIMONTHLY' && 'Every 2 months'}
+                              {form.frequency === 'QUARTERLY' && 'Quarterly'}
+                              {form.frequency === 'YEARLY' && 'Yearly'}
+                            </span>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform ${showFrequencyDropdown ? 'rotate-180' : ''}`}>
+                              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          
+                          {showFrequencyDropdown && (
+                            <>
+                              <div className="fixed inset-0 z-10" onClick={() => setShowFrequencyDropdown(false)}></div>
+                              <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                                {[
+                                  { val: 'WEEKLY', label: 'Weekly' },
+                                  { val: 'BIWEEKLY', label: 'Every 2 weeks' },
+                                  { val: 'MONTHLY', label: 'Monthly' },
+                                  { val: 'BIMONTHLY', label: 'Every 2 months' },
+                                  { val: 'QUARTERLY', label: 'Quarterly' },
+                                  { val: 'YEARLY', label: 'Yearly' }
+                                ].map(opt => (
+                                  <div 
+                                    key={opt.val}
+                                    onClick={() => { setForm({...form, frequency: opt.val}); setShowFrequencyDropdown(false); }}
+                                    className={`px-4 py-3 text-sm font-medium cursor-pointer transition-colors flex items-center justify-between ${
+                                      form.frequency === opt.val 
+                                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
+                                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                    }`}
+                                  >
+                                    {opt.label}
+                                    {form.frequency === opt.val && (
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">End Date (Optional)</label>
+                        <div className="relative flex items-center">
+                          <input 
+                            type="date" 
+                            value={form.endDate} 
+                            onChange={e => setForm({...form, endDate: e.target.value})}
+                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                          />
+                          <div className="absolute right-4 pointer-events-none text-gray-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </div>
+              )}
+            </form>
 
-            <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setShowImportInfo(false)}
-                className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+            {/* Footer Actions */}
+            <div className="p-6 pb-8 sm:pb-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 shrink-0">
+              <button 
+                onClick={createTxn}
+                disabled={!form.categoryId || !form.amount} 
+                className="w-full py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-xl shadow-lg shadow-slate-500/20 hover:shadow-slate-500/30 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
               >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowImportInfo(false)
-                  fileInputRef.current?.click()
-                }}
-                className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 font-medium"
-              >
-                Select CSV File
+                Save Transaction
               </button>
             </div>
           </div>
         </div>
       )}
+
+
 
       {/* Category Selection Modal for Bulk Update */}
       {showCategoryModal && (
@@ -1095,18 +1278,20 @@ export function TransactionsPage() {
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Change category for {selectedIds.size} selected transactions
             </p>
-            <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
+            <div className="space-y-2 max-h-96 overflow-y-auto hide-scrollbar mb-4">
               {categories.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => handleBulkUpdateCategory(cat.id)}
-                  className="w-full text-left px-4 py-3 rounded border border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+                  className="w-full text-left px-4 py-3 rounded border border-gray-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{cat.name}</span>
                     <span className={`text-xs px-2 py-1 rounded ${
                       cat.type === 'Income' 
                         ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
+                        : cat.type === 'Transfer'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                         : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
                     }`}>
                       {cat.type}

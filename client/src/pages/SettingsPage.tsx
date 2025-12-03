@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { api } from '../lib/api'
+import { useNavigate } from 'react-router-dom'
 
 // Icons
 const IconPlus = () => (
@@ -32,6 +33,61 @@ const IconDownload = () => (
   </svg>
 )
 
+const IconUpload = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+  </svg>
+)
+
+const IconDots = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
+  </svg>
+)
+
+const IconEdit = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+  </svg>
+)
+
+function ActionMenu({ actions }: { actions: { label: string, onClick: () => void, icon?: React.ReactNode, variant?: 'danger' | 'default' }[] }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={(e) => { e.stopPropagation(); setOpen(!open) }} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500 dark:text-gray-400">
+        <IconDots />
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-20 overflow-hidden py-1">
+          {actions.map((action, i) => (
+            <button
+              key={i}
+              onClick={(e) => { e.stopPropagation(); action.onClick(); setOpen(false) }}
+              className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${action.variant === 'danger' ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-200'}`}
+            >
+              {action.icon}
+              {action.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 type Group = {
   id: number
   name: string
@@ -50,6 +106,7 @@ type Item = {
 }
 
 export function SettingsPage() {
+  const navigate = useNavigate()
   const [profile, setProfile] = useState<any>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -69,6 +126,29 @@ export function SettingsPage() {
   const [editingCategoryName, setEditingCategoryName] = useState('')
   const [automationToken, setAutomationToken] = useState<string | null>(null)
   const [showToken, setShowToken] = useState(false)
+  const [showImportInfo, setShowImportInfo] = useState(false)
+  const [activeGroupId, setActiveGroupId] = useState<number | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (groups.length > 0 && activeGroupId === null) {
+      setActiveGroupId(groups[0].id)
+    }
+  }, [groups, activeGroupId])
+
+  async function onFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    try {
+      await api.transactions.importCsv(f)
+      e.target.value = ''
+      alert('Transactions imported successfully!')
+      refresh()
+    } catch (error) {
+      console.error('Import failed:', error)
+      alert('Import failed. Please check the file format.')
+    }
+  }
   
   function tokenHeader(): Record<string, string> {
     const token = localStorage.getItem('token')
@@ -217,65 +297,108 @@ export function SettingsPage() {
               setPassword('')
               refresh() 
             }} 
-            className="px-4 py-2.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium whitespace-nowrap transition-colors"
+            className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium whitespace-nowrap transition-colors shadow-sm"
           >
             Save Changes
+          </button>
+          <button 
+            onClick={() => {
+              if (confirm('Are you sure you want to sign out?')) {
+                localStorage.removeItem('token')
+                navigate('/login')
+              }
+            }}
+            className="px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium whitespace-nowrap transition-colors"
+          >
+            Sign Out
           </button>
         </div>
       </section>
 
-      {/* Export Data Section */}
+      {/* Import/Export Data Section */}
       <section className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 flex items-center gap-2">
-          <IconDownload />
-          Export Data
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+          </svg>
+          Data Management
         </h2>
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Download your financial data in JSON format for backup or analysis purposes.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-6">
+          
+          {/* Import Section */}
+          <div>
+            <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-2">Import Data</h3>
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Transactions</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Import Transactions</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    All transaction records with account and category details
+                    Import transactions from a CSV file. Supported formats: Date, Amount, Category, Notes.
                   </p>
                 </div>
               </div>
               <button
-                onClick={exportTransactions}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-green-600 hover:bg-green-700 text-white font-medium transition-colors"
+                onClick={() => setShowImportInfo(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 font-medium transition-colors"
               >
-                <IconDownload />
-                Export Transactions
+                <IconUpload />
+                Import CSV
               </button>
-            </div>
-
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Assets</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Asset groups, items, valuations, formulas, and notes
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={exportAssets}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-green-600 hover:bg-green-700 text-white font-medium transition-colors"
-              >
-                <IconDownload />
-                Export Assets
-              </button>
+              <input ref={fileInputRef} type="file" accept=".csv" onChange={onFileSelected} className="hidden" />
             </div>
           </div>
-          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-            <p className="text-xs text-blue-800 dark:text-blue-200">
-              <strong>Note:</strong> Exported files contain your complete data including hidden items and historical valuations. 
-              Store them securely and use them for backup or data migration purposes.
+
+          <div className="border-t border-gray-200 dark:border-gray-700"></div>
+
+          {/* Export Section */}
+          <div>
+            <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-2">Export Data</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Download your financial data in JSON format for backup or analysis purposes.
             </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Transactions</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      All transaction records with account and category details
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={exportTransactions}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
+                >
+                  <IconDownload />
+                  Export Transactions
+                </button>
+              </div>
+
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-slate-500 dark:hover:border-slate-400 transition-colors">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Assets</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Asset groups, items, valuations, formulas, and notes
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={exportAssets}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
+                >
+                  <IconDownload />
+                  Export Assets
+                </button>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+              <p className="text-xs text-blue-800 dark:text-blue-200">
+                <strong>Note:</strong> Exported files contain your complete data including hidden items and historical valuations. 
+                Store them securely and use them for backup or data migration purposes.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -336,7 +459,7 @@ export function SettingsPage() {
                     setShowToken(true)
                   }
                 }}
-                className="w-full px-4 py-2.5 rounded-md bg-orange-600 hover:bg-orange-700 text-white font-medium transition-colors"
+                className="w-full px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium transition-colors shadow-sm"
               >
                 Regenerate Token
               </button>
@@ -352,7 +475,7 @@ export function SettingsPage() {
                   setAutomationToken(token)
                   setShowToken(true)
                 }}
-                className="w-full px-4 py-2.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
               >
                 Generate Token
               </button>
@@ -389,10 +512,10 @@ export function SettingsPage() {
           </div>
         ) : (
           <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-            <div className="max-h-96 overflow-auto">
+            <div className="max-h-96 overflow-auto hide-scrollbar">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-slate-100 dark:bg-slate-700">
-                  <tr className="text-left text-slate-700 dark:text-slate-200">
+                <thead className="sticky top-0 bg-slate-900 text-white border-b border-slate-800">
+                  <tr className="text-left">
                     <th className="p-3 font-semibold">Name & Category</th>
                     <th className="p-3 font-semibold">Amount</th>
                     <th className="p-3 font-semibold">Frequency</th>
@@ -543,218 +666,247 @@ export function SettingsPage() {
           </h2>
           <button 
             onClick={()=>setShowCatModal(true)} 
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors" 
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm text-sm" 
             aria-label="Add category"
           >
             <IconPlus />
             Add Category
           </button>
         </div>
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-          <div className="max-h-64 overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-slate-100 dark:bg-slate-700">
-                <tr className="text-left text-slate-700 dark:text-slate-200">
-                  <th className="p-3 font-semibold">Name</th>
-                  <th className="p-3 font-semibold">Type</th>
-                  <th className="p-3 text-right font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {categories.map(c=> (
-                  <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                    <td className="p-3 text-slate-900 dark:text-slate-100">
-                      {editingCategoryId === c.id ? (
-                        <input
-                          type="text"
-                          value={editingCategoryName}
-                          onChange={(e) => setEditingCategoryName(e.target.value)}
-                          onBlur={async () => {
-                            if (editingCategoryName.trim()) {
-                              await api.categories.update(c.id, { name: editingCategoryName, type: c.type })
-                              refresh()
-                            }
-                            setEditingCategoryId(null)
-                          }}
-                          onKeyDown={async (e) => {
-                            if (e.key === 'Enter') {
-                              if (editingCategoryName.trim()) {
-                                await api.categories.update(c.id, { name: editingCategoryName, type: c.type })
+        
+        <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800">
+          <div className="max-h-[600px] overflow-y-auto hide-scrollbar">
+            {['Expense', 'Income', 'Transfer'].map(type => {
+              const groupCats = categories
+                .filter(c => c.type === type)
+                .sort((a, b) => a.name.localeCompare(b.name))
+              
+              if (groupCats.length === 0) return null
+
+              return (
+                <div key={type}>
+                  <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700/50 sticky top-0 z-10 backdrop-blur-sm">
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      {type}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-3">
+                    {groupCats.map(c => (
+                      <div key={c.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all group">
+                        <div className="flex-1 min-w-0 mr-2">
+                          {editingCategoryId === c.id ? (
+                            <input
+                              type="text"
+                              value={editingCategoryName}
+                              onChange={(e) => setEditingCategoryName(e.target.value)}
+                              onBlur={async () => {
+                                if (editingCategoryName.trim()) {
+                                  await api.categories.update(c.id, { name: editingCategoryName, type: c.type })
+                                  refresh()
+                                }
+                                setEditingCategoryId(null)
+                              }}
+                              onKeyDown={async (e) => {
+                                if (e.key === 'Enter') {
+                                  if (editingCategoryName.trim()) {
+                                    await api.categories.update(c.id, { name: editingCategoryName, type: c.type })
+                                    refresh()
+                                  }
+                                  setEditingCategoryId(null)
+                                } else if (e.key === 'Escape') {
+                                  setEditingCategoryId(null)
+                                }
+                              }}
+                              autoFocus
+                              className="w-full px-2 py-1 border border-blue-500 rounded-md text-sm bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          ) : (
+                            <div 
+                              onClick={() => {
+                                setEditingCategoryId(c.id)
+                                setEditingCategoryName(c.name)
+                              }}
+                              className="cursor-pointer font-medium text-gray-700 dark:text-gray-200 truncate text-sm hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                              title="Click to edit"
+                            >
+                              {c.name}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-1 shrink-0">
+                          <ActionMenu actions={[
+                            {
+                              label: 'Edit Name',
+                              icon: <IconEdit />,
+                              onClick: () => {
+                                setEditingCategoryId(c.id)
+                                setEditingCategoryName(c.name)
+                              }
+                            },
+                            {
+                              label: 'Delete',
+                              icon: <IconTrash />,
+                              variant: 'danger',
+                              onClick: async () => {
+                                const ok = confirm(`Delete category "${c.name}"?`)
+                                if(!ok) return
+                                const res = await fetch(`/api/categories/${c.id}`, { method: 'DELETE', headers: tokenHeader() })
+                                if(res.status===409){ 
+                                  alert('Category in use by transactions')
+                                  return 
+                                } 
                                 refresh()
                               }
-                              setEditingCategoryId(null)
-                            } else if (e.key === 'Escape') {
-                              setEditingCategoryId(null)
                             }
-                          }}
-                          autoFocus
-                          className="w-full px-2 py-1 border border-blue-500 rounded-md text-sm bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      ) : (
-                        <div 
-                          onClick={() => {
-                            setEditingCategoryId(c.id)
-                            setEditingCategoryName(c.name)
-                          }}
-                          className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 px-2 py-1 rounded transition-colors"
-                          title="Click to edit"
-                        >
-                          {c.name}
+                          ]} />
                         </div>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      <select 
-                        value={c.type} 
-                        onChange={async(e)=>{ 
-                          await api.categories.update(c.id, { name: c.name, type: e.target.value })
-                          refresh() 
-                        }} 
-                        className="border px-2 py-1 rounded-md text-sm bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600"
-                      >
-                        <option>Expense</option>
-                        <option>Income</option>
-                      </select>
-                    </td>
-                    <td className="p-3 text-right">
-                      <button 
-                        onClick={async()=>{ 
-                          const ok = confirm(`Delete category "${c.name}"?`)
-                          if(!ok) return
-                          const res = await fetch(`/api/categories/${c.id}`, { method: 'DELETE', headers: tokenHeader() })
-                          if(res.status===409){ 
-                            alert('Category in use by transactions')
-                            return 
-                          } 
-                          refresh() 
-                        }} 
-                        className="p-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors" 
-                        aria-label="Delete Category"
-                        title="Delete"
-                      >
-                        <IconTrash />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       </section>
 
       {/* Asset Groups Section */}
       <section className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
             </svg>
             Asset Groups & Items
           </h2>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-4 no-scrollbar border-b border-gray-100 dark:border-gray-700">
+          {groups.map(g => (
+            <button
+              key={g.id}
+              onClick={() => setActiveGroupId(g.id)}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                activeGroupId === g.id
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-md'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+              }`}
+            >
+              {g.name}
+            </button>
+          ))}
           <button 
             onClick={()=>setShowGroupModal(true)} 
-            className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors" 
-            aria-label="Add group"
+            className="px-3 py-2 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1"
           >
-            <IconPlus />
-            Add Group
+            <IconPlus /> New Group
           </button>
         </div>
 
-        <div className="space-y-4">
-          {groups.map((g, gIdx)=> (
-            <div key={g.id} className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-              <div className="bg-slate-100 dark:bg-slate-700 px-4 py-3 flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col gap-0.5">
-                    <button
-                      onClick={()=>moveGroup(gIdx, 'up')}
-                      disabled={gIdx === 0}
-                      className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title="Move up"
+        {/* Active Group Content */}
+        {activeGroupId && groups.find(g => g.id === activeGroupId) ? (
+          (() => {
+            const g = groups.find(g => g.id === activeGroupId)!
+            const gIdx = groups.findIndex(grp => grp.id === g.id)
+            
+            return (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex justify-between items-center mb-4">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Manage items for <span className="font-semibold text-gray-900 dark:text-gray-100">{g.name}</span>
+                  </div>
+                  <div className="flex gap-2">
+                     <ActionMenu actions={[
+                      {
+                        label: 'Move Group Left',
+                        icon: <IconUp />, 
+                        onClick: () => moveGroup(gIdx, 'up')
+                      },
+                      {
+                        label: 'Move Group Right',
+                        icon: <IconDown />, 
+                        onClick: () => moveGroup(gIdx, 'down')
+                      },
+                      {
+                        label: 'Delete Group',
+                        icon: <IconTrash />,
+                        variant: 'danger',
+                        onClick: async () => {
+                          const ok = confirm(`Delete group "${g.name}" and all its items?`)
+                          if(!ok) return
+                          await fetch(`/api/asset-groups/${g.id}`, { method:'DELETE', headers: tokenHeader() })
+                          setActiveGroupId(null)
+                          refresh()
+                        }
+                      }
+                    ]} />
+                    <button 
+                      onClick={() => setShowItemModalForGroup(g.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors text-sm shadow-sm"
                     >
-                      <IconUp />
-                    </button>
-                    <button
-                      onClick={()=>moveGroup(gIdx, 'down')}
-                      disabled={gIdx === groups.length - 1}
-                      className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      title="Move down"
-                    >
-                      <IconDown />
+                      <IconPlus /> Add Item
                     </button>
                   </div>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">{g.name}</h3>
                 </div>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={()=>setShowItemModalForGroup(g.id)} 
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors" 
-                    aria-label="Add item"
-                  >
-                    <IconPlus />
-                    Add Item
-                  </button>
-                  <button 
-                    onClick={async()=>{ 
-                      const ok = confirm(`Delete group "${g.name}" and all its items?`)
-                      if(!ok) return
-                      await fetch(`/api/asset-groups/${g.id}`, { method:'DELETE', headers: tokenHeader() })
-                      refresh() 
-                    }} 
-                    className="p-2 rounded-md bg-red-600 hover:bg-red-700 text-white transition-colors" 
-                    aria-label="Delete group"
-                    title="Delete group"
-                  >
-                    <IconTrash />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="max-h-96 overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800">
-                    <tr className="text-left border-b border-gray-200 dark:border-gray-700 text-slate-700 dark:text-slate-200">
-                      <th className="p-3 font-semibold w-12">Order</th>
-                      <th className="p-3 font-semibold">Item Name</th>
-                      <th className="p-3 font-semibold">Description</th>
-                      <th className="p-3 font-semibold w-32">Depreciation (€/mo)</th>
-                      <th className="p-3 text-right font-semibold w-32">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {(g.items || []).filter((it:Item)=>!it.parentItemId).map((it:Item, itIdx:number)=>{
-                      const children = (g.items || []).filter((ch:Item)=>ch.parentItemId===it.id)
-                      const parentItems = (g.items || []).filter((pi:Item)=>!pi.parentItemId)
-                      
-                      return (
-                        <>
-                          <tr key={it.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                            <td className="p-3">
-                              <div className="flex flex-col gap-0.5">
-                                <button
-                                  onClick={()=>moveItem(g.id, itIdx, 'up')}
-                                  disabled={itIdx === 0}
-                                  className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                  title="Move up"
-                                >
-                                  <IconUp />
-                                </button>
-                                <button
-                                  onClick={()=>moveItem(g.id, itIdx, 'down')}
-                                  disabled={itIdx === parentItems.length - 1}
-                                  className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                  title="Move down"
-                                >
-                                  <IconDown />
-                                </button>
-                              </div>
-                            </td>
-                            <td className="p-3 font-medium text-slate-900 dark:text-slate-100">{it.name}</td>
-                            <td className="p-3 text-slate-600 dark:text-slate-400">{it.description || '—'}</td>
-                            <td className="p-3">
-                              {children.length === 0 ? (
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {(g.items || []).filter((it:Item)=>!it.parentItemId).map((it:Item, itIdx:number)=>{
+                    const children = (g.items || []).filter((ch:Item)=>ch.parentItemId===it.id)
+                    
+                    return (
+                      <div key={it.id} className="bg-gray-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3 hover:border-blue-300 dark:hover:border-blue-700 transition-colors group">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-semibold text-gray-900 dark:text-gray-100">{it.name}</h4>
+                            {it.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{it.description}</p>}
+                          </div>
+                          <ActionMenu actions={[
+                            {
+                              label: 'Add Child Item',
+                              icon: <IconPlus />,
+                              onClick: () => {
+                                const name=prompt('Child item name?')
+                                if(name){ 
+                                  fetch(`/api/asset-items/${it.id}/children`, { 
+                                    method:'POST', 
+                                    headers:{ 'Content-Type':'application/json', ...tokenHeader() }, 
+                                    body: JSON.stringify({ name }) 
+                                  }).then(()=>refresh()) 
+                                } 
+                              }
+                            },
+                            {
+                              label: 'Move Up',
+                              icon: <IconUp />,
+                              onClick: () => moveItem(g.id, itIdx, 'up')
+                            },
+                            {
+                              label: 'Move Down',
+                              icon: <IconDown />,
+                              onClick: () => moveItem(g.id, itIdx, 'down')
+                            },
+                            {
+                              label: 'Delete Item',
+                              icon: <IconTrash />,
+                              variant: 'danger',
+                              onClick: async () => {
+                                const ok = confirm(`Delete item "${it.name}"?`)
+                                if(!ok) return
+                                await fetch(`/api/asset-items/${it.id}`, { method:'DELETE', headers: tokenHeader() })
+                                refresh()
+                              }
+                            }
+                          ]} />
+                        </div>
+
+                        {/* Depreciation Input */}
+                        {children.length === 0 && (
+                           <div className="mt-2 flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                              <span>Depr:</span>
+                              <div className="flex items-center">
+                                <span>€</span>
                                 <input
                                   type="number"
                                   step="0.01"
@@ -770,103 +922,181 @@ export function SettingsPage() {
                                     })
                                     await refresh()
                                   }}
-                                  className="w-24 px-2 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500"
+                                  className="w-16 bg-transparent border-none p-0 text-xs focus:ring-0 text-gray-500 dark:text-gray-400 font-medium text-right"
                                 />
-                              ) : (
-                                <span className="text-gray-400 text-sm italic">N/A (has children)</span>
-                              )}
-                            </td>
-                            <td className="p-3">
-                              <div className="flex gap-2 justify-end">
-                                <button 
-                                  onClick={()=>{ 
-                                    const name=prompt('Child item name?')
-                                    if(name){ 
-                                      fetch(`/api/asset-items/${it.id}/children`, { 
-                                        method:'POST', 
-                                        headers:{ 'Content-Type':'application/json', ...tokenHeader() }, 
-                                        body: JSON.stringify({ name }) 
-                                      }).then(()=>refresh()) 
-                                    } 
-                                  }} 
-                                  className="p-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors" 
-                                  aria-label="Add child"
-                                  title="Add child item"
-                                >
-                                  <IconPlus />
-                                </button>
-                                <button 
-                                  onClick={async()=>{ 
-                                    const ok = confirm(`Delete item "${it.name}"?`)
-                                    if(!ok) return
-                                    await fetch(`/api/asset-items/${it.id}`, { method:'DELETE', headers: tokenHeader() })
-                                    refresh() 
-                                  }} 
-                                  className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors" 
-                                  aria-label="Delete item"
-                                  title="Delete item"
-                                >
-                                  <IconTrash />
-                                </button>
                               </div>
-                            </td>
-                          </tr>
-                          {children.map((ch:Item)=>(
-                            <tr key={`child-${ch.id}`} className="bg-slate-50/50 dark:bg-slate-900/30 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
-                              <td className="p-3"></td>
-                              <td className="p-3 pl-8 text-slate-700 dark:text-slate-300">
-                                <span className="text-gray-400 mr-2">↳</span>
-                                {ch.name}
-                              </td>
-                              <td className="p-3 text-slate-600 dark:text-slate-400">{ch.description || '—'}</td>
-                              <td className="p-3">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  placeholder="0.00"
-                                  value={depreciationValues[ch.id] !== undefined ? depreciationValues[ch.id] : (ch.depreciationAmount || '')}
-                                  onChange={(e) => setDepreciationValues(prev => ({ ...prev, [ch.id]: e.target.value }))}
-                                  onBlur={async () => {
-                                    const value = depreciationValues[ch.id] ? Number(depreciationValues[ch.id]) : null
-                                    await fetch(`/api/asset-items/${ch.id}`, {
-                                      method: 'PUT',
-                                      headers: { 'Content-Type': 'application/json', ...tokenHeader() },
-                                      body: JSON.stringify({ depreciationAmount: value })
-                                    })
-                                    await refresh()
-                                  }}
-                                  className="w-24 px-2 py-1.5 text-sm border rounded-md bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500"
-                                />
-                              </td>
-                              <td className="p-3">
-                                <div className="flex gap-2 justify-end">
+                           </div>
+                        )}
+
+                        {/* Children List */}
+                        {children.length > 0 && (
+                          <div className="mt-1 space-y-2">
+                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sub-items</div>
+                            {children.map(ch => (
+                              <div key={ch.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-2 rounded border border-gray-100 dark:border-gray-700/50">
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{ch.name}</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-0.5 opacity-50 hover:opacity-100 transition-opacity">
+                                    <span className="text-gray-300 text-[10px]">€</span>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      placeholder="0"
+                                      value={depreciationValues[ch.id] !== undefined ? depreciationValues[ch.id] : (ch.depreciationAmount || '')}
+                                      onChange={(e) => setDepreciationValues(prev => ({ ...prev, [ch.id]: e.target.value }))}
+                                      onBlur={async () => {
+                                        const value = depreciationValues[ch.id] ? Number(depreciationValues[ch.id]) : null
+                                        await fetch(`/api/asset-items/${ch.id}`, {
+                                          method: 'PUT',
+                                          headers: { 'Content-Type': 'application/json', ...tokenHeader() },
+                                          body: JSON.stringify({ depreciationAmount: value })
+                                        })
+                                        await refresh()
+                                      }}
+                                      className="w-12 text-right text-xs bg-transparent border-none p-0 focus:ring-0 text-gray-600 dark:text-gray-400"
+                                    />
+                                  </div>
                                   <button 
-                                    onClick={async()=>{ 
+                                    onClick={async () => {
                                       const ok = confirm(`Delete child item "${ch.name}"?`)
                                       if(!ok) return
                                       await fetch(`/api/asset-items/${ch.id}`, { method:'DELETE', headers: tokenHeader() })
-                                      refresh() 
-                                    }} 
-                                    className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors" 
-                                    aria-label="Delete item"
-                                    title="Delete child item"
+                                      refresh()
+                                    }}
+                                    className="text-gray-400 hover:text-red-500 transition-colors"
                                   >
                                     <IconTrash />
                                   </button>
                                 </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  
+                  {/* Empty State for Group */}
+                  {(g.items || []).length === 0 && (
+                    <div className="col-span-full py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                      <p className="text-gray-500 dark:text-gray-400 mb-2">This group is empty.</p>
+                      <button 
+                        onClick={() => setShowItemModalForGroup(g.id)}
+                        className="text-blue-600 dark:text-blue-400 font-medium hover:underline"
+                      >
+                        Add your first item
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })()
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-gray-500 dark:text-gray-400">Select a group to view items or create a new one.</p>
+          </div>
+        )}
+      </section>
+
+      {/* CSV Import Info Modal */}
+      {showImportInfo && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-2 sm:p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
+            <h3 className="font-semibold text-xl mb-4 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-slate-900 dark:text-slate-100">
+                <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 01.67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 11-.671-1.34l.041-.022zM12 9a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+              </svg>
+              CSV Import Format
+            </h3>
+            
+            <div className="space-y-4">
+              <div className="bg-slate-50 dark:bg-slate-900/20 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                  Your CSV file should contain transaction data with the following structure:
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">CSV Format:</h4>
+                <div className="bg-gray-50 dark:bg-gray-900/50 rounded p-3 border border-gray-200 dark:border-gray-700">
+                  <code className="text-sm bg-white dark:bg-gray-800 px-3 py-2 rounded block font-mono text-gray-800 dark:text-gray-200">
+                    date,amount,category,notes
+                  </code>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">or using semicolon as delimiter:</p>
+                  <code className="text-sm bg-white dark:bg-gray-800 px-3 py-2 rounded block font-mono text-gray-800 dark:text-gray-200 mt-1">
+                    date;amount;category;notes
+                  </code>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">Field Details:</h4>
+                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                  <li className="flex gap-2">
+                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">date</span>
+                    <span>Date in DD/MM/YYYY or YYYY-MM-DD format</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">amount</span>
+                    <span>Transaction amount (use dot as decimal separator, e.g., 45.50)</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">category</span>
+                    <span>Category name (will be created if doesn't exist)</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">notes</span>
+                    <span>Optional transaction notes</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <p className="text-xs text-amber-800 dark:text-amber-200 font-medium mb-1">📌 Notes:</p>
+                <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-1 ml-4 list-disc">
+                  <li>Both comma (,) and semicolon (;) are supported as column delimiters</li>
+                  <li>Use dot (.) as decimal separator for amounts</li>
+                  <li>Header row is optional - if missing, default order is assumed</li>
+                  <li>Invalid rows will be skipped automatically</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">Example CSV:</h4>
+                <div className="bg-gray-900 dark:bg-gray-950 rounded p-3 overflow-x-auto">
+                  <pre className="text-xs text-green-400 font-mono">
+{`date,amount,category,notes
+25/10/2024,45.50,Groceries,Weekly shopping
+26/10/2024,120.00,Utilities,Electric bill
+27/10/2024,15.99,Entertainment,Netflix`}
+                  </pre>
+                </div>
               </div>
             </div>
-          ))}
+
+            <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowImportInfo(false)}
+                className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowImportInfo(false)
+                  fileInputRef.current?.click()
+                }}
+                className="px-4 py-2 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 font-medium"
+              >
+                Select CSV File
+              </button>
+            </div>
+          </div>
         </div>
-      </section>
+      )}
 
       {/* Modals */}
       {showCatModal && (
@@ -886,11 +1116,12 @@ export function SettingsPage() {
             >
               <option>Expense</option>
               <option>Income</option>
+              <option>Transfer</option>
             </select>
             <div className="flex justify-end gap-3 pt-2">
               <button 
                 onClick={()=>setShowCatModal(false)} 
-                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -902,7 +1133,7 @@ export function SettingsPage() {
                   setShowCatModal(false)
                   refresh() 
                 }} 
-                className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
               >
                 Save
               </button>
@@ -924,7 +1155,7 @@ export function SettingsPage() {
             <div className="flex justify-end gap-3 pt-2">
               <button 
                 onClick={()=>setShowGroupModal(false)} 
-                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -940,7 +1171,7 @@ export function SettingsPage() {
                   setShowGroupModal(false)
                   refresh() 
                 }} 
-                className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
               >
                 Save
               </button>
@@ -968,7 +1199,7 @@ export function SettingsPage() {
             <div className="flex justify-end gap-3 pt-2">
               <button 
                 onClick={()=>setShowItemModalForGroup(null)} 
-                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -985,7 +1216,7 @@ export function SettingsPage() {
                   setShowItemModalForGroup(null)
                   refresh() 
                 }} 
-                className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
               >
                 Save
               </button>
