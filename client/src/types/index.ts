@@ -12,11 +12,13 @@ export interface RegisterResponse {
 
 export interface DashboardSummary {
   netWorth: number;
+  netWorthGrowth?: number | null;
   cashFlowLast30Days: number;
   monthlyExpenses: number;
   recentTransactions: Transaction[];
   netWorthHistory: NetWorthPoint[];
   assetAllocation: AssetAllocation[];
+  latestAllocationDate?: string;
   expenseBreakdown: ExpenseBreakdown[];
 }
 

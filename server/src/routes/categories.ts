@@ -7,7 +7,7 @@ export const categoriesRouter = Router();
 
 const upsertSchema = z.object({
   name: z.string().min(1),
-  type: z.enum(["Income", "Expense"]),
+  type: z.enum(["Income", "Expense", "Transfer"]),
 });
 
 categoriesRouter.get("/", requireAuth, async (req: AuthRequest, res) => {

@@ -36,7 +36,8 @@ dashboardRouter.get("/summary", requireAuth, async (req: AuthRequest, res) => {
   });
   const totalIncome = Number((totalIncomeExpense.find(r => r.type === "Income")?._sum.amount) || 0);
   const totalExpense = Number((totalIncomeExpense.find(r => r.type === "Expense")?._sum.amount) || 0);
-  const cashBalance = accounts.reduce((sum, a) => sum + Number(a.initialBalance), 0) + (totalIncome - totalExpense);
+  const totalTransfer = Number((totalIncomeExpense.find(r => r.type === "Transfer")?._sum.amount) || 0);
+  const cashBalance = accounts.reduce((sum, a) => sum + Number(a.initialBalance), 0) + (totalIncome - totalExpense - totalTransfer);
   const manualAssetsValue = manualAssets.reduce(
     (sum, a) => sum + Number(a.estimatedValue) - Number(a.associatedDebt),
     0
@@ -79,15 +80,27 @@ dashboardRouter.get("/summary", requireAuth, async (req: AuthRequest, res) => {
   
   // Find latest month with non-zero value for Net Worth and Asset Allocation
   let latestKey: string | undefined;
+  let latestKeyIndex = -1;
   for (let i = monthKeys.length - 1; i >= 0; i--) {
     const value = totalsByMonth.get(monthKeys[i]) || 0;
     if (value !== 0) {
       latestKey = monthKeys[i];
+      latestKeyIndex = i;
       break;
     }
   }
   
   const netWorth = latestKey ? (totalsByMonth.get(latestKey) || 0) : 0;
+
+  // Calculate Net Worth Growth
+  let netWorthGrowth: number | null = null;
+  if (latestKeyIndex > 0) {
+    const previousKey = monthKeys[latestKeyIndex - 1];
+    const previousNetWorth = totalsByMonth.get(previousKey) || 0;
+    if (previousNetWorth !== 0) {
+      netWorthGrowth = ((netWorth - previousNetWorth) / Math.abs(previousNetWorth)) * 100;
+    }
+  }
 
   // Aggregations
   // Use current month for cash flow calculation
@@ -120,11 +133,13 @@ dashboardRouter.get("/summary", requireAuth, async (req: AuthRequest, res) => {
 
   res.json({
     netWorth,
+    netWorthGrowth,
     cashFlowLast30Days: cashFlowCurrentMonth,
     monthlyExpenses: Number(expenseCurrentMonth._sum.amount || 0),
     recentTransactions: transactions,
     netWorthHistory,
     assetAllocation: latestAllocation,
+    latestAllocationDate: latestKey,
     expenseBreakdown,
   });
   } catch (error) {

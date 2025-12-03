@@ -17,7 +17,31 @@ input[type=number] {
   -moz-appearance: textfield;
 }
 
-/* Hide scrollbar but keep functionality */
+/* GLOBAL SCROLLBAR SETTINGS - HIDE VERTICAL SCROLLBARS */
+::-webkit-scrollbar {
+  width: 0px; /* Hide vertical scrollbar */
+  background: transparent;
+}
+
+/* Keep horizontal scrollbars visible and styled */
+::-webkit-scrollbar:horizontal {
+  height: 6px;
+}
+
+::-webkit-scrollbar-track:horizontal {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb:horizontal {
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:horizontal:hover {
+  background: rgba(107, 114, 128, 0.7);
+}
+
+/* Utility to hide scrollbars completely (both axis) */
 .hide-scrollbar {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* Internet Explorer 10+ */
@@ -27,72 +51,46 @@ input[type=number] {
   display: none; /* WebKit */
 }
 
-/* Hide ONLY vertical scrollbar, keep horizontal */
-.hide-scrollbar-y::-webkit-scrollbar {
-  width: 0px; /* Hide vertical scrollbar */
+/* Legacy custom-scrollbar class - now mapped to hidden to ensure compliance with user request */
+.custom-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.hide-scrollbar-y::-webkit-scrollbar-track {
+.custom-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Assets table scrollbar - Horizontal only */
+.assets-scrollbar {
+  /* Do NOT use scrollbar-width here as it overrides ::-webkit-scrollbar in modern browsers */
+  /* and prevents hiding just one axis */
+}
+
+.assets-scrollbar::-webkit-scrollbar {
+  width: 0px;   /* Hide vertical */
+  height: 8px;  /* Show horizontal */
   background: transparent;
 }
 
-.hide-scrollbar-y {
-  scrollbar-width: thin; /* Firefox - show scrollbar but thin */
-  scrollbar-color: rgba(156, 163, 175, 0.5) transparent; /* Firefox - customize colors */
+.assets-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* For Firefox: hide only vertical, show horizontal */
-@-moz-document url-prefix() {
-  .hide-scrollbar-y {
-    scrollbar-width: none; /* This will hide vertical in Firefox */
-  }
+.assets-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
+  border-radius: 4px;
 }
 
-/* Custom beautiful scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 8px;
+.assets-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(107, 114, 128, 0.7);
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(243, 244, 246, 0.5);
-  border-radius: 10px;
+.assets-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.5);
+  border-radius: 4px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.5);
-  border-radius: 10px;
-  transition: background 0.2s;
+.assets-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.8);
 }
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(107, 114, 128, 0.7);
-}
-
-/* Dark mode scrollbar */
-.dark .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(31, 41, 55, 0.5);
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(75, 85, 99, 0.5);
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(107, 114, 128, 0.7);
-}
-
-/* Firefox scrollbar */
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(156, 163, 175, 0.5) rgba(243, 244, 246, 0.5);
-}
-
-.dark .custom-scrollbar {
-  scrollbar-color: rgba(75, 85, 99, 0.5) rgba(31, 41, 55, 0.5);
-}
-
-
-
-
-
-

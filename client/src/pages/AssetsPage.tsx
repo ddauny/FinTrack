@@ -36,7 +36,9 @@ export function AssetsPage() {
   const [hoveredCell, setHoveredCell] = useState<{ itemId:number; month:string } | null>(null)
   const [suggestion, setSuggestion] = useState<number | null>(null)
   const [isMobileView, setIsMobileView] = useState(false)
+  const [mobileMonthIdx, setMobileMonthIdx] = useState(0)
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set())
+  const [isFullScreen, setIsFullScreen] = useState(false)
 
   async function refresh() {
     const res = await fetch('/api/asset-groups', { headers: tokenHeader() })
@@ -52,12 +54,8 @@ export function AssetsPage() {
     const sorted = Array.from(set).sort((a,b)=> new Date(b).getTime() - new Date(a).getTime())
     setMonths(sorted)
   }
-  useEffect(()=>{ refresh() }, [])
-  
   useEffect(() => {
-    if (manualMonths.size > 0) {
-      refresh()
-    }
+    refresh()
   }, [manualMonths])
 
   // Auto-detect mobile view
@@ -351,6 +349,10 @@ export function AssetsPage() {
       // Non fare nulla se l'utente sta già scrivendo in un input o se il modal è già aperto
       if (editing || showNoteFor) return; 
       
+      // Avoid triggering if typing in an input (though editing check covers most, explicit check is safer)
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+
       if (e.key.toLowerCase() === 'n'){
         // Usa hoveredCell invece di selectedCell
         if (hoveredCell) {
@@ -363,6 +365,11 @@ export function AssetsPage() {
           setNoteValue(v?.note || '')
           setShowNoteFor(hoveredCell)
         }
+      }
+
+      if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setIsFullScreen(prev => !prev);
       }
     }
     window.addEventListener('keydown', onKey)
@@ -559,182 +566,215 @@ export function AssetsPage() {
 
   // Mobile Card View Component
   const MobileView = () => {
+    const currentMonth = months[mobileMonthIdx]
+    const prevMonth = months[mobileMonthIdx + 1]
+
+    // Calculate totals
+    const totalNetWorth = groups.reduce((sum, g) => {
+      const roots = (g.items || []).filter(it => !it.parentItemId)
+      return sum + roots.reduce((acc, it) => acc + valueFor(it, currentMonth, true), 0)
+    }, 0)
+
+    const prevNetWorth = prevMonth ? groups.reduce((sum, g) => {
+      const roots = (g.items || []).filter(it => !it.parentItemId)
+      return sum + roots.reduce((acc, it) => acc + valueFor(it, prevMonth, true), 0)
+    }, 0) : 0
+
+    const diff = totalNetWorth - prevNetWorth
+    const pct = prevNetWorth !== 0 ? (diff / prevNetWorth) * 100 : 0
+
     const toggleGroup = (groupId: number) => {
       setExpandedGroups(prev => {
         const newSet = new Set(prev)
-        if (newSet.has(groupId)) {
-          newSet.delete(groupId)
-        } else {
-          newSet.add(groupId)
-        }
+        if (newSet.has(groupId)) newSet.delete(groupId)
+        else newSet.add(groupId)
         return newSet
       })
     }
 
-    return (
-      <div className="space-y-4 p-2">
-        {/* Total Summary Card */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 rounded-lg p-4 text-white shadow-lg">
-          <h3 className="text-sm font-medium opacity-90 mb-1">Total Net Worth</h3>
-          <div className="text-2xl font-bold">
-            <PrivacyNumber value={groups.reduce((sum, g)=>{
-              const roots = (g.items||[]).filter(it=> !it.parentItemId)
-              return sum + roots.reduce((acc, it)=> acc + valueFor(it, months[0], true), 0)
-            }, 0)}>
-              {formatEUR(groups.reduce((sum, g)=>{
-                const roots = (g.items||[]).filter(it=> !it.parentItemId)
-                return sum + roots.reduce((acc, it)=> acc + valueFor(it, months[0], true), 0)
-              }, 0))}
-            </PrivacyNumber>
+    // Recursive item row component
+    const MobileItemRow = ({ item, depth, groupItems }: { item: Item, depth: number, groupItems: Item[] }) => {
+      const value = valueFor(item, currentMonth, false)
+      const children = groupItems.filter(it => it.parentItemId === item.id && !it.hidden)
+      const hasChildren = children.length > 0
+      const [expanded, setExpanded] = useState(true)
+
+      return (
+        <div className="select-none">
+          <div 
+            onClick={() => {
+               if (!hasChildren) {
+                 onCellClick(item, currentMonth)
+               } else {
+                 setExpanded(!expanded)
+               }
+            }}
+            className={`
+              flex items-center justify-between py-3 px-4 border-b border-gray-50 dark:border-gray-800/50 last:border-0
+              ${depth > 0 ? 'bg-gray-50/50 dark:bg-gray-900/50' : ''}
+              active:bg-gray-100 dark:active:bg-gray-800 transition-colors cursor-pointer
+            `}
+            style={{ paddingLeft: `${depth * 1 + 1}rem` }}
+          >
+            <div className="flex items-center gap-2 overflow-hidden">
+              {hasChildren && (
+                <span className="text-gray-400 text-xs w-4 text-center">{expanded ? '▼' : '▶'}</span>
+              )}
+              {!hasChildren && depth > 0 && <span className="w-4"></span>}
+              <span className={`truncate ${depth === 0 ? 'font-medium text-gray-900 dark:text-gray-200' : 'text-gray-600 dark:text-gray-400 text-sm'}`}>
+                {item.name}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+               {item.valuations?.find(v => monthKey(new Date(v.month)) === currentMonth)?.note && (
+                 <div className="w-1.5 h-1.5 bg-amber-400 rounded-full"></div>
+               )}
+               <span className={`font-medium ${!value ? 'text-gray-300 dark:text-gray-700' : 'text-gray-900 dark:text-white'}`}>
+                 {value ? <PrivacyNumber value={value}>{formatEUR(value)}</PrivacyNumber> : '—'}
+               </span>
+               {!hasChildren && (
+                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-300 dark:text-gray-600">
+                   <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                 </svg>
+               )}
+            </div>
           </div>
-          <div className="text-xs opacity-75 mt-1">
-            {months[0] && formatDateMonthYear(new Date(months[0]))}
+          {hasChildren && expanded && children.map(child => (
+            <MobileItemRow key={child.id} item={child} depth={depth + 1} groupItems={groupItems} />
+          ))}
+        </div>
+      )
+    }
+
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20">
+        {/* Sticky Header: Month Navigation */}
+        <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3">
+            <button 
+              onClick={() => setMobileMonthIdx(prev => Math.min(prev + 1, months.length - 1))}
+              disabled={mobileMonthIdx >= months.length - 1}
+              className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white disabled:opacity-30"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            </button>
+            
+            <div className="text-center">
+              <div className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+                {currentMonth ? formatDateMonthYear(new Date(currentMonth)) : 'No Data'}
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setMobileMonthIdx(prev => Math.max(prev - 1, 0))}
+              disabled={mobileMonthIdx <= 0}
+              className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white disabled:opacity-30"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
           </div>
         </div>
 
-        {/* Groups as expandable cards */}
-        {groups.map((group, groupIndex) => {
-          const isExpanded = expandedGroups.has(group.id)
-          const groupTotal = (group.items||[]).filter(it=> !it.parentItemId).reduce((sum, it)=> sum + valueFor(it, months[0], true), 0)
-          
-          return (
-            <div key={group.id} className={`bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden ${groupIndex > 0 ? 'mt-6' : ''}`}>
-              {/* Group Header */}
-              <button
-                onClick={() => toggleGroup(group.id)}
-                className="w-full p-4 flex items-center justify-between bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">
-                    {isExpanded ? '▾' : '▸'}
-                  </span>
-                  <span className="font-semibold text-gray-900 dark:text-gray-100">{group.name}</span>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold text-gray-900 dark:text-gray-100">
-                    <PrivacyNumber value={groupTotal}>
-                      {formatEUR(groupTotal)}
-                    </PrivacyNumber>
+        {/* Summary Card */}
+        <div className="px-4 py-6 bg-white dark:bg-gray-900 mb-4 border-b border-gray-200 dark:border-gray-800">
+          <div className="text-center">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Net Worth</p>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              <PrivacyNumber value={totalNetWorth}>{formatEUR(totalNetWorth)}</PrivacyNumber>
+            </h2>
+            {prevMonth && (
+              <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${diff >= 0 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                {diff >= 0 ? '↑' : '↓'} {formatEUR(Math.abs(diff))} ({Math.abs(pct).toFixed(1)}%)
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Groups List */}
+        <div className="px-3 space-y-3">
+          {groups.map(group => {
+            const isExpanded = expandedGroups.has(group.id)
+            const groupTotal = (group.items || []).filter(it => !it.parentItemId).reduce((sum, it) => sum + valueFor(it, currentMonth, true), 0)
+            
+            return (
+              <div key={group.id} className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+                <div 
+                  onClick={() => toggleGroup(group.id)}
+                  className="flex items-center justify-between p-4 cursor-pointer active:bg-gray-50 dark:active:bg-gray-800 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${isExpanded ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
+                        <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <span className="font-semibold text-gray-900 dark:text-white">{group.name}</span>
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {(group.items||[]).filter(it => !it.hidden).length} items
+                  <div className="font-bold text-gray-900 dark:text-white">
+                    <PrivacyNumber value={groupTotal}>{formatEUR(groupTotal)}</PrivacyNumber>
                   </div>
                 </div>
-              </button>
 
-              {/* Group Items - shown when expanded */}
-              {isExpanded && (
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {(group.items||[]).filter(it => !it.parentItemId && !it.hidden).map(item => {
-                    const itemValue = valueFor(item, months[0], false)
-                    
-                    return (
-                      <div key={item.id} className="p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">
-                            {item.name}
-                          </span>
-                          <span className="font-semibold text-gray-900 dark:text-gray-100">
-                            <PrivacyNumber value={itemValue}>
-                              {formatEUR(itemValue)}
-                            </PrivacyNumber>
-                          </span>
-                        </div>
-                        
-                        {/* Last 3 months mini-trend */}
-                        <div className="flex gap-2 text-xs">
-                          {months.slice(0, 3).map((m, idx) => {
-                            const val = valueFor(item, m, false)
-                            return (
-                              <div key={m} className={`flex-1 ${idx === 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-50 dark:bg-gray-700/50'} rounded p-1.5`}>
-                                <div className="text-gray-500 dark:text-gray-400 text-xs mb-0.5">
-                                  {formatDateMonthYear(new Date(m))}
-                                </div>
-                                <div className={`font-medium ${idx === 0 ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                                  {val > 0 ? (
-                                    <PrivacyNumber value={val}>
-                                      {formatEUR(val)}
-                                    </PrivacyNumber>
-                                  ) : '—'}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
+                {isExpanded && (
+                  <div className="border-t border-gray-100 dark:border-gray-800">
+                    {(group.items || []).filter(it => !it.parentItemId && !it.hidden).map(item => (
+                      <MobileItemRow key={item.id} item={item} depth={0} groupItems={group.items || []} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
 
-                        {/* Show nested items if any */}
-                        {(group.items||[]).filter(it => it.parentItemId === item.id && !it.hidden).length > 0 && (
-                          <div className="mt-2 ml-4 space-y-1 pt-2 border-t border-gray-200 dark:border-gray-700">
-                            {(group.items||[]).filter(it => it.parentItemId === item.id && !it.hidden).map(child => {
-                              const childValue = valueFor(child, months[0], false)
-                              return (
-                                <div key={child.id} className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-600 dark:text-gray-400">↳ {child.name}</span>
-                                  <span className="text-gray-700 dark:text-gray-300 font-medium">
-                                    <PrivacyNumber value={childValue}>
-                                      {formatEUR(childValue)}
-                                    </PrivacyNumber>
-                                  </span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )
-        })}
-
-        {/* Growth Stats Card */}
-        {months.length > 1 && (() => {
-          const curr = groups.reduce((sum, g)=>{
-            const roots = (g.items||[]).filter(it=> !it.parentItemId)
-            return sum + roots.reduce((acc, it)=> acc + valueFor(it, months[0], true), 0)
-          }, 0)
-          const prev = groups.reduce((sum, g)=>{
-            const roots = (g.items||[]).filter(it=> !it.parentItemId)
-            return sum + roots.reduce((acc, it)=> acc + valueFor(it, months[1], true), 0)
-          }, 0)
-          const diff = curr - prev
-          const pct = prev !== 0 ? ((curr - prev) / prev) * 100 : 0
-          const isPositive = diff > 0
-
-          return (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
-                Growth vs Previous Month
-              </h3>
-              <div className="grid grid-cols-2 gap-4">
+        {/* Edit Modal */}
+        {editing && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+                <h3 className="font-bold text-lg text-gray-900 dark:text-white">Update Value</h3>
+                <button onClick={() => { setEditing(null); setEditValue(''); }} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
                 <div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Amount</div>
-                  <div className={`text-lg font-bold ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                    <PrivacyNumber value={diff}>
-                      {isPositive ? '+' : ''}{formatEUR(diff)}
-                    </PrivacyNumber>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Asset</label>
+                  <div className="text-lg font-medium text-gray-900 dark:text-white">
+                    {groups.flatMap(g => g.items || []).find(i => i.id === editing.itemId)?.name}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Percentage</div>
-                  <div className={`text-lg font-bold ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                    {isPositive ? '+' : ''}{pct.toFixed(2)}%
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Value ({formatDateMonthYear(new Date(editing.month))})</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">€</span>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      value={editValue}
+                      onChange={e => setEditValue(e.target.value)}
+                      className="w-full pl-8 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xl font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      placeholder="0.00"
+                      autoFocus
+                    />
                   </div>
                 </div>
+                <button 
+                  onClick={saveEdit}
+                  className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98]"
+                >
+                  Save Update
+                </button>
               </div>
             </div>
-          )
-        })()}
-
-        {/* View all data button */}
-        <button
-          onClick={() => setIsMobileView(false)}
-          className="w-full py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-        >
-          📊 View Full Table
-        </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -742,30 +782,50 @@ export function AssetsPage() {
   // If mobile view, show cards instead of table
   if (isMobileView) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded shadow">
+      <div className="bg-white dark:bg-gray-800 shadow-none">
         <MobileView />
       </div>
     )
   }
 
   return (
-    <div ref={wrapperRef} className="bg-white dark:bg-gray-800 p-2 sm:p-4 rounded shadow -mx-2 sm:-mx-4 md:-mx-6 lg:-mx-8 relative">
+    <div 
+      ref={wrapperRef} 
+      className={isFullScreen 
+        ? "bg-gray-50 dark:bg-gray-950 fixed top-16 bottom-0 left-0 right-0 z-50" 
+        : "relative w-full h-[calc(100vh-8rem)] bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden"
+      }
+    >
       <div 
         ref={scrollRef} 
-        className="overflow-x-auto overflow-y-auto hide-scrollbar-y" 
-        style={{ maxHeight: '85vh' }}
+        className="overflow-auto assets-scrollbar w-full h-full" 
       >
-        <table className="min-w-full text-sm">
-          <thead className="sticky top-0" style={{ zIndex: 90 }}>
-            <tr className="border-b bg-slate-700 dark:bg-slate-900 text-white">
-              <th className="p-2 sticky top-0 left-0 text-left bg-slate-700 dark:bg-slate-900 text-white" style={{ zIndex: 100, minWidth: '280px', width: 'clamp(140px, 40vw, 450px)' }}>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-sm sm:text-base">Asset</span>
+        <table className="min-w-full border-collapse text-sm">
+          <thead className="sticky top-0 z-50 shadow-md">
+            <tr className="bg-slate-900 text-white">
+              <th className="px-6 py-4 sticky top-0 left-0 text-left bg-slate-900 z-50 font-bold uppercase tracking-wider text-xs border-b border-slate-700 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]" style={{ minWidth: '240px', width: '20%' }}>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setIsFullScreen(!isFullScreen)}
+                    title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+                    className="p-1.5 -ml-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                  >
+                    {isFullScreen ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                      </svg>
+                    )}
+                  </button>
+                  <span>Asset</span>
                   {countHiddenRows() > 0 && (
                     <button 
                       onClick={showAllHidden}
                       title={`Show ${countHiddenRows()} hidden row${countHiddenRows() > 1 ? 's' : ''}`}
-                      className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 transition-colors"
+                      className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
                     >
                       <IconEye />
                       {countHiddenRows()}
@@ -774,81 +834,107 @@ export function AssetsPage() {
                   <button
                     onClick={() => setIsMobileView(true)}
                     title="Switch to card view"
-                    className="ml-auto flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-500/20 text-blue-200 hover:bg-blue-500/30 transition-colors md:hidden"
+                    className="ml-auto md:hidden text-slate-400 hover:text-white"
                   >
-                    📱 Cards
+                    📱
                   </button>
                 </div>
               </th>
               {months.map((m, i)=> (
-                <th key={m} onContextMenu={async (e)=>{ 
-                  e.preventDefault(); 
-                  if(confirm(`Delete all valuations for ${new Date(m).toLocaleDateString(undefined,{ month:'long', year:'numeric' })}?`)){ 
-                    setManualMonths(prev => {
-                      const newSet = new Set(prev)
-                      newSet.delete(m)
-                      return newSet
-                    })
-                    await fetch(`/api/asset-valuations?month=${encodeURIComponent(m)}`, { method:'DELETE', headers: { ...tokenHeader() } })
-                    await refresh() 
-                  } 
-                }} className="p-2 whitespace-nowrap text-center border-l border-gray-200 dark:border-gray-700 relative sticky top-0 bg-slate-600 dark:bg-slate-800 text-white" style={{ zIndex: 95, minWidth: '100px' }}>
-                  {i===0 && (
-                    <button onClick={addNextMonth} className="absolute left-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200 text-sm" title="Add next month" aria-label="Add next month">‹</button>
-                  )}
-                  <span className="text-xs sm:text-sm">{formatDateMonthYear(new Date(m))}</span>
-                  {i===months.length-1 && (
-                    <button onClick={addPrevMonth} className="absolute right-1 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-white hover:text-gray-200 text-sm" title="Add previous month" aria-label="Add previous month">›</button>
-                  )}
+                <th key={m} className="px-4 py-4 whitespace-nowrap text-center font-medium text-xs uppercase tracking-wider border-b border-slate-700 bg-slate-900 text-slate-300 group relative" style={{ minWidth: '140px', width: 'auto' }}>
+                  <div className="relative flex items-center justify-center gap-2 group/inner">
+                    {i===0 && (
+                      <button onClick={addNextMonth} className="opacity-0 group-hover/inner:opacity-100 transition-opacity absolute -left-2 p-1 hover:text-white">‹</button>
+                    )}
+                    <span>{formatDateMonthYear(new Date(m))}</span>
+                    {i===months.length-1 && (
+                      <button onClick={addPrevMonth} className="opacity-0 group-hover/inner:opacity-100 transition-opacity absolute -right-2 p-1 hover:text-white">›</button>
+                    )}
+                  </div>
+                  <button 
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if(confirm(`Delete all valuations for ${new Date(m).toLocaleDateString(undefined,{ month:'long', year:'numeric' })}?`)){ 
+                        await fetch(`/api/asset-valuations?month=${encodeURIComponent(m)}`, { method:'DELETE', headers: { ...tokenHeader() } })
+                        setManualMonths(prev => {
+                          const newSet = new Set(prev)
+                          newSet.delete(m)
+                          return newSet
+                        })
+                      }
+                    }}
+                    className="absolute top-1 right-1 p-1 text-slate-500 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Delete month"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                      <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                    </svg>
+                  </button>
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
             {rows.map((row, idx)=> {
               // Check if this is a new group (not the first row)
               const isNewGroup = row.isGroup && idx > 0
               return (
-              <tr key={idx} onMouseEnter={()=>setHoveredRowIdx(idx)} onMouseLeave={()=>setHoveredRowIdx(null)} className={`border-b ${isNewGroup ? 'border-t-[16px] border-t-white dark:border-t-gray-900' : ''} ${row.isGroup? '' : (idx % 2 === 0 ? 'bg-white dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-700/50')}`}>
-                <td className={`sticky left-0 border-r border-gray-200 dark:border-gray-700 ${row.isGroup ? 'p-2 text-center bg-slate-100 dark:bg-slate-900 font-semibold text-slate-900 dark:text-slate-100' : 'p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'}`} style={{ zIndex: 80, paddingLeft: row.isGroup ? undefined : `${row.depth*20}px`, fontSize: row.isGroup? '0.9rem' : (row.depth>1? '0.8rem':'0.85rem') , minWidth: '280px', width: 'clamp(140px, 40vw, 450px)' }}>
+              <tr key={idx} 
+                  onMouseEnter={()=>setHoveredRowIdx(idx)} 
+                  onMouseLeave={()=>setHoveredRowIdx(null)} 
+                  className={`
+                    transition-colors duration-75
+                    ${row.isGroup 
+                      ? 'bg-gray-50 dark:bg-gray-800/50' 
+                      : 'hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+                    }
+                    ${isNewGroup ? 'border-t-2 border-gray-100 dark:border-gray-800' : ''}
+                  `}
+              >
+                <td className={`
+                    sticky left-0 z-40 border-r border-gray-100 dark:border-gray-800
+                    ${row.isGroup 
+                      ? 'py-3 px-6 font-bold text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800/90' 
+                      : 'py-2 px-6 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900'
+                    }
+                    shadow-[4px_0_8px_-2px_rgba(0,0,0,0.05)]
+                  `} 
+                  style={{ 
+                    paddingLeft: row.isGroup ? '1.5rem' : `${row.depth * 1.5 + 0.5}rem`,
+                    fontSize: row.isGroup ? '0.875rem' : '0.8125rem'
+                  }}>
                   {row.isGroup ? (
-                    <div className="flex items-center justify-between">
-                      <span className="truncate">{row.name}</span>
-                      {hoveredRowIdx===idx && (
-                        <button 
-                          title="Hide group" 
-                          onClick={()=> row.groupId && hideGroup(row.groupId)} 
-                          className="ml-2 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
-                        >
-                          <IconEyeSlash />
-                        </button>
-                      )}
+                    <div className="flex items-center justify-between group">
+                      <span className="truncate tracking-tight">{row.name}</span>
+                      <button 
+                        title="Hide group" 
+                        onClick={()=> row.groupId && hideGroup(row.groupId)} 
+                        className={`ml-2 text-gray-300 hover:text-red-500 transition-colors ${hoveredRowIdx===idx ? 'opacity-100' : 'opacity-0'}`}
+                      >
+                        <IconEyeSlash />
+                      </button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 group">
                       {hasChildren(row.item) && (
                         <button
                           onClick={()=> {
                             const it = row.item!
                             if (hasVisibleChildren(it)) collapseItem(it); else expandItem(it)
                           }}
-                          className="bg-transparent border-0 p-0 text-gray-400 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none cursor-pointer flex-shrink-0"
-                          title={hasVisibleChildren(row.item) ? 'Collapse' : 'Expand'}
-                          aria-label={hasVisibleChildren(row.item) ? 'Collapse' : 'Expand'}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                         >
                           {hasVisibleChildren(row.item) ? '▾' : '▸'}
                         </button>
                       )}
                       <span className="truncate">{row.name}</span>
-                      {hoveredRowIdx===idx && (
-                        <button 
-                          title="Hide row" 
-                          onClick={()=> toggleHidden(row.item!)} 
-                          className="ml-2 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
-                        >
-                          <IconEyeSlash />
-                        </button>
-                      )}
+                      <button 
+                        title="Hide row" 
+                        onClick={()=> toggleHidden(row.item!)} 
+                        className={`ml-auto text-gray-300 hover:text-red-500 transition-colors ${hoveredRowIdx===idx ? 'opacity-100' : 'opacity-0'}`}
+                      >
+                        <IconEyeSlash />
+                      </button>
                     </div>
                   )}
                 </td>
@@ -858,7 +944,7 @@ export function AssetsPage() {
                     const group = groups.find(g=> g.id===row.groupId)
                     const items = (group?.items||[]).filter(it=> !it.parentItemId)
                     const v = items.reduce((sum, it)=> sum + valueFor(it, m, true), 0)
-                    return <td key={m} className="p-2 text-center font-semibold text-slate-900 dark:text-slate-100 border-l border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800" style={{ minWidth: '100px' }}>
+                    return <td key={m} className="px-4 py-3 text-center font-bold text-gray-800 dark:text-gray-100 text-xs tabular-nums bg-gray-50 dark:bg-gray-800/50">
                       <div className="truncate">{v ? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber> : ''}</div>
                     </td>
                   }
@@ -872,8 +958,10 @@ export function AssetsPage() {
                       onClick={(e)=>{ if(!isEditing) onCellClick(item, m) }}
                       onMouseEnter={()=>{ if(!isEditing) setHoveredCell({ itemId: item.id, month: m }) }}
                       onMouseLeave={()=>setHoveredCell(null)}
-                      className="p-1 sm:p-2 text-center border-l border-gray-200 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 cursor-text"
-                      style={{ minWidth: '100px' }}
+                      className={`
+                        px-4 py-2 text-center text-xs tabular-nums cursor-pointer border-l border-transparent hover:border-gray-200 dark:hover:border-gray-700
+                        ${isEditing ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-inset ring-blue-500' : ''}
+                      `}
                     >
                       {isEditing ? (
                         <div className="relative">
@@ -885,40 +973,34 @@ export function AssetsPage() {
                             onChange={e=>setEditValue(e.target.value)}
                             onBlur={()=>{ saveEdit(); setSuggestion(null); }}
                             onKeyDown={handleKeyDown}
-                            className="no-spin w-full text-center bg-transparent outline-none focus:outline-none focus:ring-0 border-0 p-0 m-0 appearance-none"
+                            className="w-full text-center bg-transparent outline-none font-medium text-blue-700 dark:text-blue-300 p-0 m-0"
                           />
                           {suggestion !== null && !editValue.trim() && (
                             <div 
-                              onMouseDown={(e) => {
-                                // Prevent input blur when clicking suggestion
-                                e.preventDefault();
-                              }}
+                              onMouseDown={(e) => e.preventDefault()}
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 await acceptAndSaveSuggestion();
                               }}
-                              className="absolute left-1/2 -translate-x-1/2 top-full mt-1 bg-blue-100 dark:bg-blue-900/80 border border-blue-300 dark:border-blue-700 rounded-md px-3 py-2 text-sm cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors shadow-lg z-50"
+                              className="absolute left-1/2 -translate-x-1/2 top-full mt-2 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 shadow-xl z-50 min-w-[120px]"
                             >
-                              <div className="flex items-center gap-2 justify-center whitespace-nowrap">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
-                                </svg>
-                                <span className="font-medium text-blue-700 dark:text-blue-300">{formatEUR(suggestion)}</span>
-                              </div>
+                              <div className="text-[10px] text-gray-400 mb-1 text-center">Suggestion</div>
+                              <div className="font-bold text-blue-600 dark:text-blue-400 text-center">{formatEUR(suggestion)}</div>
                             </div>
                           )}
                         </div>
                       ) : (
-                        <div className="w-20 sm:w-32 mx-auto relative text-xs sm:text-sm">
-                          {val? <PrivacyNumber value={val}>{formatEUR(val)}</PrivacyNumber> : <span className="text-gray-400">—</span>}
+                        <div className="relative group/cell">
+                          <span className={`
+                            ${!val ? 'text-gray-300 dark:text-gray-700' : 'text-gray-700 dark:text-gray-300 font-medium'}
+                          `}>
+                            {val ? <PrivacyNumber value={val}>{formatEUR(val)}</PrivacyNumber> : '—'}
+                          </span>
                           
-                          {/* --- MODIFICA: Stile dell'indicatore della nota (giallo post-it) --- */}
                           {valObj && valObj.note && (
-                            <span 
-  title={valObj.note} 
-  className="absolute top-0 right-0 w-0 h-0 border-t-[8px] border-r-[8px] border-t-yellow-400 border-r-transparent"
-  style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }}
-/>
+                            <div className="absolute top-0 right-0">
+                              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full shadow-sm"></div>
+                            </div>
                           )}
                         </div>
                       )}
@@ -929,70 +1011,75 @@ export function AssetsPage() {
               )
             })}
           </tbody>
-          <tfoot className="sticky bottom-0" style={{ zIndex: 90 }}>
-            <tr className="bg-slate-200 dark:bg-slate-800">
-  <td className="p-2 sticky left-0 bg-slate-200 dark:bg-slate-800 text-xs sm:text-sm" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '280px', width: 'clamp(140px, 40vw, 450px)' }}>Total Net Worth</td>
-  {months.map(m=>{
-    const v = groups.reduce((sum, g)=>{
-      const roots = (g.items||[]).filter(it=> !it.parentItemId)
-      const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
-      return sum + s
-    }, 0)
-    return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-      {v? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber>: ''}
-    </td>
-  })}
-</tr>
-            <tr className="bg-slate-100 dark:bg-slate-900">
-  <td className="p-2 sticky left-0 bg-slate-100 dark:bg-slate-900 text-xs sm:text-sm" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '280px', width: 'clamp(140px, 40vw, 450px)' }}>Growth vs prev</td>
-  {months.map((m, i)=>{
-    const curr = groups.reduce((sum, g)=>{
-      const roots = (g.items||[]).filter(it=> !it.parentItemId)
-      const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
-      return sum + s
-    }, 0)
-    const prevKey = months[i+1]
-    const prev = prevKey ? groups.reduce((sum, g)=>{
-      const roots = (g.items||[]).filter(it=> !it.parentItemId)
-      const s = roots.reduce((acc, it)=> acc + valueFor(it, prevKey, true), 0)
-      return sum + s
-    }, 0) : 0
-    const diff = prevKey ? (curr - prev) : 0
-    return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-      {prevKey? <PrivacyNumber value={diff}>{formatEUR(diff)}</PrivacyNumber>: ''}
-    </td>
-  })}
-</tr>
-            <tr className="bg-white dark:bg-gray-800">
-  <td className="p-2 sticky left-0 bg-white dark:bg-gray-800 text-xs sm:text-sm" style={{ zIndex: 90, fontWeight: 600, textAlign: 'center', minWidth: '280px', width: 'clamp(140px, 40vw, 450px)' }}>Growth %</td>
-  {months.map((m, i)=>{
-    const curr = groups.reduce((sum, g)=>{
-      const roots = (g.items||[]).filter(it=> !it.parentItemId)
-      const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
-      return sum + s
-    }, 0)
-    const prevKey = months[i+1]
-    const prev = prevKey ? groups.reduce((sum, g)=>{
-      const roots = (g.items||[]).filter(it=> !it.parentItemId)
-      const s = roots.reduce((acc, it)=> acc + valueFor(it, prevKey, true), 0)
-      return sum + s
-    }, 0) : 0
-    const pct = prevKey && prev !== 0 ? ((curr - prev) / prev) * 100 : 0
-    
-    let bgColor = isDark ? 'rgb(31 41 55)' : 'white'; // Sfondo opaco
-    if (prevKey && prev !== 0) {
-      const absPct = Math.abs(pct);
-      const opacity = Math.min(absPct / 10, 1);
-      if (pct > 0) {
-        bgColor = isDark ? `rgba(34,197,94,${Math.max(opacity * 0.35, 0.08)})` : `rgba(34,197,94,${opacity})`;
-      } else if (pct < 0) {
-        bgColor = isDark ? `rgba(239,68,68,${Math.max(opacity * 0.35, 0.08)})` : `rgba(239,68,68,${opacity})`;
-      }
-    }
+          <tfoot className="sticky bottom-0 z-[60] bg-slate-900 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
+            <tr className="bg-slate-900 text-white">
+              <td className="p-4 sticky left-0 bg-slate-900 z-50 font-bold text-sm uppercase tracking-wider shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]">
+                Total Net Worth
+              </td>
+              {months.map(m=>{
+                const v = groups.reduce((sum, g)=>{
+                  const roots = (g.items||[]).filter(it=> !it.parentItemId)
+                  const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
+                  return sum + s
+                }, 0)
+                return <td key={m} className="p-4 text-center font-bold text-sm tabular-nums bg-slate-900 text-white shadow-[inset_1px_0_0_0_#1e293b]">
+                  {v? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber>: ''}
+                </td>
+              })}
+            </tr>
+            <tr className="bg-slate-800 text-slate-300">
+              <td className="p-3 sticky left-0 bg-slate-800 z-50 font-medium text-xs uppercase tracking-wide shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]">
+                Growth (Amount)
+              </td>
+              {months.map((m, i)=>{
+                const curr = groups.reduce((sum, g)=>{
+                  const roots = (g.items||[]).filter(it=> !it.parentItemId)
+                  const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
+                  return sum + s
+                }, 0)
+                const prevKey = months[i+1]
+                const prev = prevKey ? groups.reduce((sum, g)=>{
+                  const roots = (g.items||[]).filter(it=> !it.parentItemId)
+                  const s = roots.reduce((acc, it)=> acc + valueFor(it, prevKey, true), 0)
+                  return sum + s
+                }, 0) : 0
+                const diff = prevKey ? (curr - prev) : 0
+                const isPos = diff > 0
+                return <td key={m} className={`p-3 text-center font-medium text-xs tabular-nums bg-slate-800 shadow-[inset_1px_0_0_0_#334155] ${isPos ? 'text-emerald-400' : (diff < 0 ? 'text-rose-400' : '')}`}>
+                  {prevKey? <PrivacyNumber value={diff}>{diff > 0 ? '+' : ''}{formatEUR(diff)}</PrivacyNumber>: ''}
+                </td>
+              })}
+            </tr>
+            <tr className="bg-slate-800 text-slate-300">
+              <td className="p-3 sticky left-0 bg-slate-800 z-50 font-medium text-xs uppercase tracking-wide shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3),inset_0_1px_0_0_#334155]">
+                Growth (%)
+              </td>
+              {months.map((m, i)=>{
+                const curr = groups.reduce((sum, g)=>{
+                  const roots = (g.items||[]).filter(it=> !it.parentItemId)
+                  const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
+                  return sum + s
+                }, 0)
+                const prevKey = months[i+1]
+                const prev = prevKey ? groups.reduce((sum, g)=>{
+                  const roots = (g.items||[]).filter(it=> !it.parentItemId)
+                  const s = roots.reduce((acc, it)=> acc + valueFor(it, prevKey, true), 0)
+                  return sum + s
+                }, 0) : 0
+                const pct = prevKey && prev !== 0 ? ((curr - prev) / prev) * 100 : 0
+                
+                // Heatmap logic for text color instead of background
+                let textColor = 'text-slate-400';
+                if (prevKey && prev !== 0) {
+                  if (pct > 0) textColor = 'text-emerald-400';
+                  else if (pct < 0) textColor = 'text-rose-400';
+                }
 
-    return <td key={m} className="p-2 text-center border-l border-gray-200 dark:border-gray-700" style={{ backgroundColor: bgColor }}>{prevKey && prev!==0? `${pct.toFixed(2)}%` : ''}</td>
-  })}
-</tr>
+                return <td key={m} className={`p-3 text-center font-medium text-xs tabular-nums bg-slate-800 shadow-[inset_1px_1px_0_0_#334155] ${textColor}`}>
+                  {prevKey && prev!==0? `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%` : ''}
+                </td>
+              })}
+            </tr>
           </tfoot>
         </table>
       </div>

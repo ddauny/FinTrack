@@ -6,10 +6,12 @@ import { api } from '../lib/api'
 import { formatEUR, formatDateDMY } from '../lib/format'
 import { PrivacyNumber } from '@/components/PrivacyNumber'
 import { usePrivacy } from '@/contexts/PrivacyContext'
+import { useThemeContext } from '@/contexts/ThemeContext'
 import dayjs from 'dayjs'
 
 export function MonthlySummaryPage() {
   const { hideNumbers } = usePrivacy()
+  const { resolved } = useThemeContext()
   const navigate = useNavigate()
   const location = useLocation()
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
@@ -19,6 +21,13 @@ export function MonthlySummaryPage() {
   const [monthlyData, setMonthlyData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Load monthly data when month changes
   useEffect(() => {
@@ -47,7 +56,7 @@ export function MonthlySummaryPage() {
           
           if (category.type === 'Income') {
             income.set(categoryName, (income.get(categoryName) || 0) + amount)
-          } else {
+          } else if (category.type === 'Expense') {
             expenses.set(categoryName, (expenses.get(categoryName) || 0) + amount)
           }
         })
@@ -160,79 +169,109 @@ export function MonthlySummaryPage() {
     setSelectedMonth(newMonth);
   };
 
-  // --- MODIFICA: Riportato 'show: true' su label e labelLine ---
+  const incomeColors = ['#10b981', '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#0ea5e9']
+  const expenseColors = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#f43f5e', '#d946ef']
+
+  // --- MODIFICA: Stile professionale per i grafici ---
   const incomeChartOption = {
+    backgroundColor: 'transparent',
     tooltip: {
       trigger: 'item',
+      backgroundColor: resolved === 'dark' ? '#374151' : '#ffffff',
+      borderColor: resolved === 'dark' ? '#4b5563' : '#d1d5db',
+      textStyle: {
+        color: resolved === 'dark' ? '#f3f4f6' : '#111827'
+      },
       formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`
+    },
+    legend: {
+      show: false
     },
     series: [{
       type: 'pie',
-      radius: ['40%', '70%'],
+      radius: isMobile ? ['40%', '60%'] : ['45%', '70%'],
+      center: ['50%', '50%'],
+      itemStyle: {
+        borderRadius: 4,
+        borderColor: resolved === 'dark' ? '#1f2937' : '#ffffff',
+        borderWidth: 2
+      },
       data: (monthlyData?.income || []).map((item: any) => ({
         name: item.name,
         value: item.amount
       })),
-      minAngle: 5, // Nasconde etichette per fette troppo piccole
+      minAngle: 5,
       label: {
-        show: true, // <-- RIPRISTINATO
+        show: !isMobile,
         position: 'outside',
-        fontSize: 11,
+        fontSize: 12,
+        color: resolved === 'dark' ? '#9ca3af' : '#4b5563',
         formatter: (params: any) => {
-          if (hideNumbers) return `${params.name}: ••••••`
-          return `${params.name}: ${formatEUR(params.value)}`
+          if (hideNumbers) return `${params.name}`
+          return `${params.name}\n${((params.value / monthlyData.totalIncome) * 100).toFixed(1)}%`
         }
       },
       labelLine: {
-        show: true, // <-- RIPRISTINATO
-        length: 10,
-        length2: 20,
-        smooth: true
-      },
-      itemStyle: {
-        color: (params: any) => {
-          const colors = ['#3b82f6', '#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#a78bfa', '#22c55e', '#14b8a6', '#0ea5e9', '#84cc16']
-          return colors[params.dataIndex % colors.length]
+        show: !isMobile,
+        length: 15,
+        length2: 10,
+        smooth: true,
+        lineStyle: {
+          color: resolved === 'dark' ? '#4b5563' : '#d1d5db'
         }
-      }
+      },
+      color: incomeColors
     }]
   }
 
-  // --- MODIFICA: Riportato 'show: true' su label e labelLine ---
   const expensesChartOption = {
+    backgroundColor: 'transparent',
     tooltip: {
       trigger: 'item',
+      backgroundColor: resolved === 'dark' ? '#374151' : '#ffffff',
+      borderColor: resolved === 'dark' ? '#4b5563' : '#d1d5db',
+      textStyle: {
+        color: resolved === 'dark' ? '#f3f4f6' : '#111827'
+      },
       formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`
+    },
+    legend: {
+      show: false
     },
     series: [{
       type: 'pie',
-      radius: ['40%', '70%'],
+      radius: isMobile ? ['40%', '60%'] : ['45%', '70%'],
+      center: ['50%', '50%'],
+      itemStyle: {
+        borderRadius: 4,
+        borderColor: resolved === 'dark' ? '#1f2937' : '#ffffff',
+        borderWidth: 2
+      },
       data: (monthlyData?.expenses || []).map((item: any) => ({
         name: item.name,
         value: item.amount
       })),
-      minAngle: 5, // Nasconde etichette per fette troppo piccole
+      minAngle: 5,
       label: {
-        show: true, // <-- RIPRISTINATO
+        show: !isMobile,
         position: 'outside',
-        fontSize: 11,
+        fontSize: 12,
+        color: resolved === 'dark' ? '#9ca3af' : '#4b5563',
         formatter: (params: any) => {
-          if (hideNumbers) return `${params.name}: ••••••`
-          return `${params.name}: ${formatEUR(params.value)}`
+          if (hideNumbers) return `${params.name}`
+          return `${params.name}\n${((params.value / monthlyData.totalExpenses) * 100).toFixed(1)}%`
         }
       },
       labelLine: {
-        show: true, // <-- RIPRISTINATO
-        length: 10,
-        length2: 20,
-        smooth: true
-      },
-      itemStyle: {
-        color: (params: any) => {
-          const colors = ['#dc2626', '#ef4444', '#f87171', '#fca5a5', '#fecaca', '#fee2e2', '#fecaca', '#fca5a5', '#f87171', '#ef4444']
-          return colors[params.dataIndex % colors.length]
+        show: !isMobile,
+        length: 15,
+        length2: 10,
+        smooth: true,
+        lineStyle: {
+          color: resolved === 'dark' ? '#4b5563' : '#d1d5db'
         }
-      }
+      },
+      color: expenseColors
     }]
   }
 
@@ -246,186 +285,191 @@ export function MonthlySummaryPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={`flex flex-col p-3 gap-3 ${isMobile ? 'overflow-y-auto hide-scrollbar h-auto min-h-[calc(100vh-4.25rem)]' : 'h-[calc(100vh-4.25rem)] overflow-hidden'}`}>
       {selectedCategory && (
-        <div className="bg-blue-50 dark:bg-blue-900/40 border border-blue-100 dark:border-blue-800 rounded p-3">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-blue-800 dark:text-blue-100">Viewing category: <strong>{selectedCategory}</strong></div>
-            <button className="text-sm text-blue-600 dark:text-blue-300 underline" onClick={() => setSelectedCategory(null)}>Clear</button>
-          </div>
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-2 flex items-center justify-between shrink-0">
+          <div className="text-xs text-blue-800 dark:text-blue-100">Viewing category: <strong className="font-semibold">{selectedCategory}</strong></div>
+          <button className="text-xs font-medium text-blue-600 dark:text-blue-300 hover:underline" onClick={() => setSelectedCategory(null)}>Clear filter</button>
         </div>
       )}
 
-      {/* Selettore Mese */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-        <div className="flex items-center justify-center gap-4">
-          <button 
-            onClick={handlePrevMonth}
-            className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-            aria-label="Previous month"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          
-          <div className="text-xl font-semibold dark:text-gray-100 w-48 text-center">
-            {formatMonthDisplay(selectedMonth)}
+      {/* Top Section: Month Selector + Summary Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 shrink-0">
+        {/* Month Selector - Takes 1 col */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col justify-center items-center">
+          <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Selected Month</div>
+          <div className="flex items-center justify-between w-full">
+            <button 
+              onClick={handlePrevMonth}
+              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-500 dark:text-gray-400"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            
+            <div className="text-base font-bold text-gray-900 dark:text-white">
+              {formatMonthDisplay(selectedMonth)}
+            </div>
+
+            <button 
+              onClick={handleNextMonth}
+              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-500 dark:text-gray-400"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
           </div>
-
-          <button 
-            onClick={handleNextMonth}
-            className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-            aria-label="Next month"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-
         </div>
+
+        {/* Summary Cards - Takes 3 cols */}
+        {monthlyData && (
+          <>
+            {/* Income */}
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Income</p>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mt-1 tracking-tight">
+                  <PrivacyNumber value={monthlyData.totalIncome}>
+                    {formatEUR(monthlyData.totalIncome)}
+                  </PrivacyNumber>
+                </h3>
+              </div>
+              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-600 dark:text-gray-300">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Expenses */}
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Expenses</p>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mt-1 tracking-tight">
+                  <PrivacyNumber value={monthlyData.totalExpenses}>
+                    {formatEUR(monthlyData.totalExpenses)}
+                  </PrivacyNumber>
+                </h3>
+              </div>
+              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-600 dark:text-gray-300">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Net Result */}
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Net Result</p>
+                <h3 className={`text-xl font-bold mt-1 tracking-tight ${monthlyData.netResult >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                  <PrivacyNumber value={monthlyData.netResult}>
+                    {monthlyData.netResult > 0 ? '+' : ''}{formatEUR(monthlyData.netResult)}
+                  </PrivacyNumber>
+                </h3>
+              </div>
+              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-600 dark:text-gray-300">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                </svg>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {monthlyData && (
-        <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-              <div className="text-sm text-gray-600 dark:text-gray-300">Total Income</div>
-              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                <PrivacyNumber value={monthlyData.totalIncome}>
-                  {formatEUR(monthlyData.totalIncome)}
-                </PrivacyNumber>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-              <div className="text-sm text-gray-600 dark:text-gray-300">Total Expenses</div>
-              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                <PrivacyNumber value={monthlyData.totalExpenses}>
-                  {formatEUR(monthlyData.totalExpenses)}
-                </PrivacyNumber>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-              <div className="text-sm text-gray-600 dark:text-gray-300">Net Result</div>
-              <div className={`text-2xl font-bold ${monthlyData.netResult >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                <PrivacyNumber value={monthlyData.netResult}>
-                  {formatEUR(monthlyData.netResult)}
-                </PrivacyNumber>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6">
+        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-3 ${isMobile ? '' : 'flex-1 min-h-0'}`}>
+          
+          {/* Income Section */}
+          <div className={`bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col ${isMobile ? '' : 'h-full overflow-hidden'}`}>
+            <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3 shrink-0">Income Breakdown</h3>
             
-            {/* Income Section */}
-            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-green-600">INCOME</h3>
-                <div className="text-sm font-medium">
-                  <PrivacyNumber value={monthlyData.totalIncome}>
-                    TOTAL: {formatEUR(monthlyData.totalIncome)}
-                  </PrivacyNumber>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Income Table */}
-                <div>
-                  <div className="space-y-2">
-                    {monthlyData.income.length > 0 ? (
-                      monthlyData.income.map((item: any, index: number) => (
-                        <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
-                          <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center">
-                              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
-                            </div>
-                            <span className="text-sm">{item.name}</span>
-                          </div>
-                          <div className="text-sm font-medium text-green-600">
-                            <PrivacyNumber value={item.amount}>
-                              {formatEUR(item.amount)}
-                            </PrivacyNumber>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-gray-500 text-center py-4">No income transactions</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Income Chart */}
-                <div>
-                  <ReactECharts 
-                    option={incomeChartOption} 
-                    style={{ height: '300px' }}
-                    onEvents={{
-                      click: handleIncomeChartClick
-                    }}
-                  />
-                </div>
-              </div>
+            <div className="h-[200px] shrink-0">
+              <ReactECharts 
+                option={incomeChartOption} 
+                style={{ height: '100%', width: '100%' }}
+                onEvents={{
+                  click: handleIncomeChartClick
+                }}
+              />
             </div>
 
-            {/* Expenses Section */}
-            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-red-600">EXPENSES</h3>
-                <div className="text-sm font-medium">
-                  <PrivacyNumber value={monthlyData.totalExpenses}>
-                    TOTAL: {formatEUR(monthlyData.totalExpenses)}
-                  </PrivacyNumber>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Expenses Table */}
-                <div>
-                  <div className="space-y-2">
-                    {monthlyData.expenses.length > 0 ? (
-                      monthlyData.expenses.map((item: any, index: number) => (
-                        <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
-                          <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 bg-red-100 dark:bg-red-900/50 rounded-full flex items-center justify-center">
-                              <div className="w-2 h-2 bg-red-600 rounded-full"></div>
-                            </div>
-                            <span className="text-sm">{item.name}</span>
-                          </div>
-                          <div className="text-sm font-medium text-red-600">
-                            <PrivacyNumber value={item.amount}>
-                              {formatEUR(item.amount)}
-                            </PrivacyNumber>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-sm text-gray-500 text-center py-4">No expense transactions</div>
-                    )}
+            <div className={`space-y-2 mt-3 ${isMobile ? '' : 'overflow-y-auto hide-scrollbar flex-1 pr-1'}`}>
+              {monthlyData.income.length > 0 ? (
+                monthlyData.income.map((item: any, index: number) => (
+                  <div key={index} className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => handleIncomeChartClick({data: {name: item.name}})}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: incomeColors[index % incomeColors.length] }}></div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{item.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-gray-900 dark:text-white">
+                        <PrivacyNumber value={item.amount}>
+                          {formatEUR(item.amount)}
+                        </PrivacyNumber>
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {((item.amount / monthlyData.totalIncome) * 100).toFixed(1)}%
+                      </div>
+                    </div>
                   </div>
-                </div>
-
-                {/* Expenses Chart */}
-                <div>
-                  <ReactECharts 
-                    option={expensesChartOption} 
-                    style={{ height: '300px' }}
-                    onEvents={{
-                      click: handleExpensesChartClick
-                    }}
-                  />
-                </div>
-              </div>
+                ))
+              ) : (
+                <div className="text-sm text-gray-500 text-center py-8">No income transactions</div>
+              )}
             </div>
           </div>
-        </>
+
+          {/* Expenses Section */}
+          <div className={`bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col ${isMobile ? '' : 'h-full overflow-hidden'}`}>
+            <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3 shrink-0">Expense Breakdown</h3>
+            
+            <div className="h-[200px] shrink-0">
+              <ReactECharts 
+                option={expensesChartOption} 
+                style={{ height: '100%', width: '100%' }}
+                onEvents={{
+                  click: handleExpensesChartClick
+                }}
+              />
+            </div>
+
+            <div className={`space-y-2 mt-3 ${isMobile ? '' : 'overflow-y-auto hide-scrollbar flex-1 pr-1'}`}>
+              {monthlyData.expenses.length > 0 ? (
+                monthlyData.expenses.map((item: any, index: number) => (
+                  <div key={index} className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => handleExpensesChartClick({data: {name: item.name}})}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: expenseColors[index % expenseColors.length] }}></div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{item.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-gray-900 dark:text-white">
+                        <PrivacyNumber value={item.amount}>
+                          {formatEUR(item.amount)}
+                        </PrivacyNumber>
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {((item.amount / monthlyData.totalExpenses) * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-gray-500 text-center py-8">No expense transactions</div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {!monthlyData && !loading && (
-        <div className="bg-white dark:bg-gray-800 p-8 rounded shadow text-center">
-          <div className="text-gray-500 dark:text-gray-300 mb-4">No data available for the selected month</div>
-          <div className="text-sm text-gray-400 dark:text-gray-400">
-            Make sure you have transactions in {formatMonthDisplay(selectedMonth)}
+        <div className="bg-white dark:bg-gray-800 p-12 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 text-center flex-1 flex flex-col justify-center">
+          <div className="text-gray-500 dark:text-gray-400 mb-2 text-lg">No data available</div>
+          <div className="text-sm text-gray-400 dark:text-gray-500">
+            There are no transactions recorded for {formatMonthDisplay(selectedMonth)}
           </div>
         </div>
       )}
