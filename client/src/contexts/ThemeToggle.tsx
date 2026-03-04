@@ -21,8 +21,8 @@ const ThemeToggle: React.FC = () => {
   const baseBtn = 'inline-flex items-center justify-center w-9 h-9 rounded transition-colors'
 
   const btnClass = isDark
-    ? `${baseBtn} bg-gray-700 text-white hover:bg-gray-600`
-    : `${baseBtn} bg-white text-gray-800 hover:bg-gray-50 shadow-sm`
+    ? `${baseBtn} bg-stone-700 text-white hover:bg-stone-600`
+    : `${baseBtn} bg-white text-stone-800 hover:bg-stone-50 shadow-sm`
 
   return (
     <button

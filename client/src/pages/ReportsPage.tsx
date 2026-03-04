@@ -666,7 +666,7 @@ export function ReportsPage() {
       avoidLabelOverlap: true,
       itemStyle: {
         borderRadius: 10,
-        borderColor: isDark ? '#1f2937' : '#fff',
+        borderColor: isDark ? '#1c1917' : '#fff',
         borderWidth: 2
       },
       label: {
@@ -822,7 +822,7 @@ export function ReportsPage() {
             groupNames.forEach((name, i) => {
               const change = monthData.changes[name] || 0;
               const color = colors[i % colors.length];
-              const changeColor = change > 0 ? '#10b981' : change < 0 ? '#ef4444' : '#6b7280';
+              const changeColor = change > 0 ? '#10b981' : change < 0 ? '#ef4444' : '#78716c';
               const changeSymbol = change > 0 ? '+' : '';
               result += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;">`;
               result += `<span><span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${color}; margin-right: 6px;"></span>${name}:</span>`;
@@ -923,8 +923,8 @@ export function ReportsPage() {
   return (
     <div className="p-2 sm:p-4 space-y-4">
       {/* Transaction Analytics Section - GREEN */}
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-lg shadow-lg border border-green-200 dark:border-gray-700">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+      <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-stone-800 dark:to-stone-900 p-6 rounded-lg shadow-lg border border-green-200 dark:border-stone-700">
+        <h2 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-4 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7 text-green-600 dark:text-green-400">
             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
           </svg>
@@ -932,23 +932,23 @@ export function ReportsPage() {
         </h2>
 
         <div className="space-y-4">
-          <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow">
+          <div className="bg-white dark:bg-stone-800 p-3 sm:p-4 rounded-lg shadow">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2">
-              <div className="font-semibold text-gray-900 dark:text-gray-100">Cash Flow</div>
+              <div className="font-semibold text-stone-900 dark:text-stone-100">Cash Flow</div>
             </div>
             <ReactECharts option={cashflowOption} style={{height:300}} onEvents={{ click: handleCashflowClick }} />
           </div>
 
-          <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow">
+          <div className="bg-white dark:bg-stone-800 p-3 sm:p-4 rounded-lg shadow">
             <div className="flex justify-between items-center mb-2">
-              <div className="font-semibold text-gray-900 dark:text-gray-100">Income vs Expense Trend</div>
+              <div className="font-semibold text-stone-900 dark:text-stone-100">Income vs Expense Trend</div>
             </div>
             <ReactECharts option={trendsOption} style={{height:300}} onEvents={{ click: handleTrendsClick }} />
           </div>
 
-          <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow">
+          <div className="bg-white dark:bg-stone-800 p-3 sm:p-4 rounded-lg shadow">
             <div className="flex justify-between items-center mb-2">
-              <div className="font-semibold text-gray-900 dark:text-gray-100">Monthly Expenses Breakdown</div>
+              <div className="font-semibold text-stone-900 dark:text-stone-100">Monthly Expenses Breakdown</div>
             </div>
             <ReactECharts 
               option={monthlyExpensesOption} 
@@ -962,8 +962,8 @@ export function ReportsPage() {
       </div>
 
       {/* Category Analysis Section - YELLOW/ORANGE */}
-      <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-lg shadow-lg border border-amber-200 dark:border-gray-700">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+      <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-stone-800 dark:to-stone-900 p-6 rounded-lg shadow-lg border border-amber-200 dark:border-stone-700">
+        <h2 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-4 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7 text-amber-600 dark:text-amber-400">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
@@ -972,15 +972,15 @@ export function ReportsPage() {
         </h2>
 
         {/* Unified Period Selection */}
-        <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+        <div className="mb-6 bg-white dark:bg-stone-800 p-4 rounded-lg shadow">
           <div className="flex flex-row justify-between items-center mb-4 gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Period Selection</label>
+            <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Period Selection</label>
             <button 
               onClick={() => setIsCompareMode(!isCompareMode)}
               className={`text-sm px-4 py-2 rounded-md font-medium transition-colors ${
                 isCompareMode 
                   ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  : 'bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-200 dark:hover:bg-stone-600'
               }`}
             >
               {isCompareMode ? '✓ Compare Mode' : 'Compare Periods'}
@@ -989,9 +989,9 @@ export function ReportsPage() {
 
           <div className={`flex ${isCompareMode ? 'flex-col lg:flex-row' : 'flex-row'} items-start gap-4`}>
             {/* Periodo 1 */}
-            <div className="flex-1 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+            <div className="flex-1 bg-stone-50 dark:bg-stone-700/50 p-3 rounded-lg border border-stone-200 dark:border-stone-600">
               <div className="flex flex-wrap items-center gap-3">
-                <label className="text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[60px]">
+                <label className="text-sm font-semibold text-stone-700 dark:text-stone-200 min-w-[60px]">
                   {isCompareMode ? 'Period 1' : 'Period'}
                 </label>
                 <div className="flex items-center gap-2">
@@ -1003,9 +1003,9 @@ export function ReportsPage() {
                     endDate={endDate1}
                     dateFormat="MMM yyyy"
                     showMonthYearPicker
-                    className="border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
+                    className="border border-stone-300 dark:border-stone-500 bg-white dark:bg-stone-600 text-stone-900 dark:text-stone-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
                   />
-                  <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">to</span>
+                  <span className="text-sm text-stone-500 dark:text-stone-400 font-medium">to</span>
                   <DatePickerComponent
                     selected={endDate1}
                     onChange={(date: Date | null) => { if (date) setEndDate1(date) }}
@@ -1015,7 +1015,7 @@ export function ReportsPage() {
                     minDate={startDate1}
                     dateFormat="MMM yyyy"
                     showMonthYearPicker
-                    className="border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
+                    className="border border-stone-300 dark:border-stone-500 bg-white dark:bg-stone-600 text-stone-900 dark:text-stone-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
                   />
                 </div>
               </div>
@@ -1023,9 +1023,9 @@ export function ReportsPage() {
 
             {/* Periodo 2 (visibile solo in compare mode) */}
             {isCompareMode && (
-              <div className="flex-1 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+              <div className="flex-1 bg-stone-50 dark:bg-stone-700/50 p-3 rounded-lg border border-stone-200 dark:border-stone-600">
                 <div className="flex flex-wrap items-center gap-3">
-                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[60px]">Period 2</label>
+                  <label className="text-sm font-semibold text-stone-700 dark:text-stone-200 min-w-[60px]">Period 2</label>
                   <div className="flex items-center gap-2">
                     <DatePickerComponent
                       selected={startDate2}
@@ -1035,9 +1035,9 @@ export function ReportsPage() {
                       endDate={endDate2}
                       dateFormat="MMM yyyy"
                       showMonthYearPicker
-                      className="border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
+                      className="border border-stone-300 dark:border-stone-500 bg-white dark:bg-stone-600 text-stone-900 dark:text-stone-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
                     />
-                    <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">to</span>
+                    <span className="text-sm text-stone-500 dark:text-stone-400 font-medium">to</span>
                     <DatePickerComponent
                       selected={endDate2}
                       onChange={(date: Date | null) => { if (date) setEndDate2(date) }}
@@ -1047,7 +1047,7 @@ export function ReportsPage() {
                       minDate={startDate2}
                       dateFormat="MMM yyyy"
                       showMonthYearPicker
-                      className="border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
+                      className="border border-stone-300 dark:border-stone-500 bg-white dark:bg-stone-600 text-stone-900 dark:text-stone-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
                     />
                   </div>
                 </div>
@@ -1057,16 +1057,16 @@ export function ReportsPage() {
         </div>
 
         {/* Spending by Category */}
-        <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow mb-4">
-          <div className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Spending by Category</div>
+        <div className="bg-white dark:bg-stone-800 p-3 sm:p-4 rounded-lg shadow mb-4">
+          <div className="font-semibold text-stone-900 dark:text-stone-100 mb-4">Spending by Category</div>
 
         {/* Area Grafici/Lista */}
         <div className={`grid ${isCompareMode ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2'} gap-6 mt-4`}>
           {isCompareMode ? (
             <>
               {/* --- VISTA COMPARAZIONE: SOLO GRAFICI ALLINEATI --- */}
-              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
-                <h4 className="text-center font-semibold mb-3 text-gray-800 dark:text-gray-200">
+              <div className="bg-stone-50 dark:bg-stone-700/30 p-4 rounded-lg">
+                <h4 className="text-center font-semibold mb-3 text-stone-800 dark:text-stone-200">
                   {dayjs(startDate1).format('MMM YYYY')} - {dayjs(endDate1).format('MMM YYYY')}
                 </h4>
                 <ReactECharts 
@@ -1075,8 +1075,8 @@ export function ReportsPage() {
                   onEvents={{ click: handleSpendingClick1 }}
                 />
               </div>
-              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
-                <h4 className="text-center font-semibold mb-3 text-gray-800 dark:text-gray-200">
+              <div className="bg-stone-50 dark:bg-stone-700/30 p-4 rounded-lg">
+                <h4 className="text-center font-semibold mb-3 text-stone-800 dark:text-stone-200">
                   {dayjs(startDate2).format('MMM YYYY')} - {dayjs(endDate2).format('MMM YYYY')}
                 </h4>
                 <ReactECharts 
@@ -1093,7 +1093,7 @@ export function ReportsPage() {
                 <div className="space-y-2">
                   {spending1 && spending1.length > 0 ? (
                     spending1.map((item: any, index: number) => (
-                      <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                      <div key={index} className="flex justify-between items-center py-2 border-b border-stone-100 dark:border-stone-700">
                         <div className="flex items-center gap-2">
                           <div 
                             className="w-3 h-3 rounded-full" 
@@ -1101,7 +1101,7 @@ export function ReportsPage() {
                           />
                           <span className="text-sm">{item.category}</span>
                         </div>
-                        <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <div className="text-sm font-medium text-stone-700 dark:text-stone-300">
                           <PrivacyNumber value={item.total}>
                             {formatEUR(item.total)}
                           </PrivacyNumber>
@@ -1109,7 +1109,7 @@ export function ReportsPage() {
                       </div>
                     ))
                   ) : (
-                    <div className="text-sm text-gray-500 text-center py-4">No spending data</div>
+                    <div className="text-sm text-stone-500 text-center py-4">No spending data</div>
                   )}
                 </div>
               </div>
@@ -1127,32 +1127,32 @@ export function ReportsPage() {
         </div>
 
         {/* Category Analysis */}
-        <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow">
-          <div className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Category Analysis</div>
+        <div className="bg-white dark:bg-stone-800 p-3 sm:p-4 rounded-lg shadow">
+          <div className="font-semibold text-stone-900 dark:text-stone-100 mb-4">Category Analysis</div>
 
         {/* Area Grafici */}
         {isCompareMode ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
-            <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
-              <h4 className="text-center font-semibold mb-3 text-gray-800 dark:text-gray-200">
+            <div className="bg-stone-50 dark:bg-stone-700/30 p-4 rounded-lg">
+              <h4 className="text-center font-semibold mb-3 text-stone-800 dark:text-stone-200">
                 {dayjs(startDate1).format('MMM YYYY')} - {dayjs(endDate1).format('MMM YYYY')}
               </h4>
               {categoryAnalysis1 && categoryAnalysis1.length > 0 ? (
                 <ReactECharts option={createCategoryAnalysisOption(categoryAnalysis1)} style={{height:300}} />
               ) : (
-                <div className="flex items-center justify-center h-64 text-gray-500">
+                <div className="flex items-center justify-center h-64 text-stone-500">
                   No data available
                 </div>
               )}
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-lg">
-              <h4 className="text-center font-semibold mb-3 text-gray-800 dark:text-gray-200">
+            <div className="bg-stone-50 dark:bg-stone-700/30 p-4 rounded-lg">
+              <h4 className="text-center font-semibold mb-3 text-stone-800 dark:text-stone-200">
                 {dayjs(startDate2).format('MMM YYYY')} - {dayjs(endDate2).format('MMM YYYY')}
               </h4>
               {categoryAnalysis2 && categoryAnalysis2.length > 0 ? (
                 <ReactECharts option={createCategoryAnalysisOption(categoryAnalysis2)} style={{height:300}} />
               ) : (
-                <div className="flex items-center justify-center h-64 text-gray-500">
+                <div className="flex items-center justify-center h-64 text-stone-500">
                   No data available
                 </div>
               )}
@@ -1163,7 +1163,7 @@ export function ReportsPage() {
             {categoryAnalysis1 && categoryAnalysis1.length > 0 ? (
               <ReactECharts option={createCategoryAnalysisOption(categoryAnalysis1)} style={{height:300}} />
             ) : (
-              <div className="flex items-center justify-center h-64 text-gray-500">
+              <div className="flex items-center justify-center h-64 text-stone-500">
                 No category analysis data available for the selected period
               </div>
             )}
@@ -1176,17 +1176,17 @@ export function ReportsPage() {
       
       {/* Net Worth Section - PURPLE */}
       {netWorthTrend && netWorthTrend.length > 0 && (
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-lg shadow-lg border border-purple-200 dark:border-gray-700">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-stone-800 dark:to-stone-900 p-6 rounded-lg shadow-lg border border-purple-200 dark:border-stone-700">
+          <h2 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-4 flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7 text-purple-600 dark:text-purple-400">
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
             </svg>
             Net Worth Overview
           </h2>
 
-          <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow">
+          <div className="bg-white dark:bg-stone-800 p-3 sm:p-4 rounded-lg shadow">
             <div className="flex justify-between items-center mb-2">
-              <div className="font-semibold text-gray-900 dark:text-gray-100">Net Worth Trend</div>
+              <div className="font-semibold text-stone-900 dark:text-stone-100">Net Worth Trend</div>
             </div>
             <ReactECharts option={netWorthTrendOption} style={{height:300}} onEvents={{ click: handleNetWorthClick }} />
           </div>
@@ -1194,8 +1194,8 @@ export function ReportsPage() {
       )}
 
       {/* Asset Analytics Section */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-lg shadow-lg border border-blue-200 dark:border-gray-700">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-stone-800 dark:to-stone-900 p-6 rounded-lg shadow-lg border border-blue-200 dark:border-stone-700">
+        <h2 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-4 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7 text-blue-600 dark:text-blue-400">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
           </svg>
@@ -1204,39 +1204,39 @@ export function ReportsPage() {
 
         {/* Asset Distribution Chart - MOVED BEFORE PERIOD SELECTOR */}
         {assetDistribution && assetDistribution.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Asset Distribution by Group</h3>
+          <div className="bg-white dark:bg-stone-800 p-4 rounded-lg shadow mb-6">
+            <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100 mb-3">Asset Distribution by Group</h3>
             <ReactECharts option={assetDistributionOption} style={{height:400}} />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-2 text-center">
               Current distribution of assets across different groups (latest available data)
             </p>
           </div>
         )}
         
         {/* Date Range Selector for Asset Charts */}
-        <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+        <div className="mb-6 bg-white dark:bg-stone-800 p-4 rounded-lg shadow">
           <div className="mb-4">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Period Selection</label>
+            <label className="text-sm font-medium text-stone-700 dark:text-stone-300">Period Selection</label>
           </div>
           
-          <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+          <div className="bg-stone-50 dark:bg-stone-700/50 p-3 rounded-lg border border-stone-200 dark:border-stone-600">
             <div className="flex flex-wrap items-center gap-3">
-              <label className="text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[60px]">Period</label>
+              <label className="text-sm font-semibold text-stone-700 dark:text-stone-200 min-w-[60px]">Period</label>
               <div className="flex items-center gap-2">
                 <DatePickerComponent
                   selected={assetStartDate}
                   onChange={(date: Date) => setAssetStartDate(date)}
                   dateFormat="MMM yyyy"
                   showMonthYearPicker
-                  className="border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
+                  className="border border-stone-300 dark:border-stone-500 bg-white dark:bg-stone-600 text-stone-900 dark:text-stone-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
                 />
-                <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">to</span>
+                <span className="text-sm text-stone-500 dark:text-stone-400 font-medium">to</span>
                 <DatePickerComponent
                   selected={assetEndDate}
                   onChange={(date: Date) => setAssetEndDate(date)}
                   dateFormat="MMM yyyy"
                   showMonthYearPicker
-                  className="border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
+                  className="border border-stone-300 dark:border-stone-500 bg-white dark:bg-stone-600 text-stone-900 dark:text-stone-100 rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
                 />
               </div>
             </div>
@@ -1245,10 +1245,10 @@ export function ReportsPage() {
 
         {/* Asset Allocation Changes Chart */}
         {assetAllocationChanges && assetAllocationChanges.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Asset Allocation Changes Over Time</h3>
+          <div className="bg-white dark:bg-stone-800 p-4 rounded-lg shadow mb-6">
+            <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100 mb-3">Asset Allocation Changes Over Time</h3>
             <ReactECharts option={assetAllocationChangesOption} style={{height:400}} />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-2 text-center">
               Track how your asset allocation percentages change month over month
             </p>
           </div>
@@ -1256,15 +1256,15 @@ export function ReportsPage() {
 
         {/* Asset Growth Trend Chart */}
         {assetGrowthTrend && assetGrowthTrend.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4">
+          <div className="bg-white dark:bg-stone-800 p-4 rounded-lg shadow mb-4">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Total Asset Value Trend</h3>
-              <div className="text-sm text-gray-500 dark:text-gray-400">
+              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">Total Asset Value Trend</h3>
+              <div className="text-sm text-stone-500 dark:text-stone-400">
                 {hideNumbers ? '••••••' : formatEUR(assetGrowthTrend[assetGrowthTrend.length - 1]?.value || 0)}
               </div>
             </div>
             <ReactECharts option={assetGrowthTrendOption} style={{height:350}} />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-2 text-center">
               Evolution of your total asset value over time
             </p>
           </div>
@@ -1274,10 +1274,10 @@ export function ReportsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Asset Group Comparison Chart */}
           {assetGroupComparison && assetGroupComparison.series && assetGroupComparison.series.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Asset Groups Comparison</h3>
+            <div className="bg-white dark:bg-stone-800 p-4 rounded-lg shadow">
+              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100 mb-3">Asset Groups Comparison</h3>
               <ReactECharts option={assetGroupComparisonOption} style={{height:350}} />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-2 text-center">
                 Compare growth trends across asset groups
               </p>
             </div>
@@ -1285,10 +1285,10 @@ export function ReportsPage() {
 
           {/* Top Assets Evolution Chart */}
           {topAssetsEvolution && topAssetsEvolution.series && topAssetsEvolution.series.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Top 5 Assets Evolution</h3>
+            <div className="bg-white dark:bg-stone-800 p-4 rounded-lg shadow">
+              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100 mb-3">Top 5 Assets Evolution</h3>
               <ReactECharts option={topAssetsEvolutionOption} style={{height:350}} />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+              <p className="text-xs text-stone-500 dark:text-stone-400 mt-2 text-center">
                 Stacked view of your most valuable assets
               </p>
             </div>
@@ -1298,12 +1298,12 @@ export function ReportsPage() {
         {/* No Data Message */}
         {(!assetGrowthTrend || assetGrowthTrend.length === 0) && 
          (!assetDistribution || assetDistribution.length === 0) && (
-          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow text-center">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 mx-auto text-gray-400 mb-4">
+          <div className="bg-white dark:bg-stone-800 p-8 rounded-lg shadow text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 mx-auto text-stone-400 mb-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
             </svg>
-            <p className="text-gray-500 dark:text-gray-400 text-lg">No asset data available for the selected period</p>
-            <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Add some assets in the Assets page to see analytics here</p>
+            <p className="text-stone-500 dark:text-stone-400 text-lg">No asset data available for the selected period</p>
+            <p className="text-stone-400 dark:text-stone-500 text-sm mt-2">Add some assets in the Assets page to see analytics here</p>
           </div>
         )}
       </div>

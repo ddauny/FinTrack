@@ -8,6 +8,7 @@ import { AssetsPage } from './pages/AssetsPage'
 import { MonthlySummaryPage } from './pages/MonthlySummaryPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { ForecastPage } from './pages/ForecastPage'
 import { TopNav } from './components/TopNav'
 import { PrivacyProvider } from './contexts/PrivacyContext'
 
@@ -30,20 +31,19 @@ function PrivateRoute({ children }: { children: JSX.Element }) {
 export default function App() {
   return (
     <PrivacyProvider>
-      <div className="min-h-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      <div className="min-h-full bg-stone-50 dark:bg-stone-900 text-stone-900 dark:text-stone-100">
         <TopNav />
-        <div className="mx-auto max-w-7xl p-4">
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-            <Route path="/transactions" element={<PrivateRoute><TransactionsPage /></PrivateRoute>} />
-            <Route path="/assets" element={<PrivateRoute><AssetsPage /></PrivateRoute>} />
-            <Route path="/monthly-summary" element={<PrivateRoute><MonthlySummaryPage /></PrivateRoute>} />
-            <Route path="/reports" element={<PrivateRoute><ReportsPage /></PrivateRoute>} />
-            <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
-          </Routes>
-        </div>
+        <Routes>
+          <Route path="/login" element={<div className="mx-auto max-w-7xl p-4"><LoginPage /></div>} />
+          <Route path="/register" element={<div className="mx-auto max-w-7xl p-4"><RegisterPage /></div>} />
+          <Route path="/" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><DashboardPage /></div></PrivateRoute>} />
+          <Route path="/transactions" element={<PrivateRoute><TransactionsPage /></PrivateRoute>} />
+          <Route path="/assets" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><AssetsPage /></div></PrivateRoute>} />
+          <Route path="/monthly-summary" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><MonthlySummaryPage /></div></PrivateRoute>} />
+          <Route path="/reports" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><ReportsPage /></div></PrivateRoute>} />
+          <Route path="/settings" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><SettingsPage /></div></PrivateRoute>} />
+          <Route path="/forecast" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><ForecastPage /></div></PrivateRoute>} />
+        </Routes>
       </div>
     </PrivacyProvider>
   )

@@ -23,6 +23,7 @@ model User {
   portfolios   Portfolio[]
   manualAssets ManualAsset[]
   assetGroups  AssetGroup[]
+  savingsGoals SavingsGoal[]
 }
 
 model Account {
@@ -169,4 +170,17 @@ model AssetValuation {
   @@unique([itemId, month])
 }
 
+model SavingsGoal {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  name          String
+  targetAmount  Decimal
+  currentAmount Decimal   @default(0)
+  deadline      DateTime?
+  icon          String?   // emoji
+  color         String?   // hex color
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 

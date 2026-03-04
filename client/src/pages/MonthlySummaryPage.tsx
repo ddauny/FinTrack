@@ -35,7 +35,7 @@ export function MonthlySummaryPage() {
       setLoading(true)
       try {
         const [startDate, endDate] = getMonthRange(selectedMonth)
-        
+
         // Fetch transactions for the selected month
         const query = `?startDate=${startDate}&endDate=${endDate}&limit=1000`
         console.log('Fetching transactions with query:', query)
@@ -46,14 +46,14 @@ export function MonthlySummaryPage() {
         // Group by category type and calculate totals
         const income = new Map()
         const expenses = new Map()
-        
+
         transactions.forEach((txn: any) => {
           const category = txn.category
           if (!category) return
-          
+
           const amount = Math.abs(txn.amount)
           const categoryName = category.name
-          
+
           if (category.type === 'Income') {
             income.set(categoryName, (income.get(categoryName) || 0) + amount)
           } else if (category.type === 'Expense') {
@@ -65,7 +65,7 @@ export function MonthlySummaryPage() {
         const incomeArray = Array.from(income.entries())
           .map(([name, amount]) => ({ name, amount }))
           .sort((a, b) => b.amount - a.amount)
-        
+
         const expensesArray = Array.from(expenses.entries())
           .map(([name, amount]) => ({ name, amount }))
           .sort((a, b) => b.amount - a.amount)
@@ -142,7 +142,7 @@ export function MonthlySummaryPage() {
     if (params.data && monthlyData) {
       const clickedCategory = params.data.name
       const [startDate, endDate] = getMonthRange(selectedMonth)
-      
+
       // Navigate to transactions page with month and category filters
       navigate(`/transactions?startDate=${startDate}&endDate=${endDate}&category=${encodeURIComponent(clickedCategory)}`)
     }
@@ -153,7 +153,7 @@ export function MonthlySummaryPage() {
     if (params.data && monthlyData) {
       const clickedCategory = params.data.name
       const [startDate, endDate] = getMonthRange(selectedMonth)
-      
+
       // Navigate to transactions page with month and category filters
       navigate(`/transactions?startDate=${startDate}&endDate=${endDate}&category=${encodeURIComponent(clickedCategory)}`)
     }
@@ -163,7 +163,7 @@ export function MonthlySummaryPage() {
     const newMonth = dayjs(selectedMonth).subtract(1, 'month').format('YYYY-MM');
     setSelectedMonth(newMonth);
   };
-  
+
   const handleNextMonth = () => {
     const newMonth = dayjs(selectedMonth).add(1, 'month').format('YYYY-MM');
     setSelectedMonth(newMonth);
@@ -177,10 +177,10 @@ export function MonthlySummaryPage() {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'item',
-      backgroundColor: resolved === 'dark' ? '#374151' : '#ffffff',
-      borderColor: resolved === 'dark' ? '#4b5563' : '#d1d5db',
+      backgroundColor: resolved === 'dark' ? '#292524' : '#ffffff',
+      borderColor: resolved === 'dark' ? '#44403c' : '#d6d3d1',
       textStyle: {
-        color: resolved === 'dark' ? '#f3f4f6' : '#111827'
+        color: resolved === 'dark' ? '#e7e5e4' : '#1c1917'
       },
       formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`
     },
@@ -193,7 +193,7 @@ export function MonthlySummaryPage() {
       center: ['50%', '50%'],
       itemStyle: {
         borderRadius: 4,
-        borderColor: resolved === 'dark' ? '#1f2937' : '#ffffff',
+        borderColor: resolved === 'dark' ? '#1c1917' : '#ffffff',
         borderWidth: 2
       },
       data: (monthlyData?.income || []).map((item: any) => ({
@@ -205,7 +205,7 @@ export function MonthlySummaryPage() {
         show: !isMobile,
         position: 'outside',
         fontSize: 12,
-        color: resolved === 'dark' ? '#9ca3af' : '#4b5563',
+        color: resolved === 'dark' ? '#a8a29e' : '#44403c',
         formatter: (params: any) => {
           if (hideNumbers) return `${params.name}`
           return `${params.name}\n${((params.value / monthlyData.totalIncome) * 100).toFixed(1)}%`
@@ -217,7 +217,7 @@ export function MonthlySummaryPage() {
         length2: 10,
         smooth: true,
         lineStyle: {
-          color: resolved === 'dark' ? '#4b5563' : '#d1d5db'
+          color: resolved === 'dark' ? '#44403c' : '#d6d3d1'
         }
       },
       color: incomeColors
@@ -228,10 +228,10 @@ export function MonthlySummaryPage() {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'item',
-      backgroundColor: resolved === 'dark' ? '#374151' : '#ffffff',
-      borderColor: resolved === 'dark' ? '#4b5563' : '#d1d5db',
+      backgroundColor: resolved === 'dark' ? '#292524' : '#ffffff',
+      borderColor: resolved === 'dark' ? '#44403c' : '#d6d3d1',
       textStyle: {
-        color: resolved === 'dark' ? '#f3f4f6' : '#111827'
+        color: resolved === 'dark' ? '#e7e5e4' : '#1c1917'
       },
       formatter: (params: any) => hideNumbers ? `${params.name}: ••••••` : `${params.name}: ${formatEUR(params.value)}`
     },
@@ -244,7 +244,7 @@ export function MonthlySummaryPage() {
       center: ['50%', '50%'],
       itemStyle: {
         borderRadius: 4,
-        borderColor: resolved === 'dark' ? '#1f2937' : '#ffffff',
+        borderColor: resolved === 'dark' ? '#1c1917' : '#ffffff',
         borderWidth: 2
       },
       data: (monthlyData?.expenses || []).map((item: any) => ({
@@ -256,7 +256,7 @@ export function MonthlySummaryPage() {
         show: !isMobile,
         position: 'outside',
         fontSize: 12,
-        color: resolved === 'dark' ? '#9ca3af' : '#4b5563',
+        color: resolved === 'dark' ? '#a8a29e' : '#44403c',
         formatter: (params: any) => {
           if (hideNumbers) return `${params.name}`
           return `${params.name}\n${((params.value / monthlyData.totalExpenses) * 100).toFixed(1)}%`
@@ -268,7 +268,7 @@ export function MonthlySummaryPage() {
         length2: 10,
         smooth: true,
         lineStyle: {
-          color: resolved === 'dark' ? '#4b5563' : '#d1d5db'
+          color: resolved === 'dark' ? '#44403c' : '#d6d3d1'
         }
       },
       color: expenseColors
@@ -279,7 +279,7 @@ export function MonthlySummaryPage() {
     return (
       <div className="flex flex-col justify-center items-center h-64 space-y-4">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <div className="text-gray-600 dark:text-gray-300">Loading monthly data...</div>
+        <div className="text-stone-600 dark:text-stone-300">Loading monthly data...</div>
       </div>
     )
   }
@@ -296,25 +296,25 @@ export function MonthlySummaryPage() {
       {/* Top Section: Month Selector + Summary Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 shrink-0">
         {/* Month Selector - Takes 1 col */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col justify-center items-center">
-          <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Selected Month</div>
+        <div className="bg-white dark:bg-stone-800 p-4 rounded-2xl shadow-sm border border-stone-200 dark:border-stone-700 flex flex-col justify-center items-center">
+          <div className="text-xs text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Selected Month</div>
           <div className="flex items-center justify-between w-full">
-            <button 
+            <button
               onClick={handlePrevMonth}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-500 dark:text-gray-400"
+              className="p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors text-stone-500 dark:text-stone-400"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            
-            <div className="text-base font-bold text-gray-900 dark:text-white">
+
+            <div className="text-base font-bold text-stone-900 dark:text-white">
               {formatMonthDisplay(selectedMonth)}
             </div>
 
-            <button 
+            <button
               onClick={handleNextMonth}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-500 dark:text-gray-400"
+              className="p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors text-stone-500 dark:text-stone-400"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -327,51 +327,51 @@ export function MonthlySummaryPage() {
         {monthlyData && (
           <>
             {/* Income */}
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div className="bg-white dark:bg-stone-800 p-4 rounded-2xl shadow-sm border border-emerald-100 dark:border-emerald-900/40 flex items-center justify-between transition-all hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-800">
               <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Income</p>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mt-1 tracking-tight">
+                <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Total Income</p>
+                <h3 className="text-xl font-bold text-emerald-700 dark:text-emerald-300 mt-1 tracking-tight">
                   <PrivacyNumber value={monthlyData.totalIncome}>
                     {formatEUR(monthlyData.totalIncome)}
                   </PrivacyNumber>
                 </h3>
               </div>
-              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-600 dark:text-gray-300">
+              <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/40 rounded-xl">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-emerald-600 dark:text-emerald-400">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
               </div>
             </div>
 
             {/* Expenses */}
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div className="bg-white dark:bg-stone-800 p-4 rounded-2xl shadow-sm border border-rose-100 dark:border-rose-900/40 flex items-center justify-between transition-all hover:shadow-md hover:border-rose-200 dark:hover:border-rose-800">
               <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Expenses</p>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mt-1 tracking-tight">
+                <p className="text-xs font-semibold text-rose-500 dark:text-rose-400 uppercase tracking-wider">Total Expenses</p>
+                <h3 className="text-xl font-bold text-rose-700 dark:text-rose-300 mt-1 tracking-tight">
                   <PrivacyNumber value={monthlyData.totalExpenses}>
                     {formatEUR(monthlyData.totalExpenses)}
                   </PrivacyNumber>
                 </h3>
               </div>
-              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-600 dark:text-gray-300">
+              <div className="p-2.5 bg-rose-100 dark:bg-rose-900/40 rounded-xl">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-rose-500 dark:text-rose-400">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
                 </svg>
               </div>
             </div>
 
             {/* Net Result */}
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div className={`bg-white dark:bg-stone-800 p-4 rounded-2xl shadow-sm border flex items-center justify-between transition-all hover:shadow-md ${monthlyData.netResult >= 0 ? 'border-emerald-100 dark:border-emerald-900/40 hover:border-emerald-200 dark:hover:border-emerald-800' : 'border-rose-100 dark:border-rose-900/40 hover:border-rose-200 dark:hover:border-rose-800'}`}>
               <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Net Result</p>
-                <h3 className={`text-xl font-bold mt-1 tracking-tight ${monthlyData.netResult >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                <p className={`text-xs font-semibold uppercase tracking-wider ${monthlyData.netResult >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>Net Result</p>
+                <h3 className={`text-xl font-bold mt-1 tracking-tight ${monthlyData.netResult >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
                   <PrivacyNumber value={monthlyData.netResult}>
                     {monthlyData.netResult > 0 ? '+' : ''}{formatEUR(monthlyData.netResult)}
                   </PrivacyNumber>
                 </h3>
               </div>
-              <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-gray-600 dark:text-gray-300">
+              <div className={`p-2.5 rounded-xl ${monthlyData.netResult >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-rose-100 dark:bg-rose-900/40'}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-5 h-5 ${monthlyData.netResult >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
                 </svg>
               </div>
@@ -382,14 +382,14 @@ export function MonthlySummaryPage() {
 
       {monthlyData && (
         <div className={`grid grid-cols-1 lg:grid-cols-2 gap-3 ${isMobile ? '' : 'min-h-0'}`}>
-          
+
           {/* Income Section */}
-          <div className={`bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col ${isMobile ? '' : 'h-full overflow-hidden'}`}>
-            <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3 shrink-0">Income Breakdown</h3>
-            
+          <div className={`bg-white dark:bg-stone-800 p-4 rounded-2xl shadow-sm border border-stone-200 dark:border-stone-700 flex flex-col ${isMobile ? '' : 'h-full overflow-hidden'}`}>
+            <h3 className="text-base font-bold text-stone-900 dark:text-white mb-3 shrink-0">Income Breakdown</h3>
+
             <div className="h-[200px] shrink-0">
-              <ReactECharts 
-                option={incomeChartOption} 
+              <ReactECharts
+                option={incomeChartOption}
                 style={{ height: '100%', width: '100%' }}
                 onEvents={{
                   click: handleIncomeChartClick
@@ -400,36 +400,36 @@ export function MonthlySummaryPage() {
             <div className={`space-y-2 mt-3 ${isMobile ? '' : 'overflow-y-auto hide-scrollbar flex-1 pr-1'}`}>
               {monthlyData.income.length > 0 ? (
                 monthlyData.income.map((item: any, index: number) => (
-                  <div key={index} className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => handleIncomeChartClick({data: {name: item.name}})}>
+                  <div key={index} className="flex justify-between items-center p-2 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700/50 transition-colors cursor-pointer" onClick={() => handleIncomeChartClick({ data: { name: item.name } })}>
                     <div className="flex items-center gap-2">
                       <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: incomeColors[index % incomeColors.length] }}></div>
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{item.name}</span>
+                      <span className="text-sm font-medium text-stone-700 dark:text-stone-200">{item.name}</span>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-bold text-gray-900 dark:text-white">
+                      <div className="text-sm font-bold text-stone-900 dark:text-white">
                         <PrivacyNumber value={item.amount}>
                           {formatEUR(item.amount)}
                         </PrivacyNumber>
                       </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                      <div className="text-xs text-stone-500 dark:text-stone-400">
                         {((item.amount / monthlyData.totalIncome) * 100).toFixed(1)}%
                       </div>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-gray-500 text-center py-8">No income transactions</div>
+                <div className="text-sm text-stone-500 text-center py-8">No income transactions</div>
               )}
             </div>
           </div>
 
           {/* Expenses Section */}
-          <div className={`bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col ${isMobile ? '' : 'h-full overflow-hidden'}`}>
-            <h3 className="text-base font-bold text-gray-900 dark:text-white mb-3 shrink-0">Expense Breakdown</h3>
-            
+          <div className={`bg-white dark:bg-stone-800 p-4 rounded-2xl shadow-sm border border-stone-200 dark:border-stone-700 flex flex-col ${isMobile ? '' : 'h-full overflow-hidden'}`}>
+            <h3 className="text-base font-bold text-stone-900 dark:text-white mb-3 shrink-0">Expense Breakdown</h3>
+
             <div className="h-[200px] shrink-0">
-              <ReactECharts 
-                option={expensesChartOption} 
+              <ReactECharts
+                option={expensesChartOption}
                 style={{ height: '100%', width: '100%' }}
                 onEvents={{
                   click: handleExpensesChartClick
@@ -440,25 +440,25 @@ export function MonthlySummaryPage() {
             <div className={`space-y-2 mt-3 ${isMobile ? '' : 'overflow-y-auto hide-scrollbar flex-1 pr-1'}`}>
               {monthlyData.expenses.length > 0 ? (
                 monthlyData.expenses.map((item: any, index: number) => (
-                  <div key={index} className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer" onClick={() => handleExpensesChartClick({data: {name: item.name}})}>
+                  <div key={index} className="flex justify-between items-center p-2 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700/50 transition-colors cursor-pointer" onClick={() => handleExpensesChartClick({ data: { name: item.name } })}>
                     <div className="flex items-center gap-2">
                       <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: expenseColors[index % expenseColors.length] }}></div>
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{item.name}</span>
+                      <span className="text-sm font-medium text-stone-700 dark:text-stone-200">{item.name}</span>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-bold text-gray-900 dark:text-white">
+                      <div className="text-sm font-bold text-stone-900 dark:text-white">
                         <PrivacyNumber value={item.amount}>
                           {formatEUR(item.amount)}
                         </PrivacyNumber>
                       </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                      <div className="text-xs text-stone-500 dark:text-stone-400">
                         {((item.amount / monthlyData.totalExpenses) * 100).toFixed(1)}%
                       </div>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-gray-500 text-center py-8">No expense transactions</div>
+                <div className="text-sm text-stone-500 text-center py-8">No expense transactions</div>
               )}
             </div>
           </div>
@@ -466,9 +466,9 @@ export function MonthlySummaryPage() {
       )}
 
       {!monthlyData && !loading && (
-        <div className="bg-white dark:bg-gray-800 p-12 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 text-center flex-1 flex flex-col justify-center">
-          <div className="text-gray-500 dark:text-gray-400 mb-2 text-lg">No data available</div>
-          <div className="text-sm text-gray-400 dark:text-gray-500">
+        <div className="bg-white dark:bg-stone-800 p-12 rounded-2xl shadow-sm border border-stone-200 dark:border-stone-700 text-center flex-1 flex flex-col justify-center">
+          <div className="text-stone-500 dark:text-stone-400 mb-2 text-lg">No data available</div>
+          <div className="text-sm text-stone-400 dark:text-stone-500">
             There are no transactions recorded for {formatMonthDisplay(selectedMonth)}
           </div>
         </div>

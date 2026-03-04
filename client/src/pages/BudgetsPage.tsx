@@ -11,8 +11,8 @@ export function BudgetsPage() {
   }, []);
   
   return (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-      <div className="font-semibold mb-4 dark:text-gray-100">Budgets</div>
+    <div className="bg-white dark:bg-stone-800 p-4 rounded shadow">
+      <div className="font-semibold mb-4 dark:text-stone-100">Budgets</div>
       <div className="space-y-3">
         {items.map((b: Budget) => {
           const pct = Math.min(100, Math.round((Number(b.spent || 0) / Number(b.amount || 1)) * 100));
@@ -22,7 +22,7 @@ export function BudgetsPage() {
                 <div>{b.period} - Category #{b.categoryId}</div>
                 <div>{formatEUR(b.spent || 0)} / {formatEUR(b.amount)}</div>
               </div>
-              <div className="w-full bg-gray-200 rounded h-3">
+              <div className="w-full bg-stone-200 rounded h-3">
                 <div 
                   className={`h-3 rounded ${pct > 100 ? 'bg-red-600' : 'bg-green-600'}`}
                   style={{ width: `${pct}%` }}

@@ -29,7 +29,7 @@ services:
     env_file: ".env.prod"
     environment:
       - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432      
+      - POSTGRES_PORT=5432
       - SCHEDULE=@daily
       - BACKUP_PREFIX=fintrack-backup
       - BACKUP_KEEP_DAYS=7
@@ -37,7 +37,7 @@ services:
       - db
     networks:
       - fintrack-prod
-    
+
   #################
   # Backend (Server)
   #################
@@ -56,7 +56,7 @@ services:
     restart: unless-stopped
     networks:
       - fintrack-prod
-  
+
   #################
   # Frontend (Nginx)
   #################

@@ -67,16 +67,16 @@ function ActionMenu({ actions }: { actions: { label: string, onClick: () => void
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={(e) => { e.stopPropagation(); setOpen(!open) }} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500 dark:text-gray-400">
+      <button onClick={(e) => { e.stopPropagation(); setOpen(!open) }} className="p-2 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-full transition-colors text-stone-500 dark:text-stone-400">
         <IconDots />
       </button>
       {open && (
-        <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-20 overflow-hidden py-1">
+        <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-stone-800 rounded-xl shadow-lg border border-stone-200 dark:border-stone-700 z-20 overflow-hidden py-1">
           {actions.map((action, i) => (
             <button
               key={i}
               onClick={(e) => { e.stopPropagation(); action.onClick(); setOpen(false) }}
-              className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${action.variant === 'danger' ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-200'}`}
+              className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 hover:bg-stone-50 dark:hover:bg-stone-700/50 transition-colors ${action.variant === 'danger' ? 'text-red-600 dark:text-red-400' : 'text-stone-700 dark:text-stone-200'}`}
             >
               {action.icon}
               {action.label}
@@ -270,8 +270,8 @@ export function SettingsPage() {
   return (
     <div className="p-2 sm:p-4 space-y-6 max-w-7xl mx-auto">
       {/* Profile Section */}
-      <section className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 flex items-center gap-2">
+      <section className="bg-white dark:bg-stone-800 p-4 sm:p-6 rounded-lg shadow-sm border border-stone-200 dark:border-stone-700">
+        <h2 className="text-lg font-semibold mb-4 text-stone-900 dark:text-stone-100 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
           </svg>
@@ -282,14 +282,14 @@ export function SettingsPage() {
             value={email} 
             onChange={e=>setEmail(e.target.value)} 
             placeholder="Email"
-            className="border p-2.5 rounded-md flex-1 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+            className="border p-2.5 rounded-md flex-1 bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
           />
           <input 
             type="password" 
             value={password} 
             onChange={e=>setPassword(e.target.value)} 
             placeholder="New password (optional)" 
-            className="border p-2.5 rounded-md flex-1 bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+            className="border p-2.5 rounded-md flex-1 bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
           />
           <button 
             onClick={async()=>{ 
@@ -297,7 +297,7 @@ export function SettingsPage() {
               setPassword('')
               refresh() 
             }} 
-            className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium whitespace-nowrap transition-colors shadow-sm"
+            className="px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-stone-200 text-white dark:text-stone-900 font-medium whitespace-nowrap transition-colors shadow-sm"
           >
             Save Changes
           </button>
@@ -316,8 +316,8 @@ export function SettingsPage() {
       </section>
 
       {/* Import/Export Data Section */}
-      <section className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 flex items-center gap-2">
+      <section className="bg-white dark:bg-stone-800 p-4 sm:p-6 rounded-lg shadow-sm border border-stone-200 dark:border-stone-700">
+        <h2 className="text-lg font-semibold mb-4 text-stone-900 dark:text-stone-100 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
           </svg>
@@ -327,19 +327,19 @@ export function SettingsPage() {
           
           {/* Import Section */}
           <div>
-            <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-2">Import Data</h3>
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
+            <h3 className="text-md font-medium text-stone-900 dark:text-stone-100 mb-2">Import Data</h3>
+            <div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Import Transactions</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <h3 className="font-semibold text-stone-900 dark:text-stone-100 mb-1">Import Transactions</h3>
+                  <p className="text-xs text-stone-500 dark:text-stone-400">
                     Import transactions from a CSV file. Supported formats: Date, Amount, Category, Notes.
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowImportInfo(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 font-medium transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-200 font-medium transition-colors"
               >
                 <IconUpload />
                 Import CSV
@@ -348,45 +348,45 @@ export function SettingsPage() {
             </div>
           </div>
 
-          <div className="border-t border-gray-200 dark:border-gray-700"></div>
+          <div className="border-t border-stone-200 dark:border-stone-700"></div>
 
           {/* Export Section */}
           <div>
-            <h3 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-2">Export Data</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <h3 className="text-md font-medium text-stone-900 dark:text-stone-100 mb-2">Export Data</h3>
+            <p className="text-sm text-stone-600 dark:text-stone-400 mb-4">
               Download your financial data in JSON format for backup or analysis purposes.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
+              <div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Transactions</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <h3 className="font-semibold text-stone-900 dark:text-stone-100 mb-1">Transactions</h3>
+                    <p className="text-xs text-stone-500 dark:text-stone-400">
                       All transaction records with account and category details
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={exportTransactions}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-stone-200 text-white dark:text-stone-900 font-medium transition-colors shadow-sm"
                 >
                   <IconDownload />
                   Export Transactions
                 </button>
               </div>
 
-              <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-slate-500 dark:hover:border-slate-400 transition-colors">
+              <div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 hover:border-stone-500 dark:hover:border-stone-400 transition-colors">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Assets</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <h3 className="font-semibold text-stone-900 dark:text-stone-100 mb-1">Assets</h3>
+                    <p className="text-xs text-stone-500 dark:text-stone-400">
                       Asset groups, items, valuations, formulas, and notes
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={exportAssets}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-stone-200 text-white dark:text-stone-900 font-medium transition-colors shadow-sm"
                 >
                   <IconDownload />
                   Export Assets
@@ -404,37 +404,37 @@ export function SettingsPage() {
       </section>
 
       {/* Automation & Integration Section */}
-      <section className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 flex items-center gap-2">
+      <section className="bg-white dark:bg-stone-800 p-4 sm:p-6 rounded-lg shadow-sm border border-stone-200 dark:border-stone-700">
+        <h2 className="text-lg font-semibold mb-4 text-stone-900 dark:text-stone-100 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
           </svg>
           Automation & Integration
         </h2>
         <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-stone-600 dark:text-stone-400">
             Generate a personal API token for iPhone Shortcuts, external apps, or automation tools.
           </p>
           
           {automationToken ? (
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+            <div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 space-y-3">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Your Automation Token</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                    Use this token with the Authorization header: <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs">Bearer YOUR_TOKEN</code>
+                  <h3 className="font-semibold text-stone-900 dark:text-stone-100 mb-1">Your Automation Token</h3>
+                  <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
+                    Use this token with the Authorization header: <code className="bg-stone-100 dark:bg-stone-700 px-1.5 py-0.5 rounded text-xs">Bearer YOUR_TOKEN</code>
                   </p>
                   <div className="relative">
                     <input
                       type={showToken ? "text" : "password"}
                       value={automationToken}
                       readOnly
-                      className="w-full p-2.5 pr-24 rounded-md bg-gray-50 dark:bg-gray-700 text-slate-900 dark:text-slate-100 border border-gray-300 dark:border-gray-600 font-mono text-xs"
+                      className="w-full p-2.5 pr-24 rounded-md bg-stone-50 dark:bg-stone-700 text-stone-900 dark:text-stone-100 border border-stone-300 dark:border-stone-600 font-mono text-xs"
                     />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-2">
+                    <div className="absolute right-2 top-1/2 -transtone-y-1/2 flex gap-2">
                       <button
                         onClick={() => setShowToken(!showToken)}
-                        className="px-2 py-1 text-xs rounded bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                        className="px-2 py-1 text-xs rounded bg-stone-200 dark:bg-stone-600 hover:bg-stone-300 dark:hover:bg-stone-500 transition-colors"
                       >
                         {showToken ? '🙈' : '👁️'}
                       </button>
@@ -465,8 +465,8 @@ export function SettingsPage() {
               </button>
             </div>
           ) : (
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+            <div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 space-y-3">
+              <p className="text-sm text-stone-600 dark:text-stone-400">
                 You don't have an automation token yet. Generate one to start using the API with external tools.
               </p>
               <button
@@ -475,7 +475,7 @@ export function SettingsPage() {
                   setAutomationToken(token)
                   setShowToken(true)
                 }}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
+                className="w-full px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-stone-200 text-white dark:text-stone-900 font-medium transition-colors shadow-sm"
               >
                 Generate Token
               </button>
@@ -492,18 +492,18 @@ export function SettingsPage() {
       </section>
 
       {/* Recurring Transactions Section */}
-      <section className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100 flex items-center gap-2">
+      <section className="bg-white dark:bg-stone-800 p-4 sm:p-6 rounded-lg shadow-sm border border-stone-200 dark:border-stone-700">
+        <h2 className="text-lg font-semibold mb-4 text-stone-900 dark:text-stone-100 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
           </svg>
           Recurring Transactions
         </h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        <p className="text-sm text-stone-600 dark:text-stone-400 mb-4">
           Manage your recurring transactions. These will be automatically created on their scheduled dates.
         </p>
         {recurringTransactions.length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-8 text-stone-500 dark:text-stone-400">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mx-auto mb-3 opacity-50">
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
             </svg>
@@ -511,10 +511,10 @@ export function SettingsPage() {
             <p className="text-xs mt-1">Add a new transaction and check "Make this a recurring transaction"</p>
           </div>
         ) : (
-          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="border border-stone-200 dark:border-stone-700 rounded-lg overflow-hidden">
             <div className="max-h-96 overflow-auto hide-scrollbar">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-slate-900 text-white border-b border-slate-800">
+                <thead className="sticky top-0 bg-stone-900 text-white border-b border-stone-800">
                   <tr className="text-left">
                     <th className="p-3 font-semibold">Name & Category</th>
                     <th className="p-3 font-semibold">Amount</th>
@@ -526,17 +526,17 @@ export function SettingsPage() {
                     <th className="p-3 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody className="divide-y divide-stone-200 dark:divide-stone-700">
                   {recurringTransactions.map(rt => {
                     const category = categoryMap[rt.categoryId] || rt.category
                     const account = accountMap[rt.accountId] || rt.account
                     const isIncome = category?.type === 'Income'
                     
                     return (
-                      <tr key={rt.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                      <tr key={rt.id} className="hover:bg-stone-50 dark:hover:bg-stone-700/50 transition-colors">
                         <td className="p-3">
                           <div className="space-y-1">
-                            <div className="font-semibold text-gray-900 dark:text-gray-100">
+                            <div className="font-semibold text-stone-900 dark:text-stone-100">
                               {rt.notes || 'Recurring Transaction'}
                             </div>
                             <select
@@ -554,7 +554,7 @@ export function SettingsPage() {
                               className={`text-sm font-medium border-none bg-transparent cursor-pointer hover:underline ${isIncome ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
                             >
                               {categories.map(cat => (
-                                <option key={cat.id} value={cat.id} className="text-gray-900">
+                                <option key={cat.id} value={cat.id} className="text-stone-900">
                                   {cat.name}
                                 </option>
                               ))}
@@ -564,7 +564,7 @@ export function SettingsPage() {
                         <td className={`p-3 font-semibold ${isIncome ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                           €{Number(rt.amount).toFixed(2)}
                         </td>
-                        <td className="p-3 text-slate-900 dark:text-slate-100">
+                        <td className="p-3 text-stone-900 dark:text-stone-100">
                           <span className="inline-flex items-center px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
                             {rt.frequency === 'WEEKLY' && '📅 Weekly'}
                             {rt.frequency === 'BIWEEKLY' && '📅 Every 2 weeks'}
@@ -574,30 +574,30 @@ export function SettingsPage() {
                             {rt.frequency === 'YEARLY' && '📅 Yearly'}
                           </span>
                         </td>
-                        <td className="p-3 text-slate-900 dark:text-slate-100">
+                        <td className="p-3 text-stone-900 dark:text-stone-100">
                           <div className="text-sm font-medium">
                             {new Date(rt.startDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                           </div>
                         </td>
-                        <td className="p-3 text-slate-900 dark:text-slate-100">
+                        <td className="p-3 text-stone-900 dark:text-stone-100">
                           <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
                             {new Date(rt.nextDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                           </div>
                         </td>
-                        <td className="p-3 text-slate-900 dark:text-slate-100">
+                        <td className="p-3 text-stone-900 dark:text-stone-100">
                           {rt.endDate ? (
                             <div className="text-sm">
                               {new Date(rt.endDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </div>
                           ) : (
-                            <div className="text-xs text-gray-500 dark:text-gray-400 italic">No end date</div>
+                            <div className="text-xs text-stone-500 dark:text-stone-400 italic">No end date</div>
                           )}
                         </td>
                         <td className="p-3">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                             rt.isActive 
                               ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' 
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                              : 'bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-300'
                           }`}>
                             {rt.isActive ? '✓ Active' : '⏸ Paused'}
                           </span>
@@ -655,9 +655,9 @@ export function SettingsPage() {
       </section>
 
       {/* Categories Section */}
-      <section className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+      <section className="bg-white dark:bg-stone-800 p-4 sm:p-6 rounded-lg shadow-sm border border-stone-200 dark:border-stone-700">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
@@ -666,7 +666,7 @@ export function SettingsPage() {
           </h2>
           <button 
             onClick={()=>setShowCatModal(true)} 
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm text-sm" 
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-stone-200 text-white dark:text-stone-900 font-medium transition-colors shadow-sm text-sm" 
             aria-label="Add category"
           >
             <IconPlus />
@@ -674,7 +674,7 @@ export function SettingsPage() {
           </button>
         </div>
         
-        <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800">
+        <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-800">
           <div className="max-h-[600px] overflow-y-auto hide-scrollbar">
             {['Expense', 'Income', 'Transfer'].map(type => {
               const groupCats = categories
@@ -685,14 +685,14 @@ export function SettingsPage() {
 
               return (
                 <div key={type}>
-                  <div className="px-4 py-2 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700/50 sticky top-0 z-10 backdrop-blur-sm">
-                    <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <div className="px-4 py-2 bg-stone-50 dark:bg-stone-900/50 border-b border-stone-100 dark:border-stone-700/50 sticky top-0 z-10 backdrop-blur-sm">
+                    <span className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">
                       {type}
                     </span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-3">
                     {groupCats.map(c => (
-                      <div key={c.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all group">
+                      <div key={c.id} className="flex items-center justify-between p-3 bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all group">
                         <div className="flex-1 min-w-0 mr-2">
                           {editingCategoryId === c.id ? (
                             <input
@@ -718,7 +718,7 @@ export function SettingsPage() {
                                 }
                               }}
                               autoFocus
-                              className="w-full px-2 py-1 border border-blue-500 rounded-md text-sm bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-2 py-1 border border-blue-500 rounded-md text-sm bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                           ) : (
                             <div 
@@ -726,7 +726,7 @@ export function SettingsPage() {
                                 setEditingCategoryId(c.id)
                                 setEditingCategoryName(c.name)
                               }}
-                              className="cursor-pointer font-medium text-gray-700 dark:text-gray-200 truncate text-sm hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                              className="cursor-pointer font-medium text-stone-700 dark:text-stone-200 truncate text-sm hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                               title="Click to edit"
                             >
                               {c.name}
@@ -772,9 +772,9 @@ export function SettingsPage() {
       </section>
 
       {/* Asset Groups Section */}
-      <section className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+      <section className="bg-white dark:bg-stone-800 p-4 sm:p-6 rounded-lg shadow-sm border border-stone-200 dark:border-stone-700">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
             </svg>
@@ -783,15 +783,15 @@ export function SettingsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-4 no-scrollbar border-b border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-4 no-scrollbar border-b border-stone-100 dark:border-stone-700">
           {groups.map(g => (
             <button
               key={g.id}
               onClick={() => setActiveGroupId(g.id)}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
                 activeGroupId === g.id
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-md'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                  ? 'bg-stone-900 text-white dark:bg-white dark:text-stone-900 shadow-md'
+                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-700 dark:text-stone-300 dark:hover:bg-stone-600'
               }`}
             >
               {g.name}
@@ -814,8 +814,8 @@ export function SettingsPage() {
             return (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex justify-between items-center mb-4">
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    Manage items for <span className="font-semibold text-gray-900 dark:text-gray-100">{g.name}</span>
+                  <div className="text-sm text-stone-500 dark:text-stone-400">
+                    Manage items for <span className="font-semibold text-stone-900 dark:text-stone-100">{g.name}</span>
                   </div>
                   <div className="flex gap-2">
                      <ActionMenu actions={[
@@ -844,7 +844,7 @@ export function SettingsPage() {
                     ]} />
                     <button 
                       onClick={() => setShowItemModalForGroup(g.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors text-sm shadow-sm"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-stone-200 text-white dark:text-stone-900 font-medium transition-colors text-sm shadow-sm"
                     >
                       <IconPlus /> Add Item
                     </button>
@@ -856,11 +856,11 @@ export function SettingsPage() {
                     const children = (g.items || []).filter((ch:Item)=>ch.parentItemId===it.id)
                     
                     return (
-                      <div key={it.id} className="bg-gray-50 dark:bg-gray-900/30 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3 hover:border-blue-300 dark:hover:border-blue-700 transition-colors group">
+                      <div key={it.id} className="bg-stone-50 dark:bg-stone-900/30 border border-stone-200 dark:border-stone-700 rounded-xl p-4 flex flex-col gap-3 hover:border-blue-300 dark:hover:border-blue-700 transition-colors group">
                         <div className="flex justify-between items-start">
                           <div>
-                            <h4 className="font-semibold text-gray-900 dark:text-gray-100">{it.name}</h4>
-                            {it.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{it.description}</p>}
+                            <h4 className="font-semibold text-stone-900 dark:text-stone-100">{it.name}</h4>
+                            {it.description && <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{it.description}</p>}
                           </div>
                           <ActionMenu actions={[
                             {
@@ -903,7 +903,7 @@ export function SettingsPage() {
 
                         {/* Depreciation Input */}
                         {children.length === 0 && (
-                           <div className="mt-2 flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                           <div className="mt-2 flex items-center gap-2 text-xs text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors">
                               <span>Depr:</span>
                               <div className="flex items-center">
                                 <span>€</span>
@@ -922,7 +922,7 @@ export function SettingsPage() {
                                     })
                                     await refresh()
                                   }}
-                                  className="w-16 bg-transparent border-none p-0 text-xs focus:ring-0 text-gray-500 dark:text-gray-400 font-medium text-right"
+                                  className="w-16 bg-transparent border-none p-0 text-xs focus:ring-0 text-stone-500 dark:text-stone-400 font-medium text-right"
                                 />
                               </div>
                            </div>
@@ -931,15 +931,15 @@ export function SettingsPage() {
                         {/* Children List */}
                         {children.length > 0 && (
                           <div className="mt-1 space-y-2">
-                            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sub-items</div>
+                            <div className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider">Sub-items</div>
                             {children.map(ch => (
-                              <div key={ch.id} className="flex items-center justify-between bg-white dark:bg-gray-800 p-2 rounded border border-gray-100 dark:border-gray-700/50">
+                              <div key={ch.id} className="flex items-center justify-between bg-white dark:bg-stone-800 p-2 rounded border border-stone-100 dark:border-stone-700/50">
                                 <div className="min-w-0 flex-1">
-                                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{ch.name}</div>
+                                  <div className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">{ch.name}</div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <div className="flex items-center gap-0.5 opacity-50 hover:opacity-100 transition-opacity">
-                                    <span className="text-gray-300 text-[10px]">€</span>
+                                    <span className="text-stone-300 text-[10px]">€</span>
                                     <input
                                       type="number"
                                       step="0.01"
@@ -955,7 +955,7 @@ export function SettingsPage() {
                                         })
                                         await refresh()
                                       }}
-                                      className="w-12 text-right text-xs bg-transparent border-none p-0 focus:ring-0 text-gray-600 dark:text-gray-400"
+                                      className="w-12 text-right text-xs bg-transparent border-none p-0 focus:ring-0 text-stone-600 dark:text-stone-400"
                                     />
                                   </div>
                                   <button 
@@ -965,7 +965,7 @@ export function SettingsPage() {
                                       await fetch(`/api/asset-items/${ch.id}`, { method:'DELETE', headers: tokenHeader() })
                                       refresh()
                                     }}
-                                    className="text-gray-400 hover:text-red-500 transition-colors"
+                                    className="text-stone-400 hover:text-red-500 transition-colors"
                                   >
                                     <IconTrash />
                                   </button>
@@ -980,8 +980,8 @@ export function SettingsPage() {
                   
                   {/* Empty State for Group */}
                   {(g.items || []).length === 0 && (
-                    <div className="col-span-full py-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
-                      <p className="text-gray-500 dark:text-gray-400 mb-2">This group is empty.</p>
+                    <div className="col-span-full py-12 text-center border-2 border-dashed border-stone-200 dark:border-stone-700 rounded-xl">
+                      <p className="text-stone-500 dark:text-stone-400 mb-2">This group is empty.</p>
                       <button 
                         onClick={() => setShowItemModalForGroup(g.id)}
                         className="text-blue-600 dark:text-blue-400 font-medium hover:underline"
@@ -996,7 +996,7 @@ export function SettingsPage() {
           })()
         ) : (
           <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400">Select a group to view items or create a new one.</p>
+            <p className="text-stone-500 dark:text-stone-400">Select a group to view items or create a new one.</p>
           </div>
         )}
       </section>
@@ -1004,51 +1004,51 @@ export function SettingsPage() {
       {/* CSV Import Info Modal */}
       {showImportInfo && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-2 sm:p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
+          <div className="bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto hide-scrollbar">
             <h3 className="font-semibold text-xl mb-4 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-slate-900 dark:text-slate-100">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-stone-900 dark:text-stone-100">
                 <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 01.67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 11-.671-1.34l.041-.022zM12 9a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
               </svg>
               CSV Import Format
             </h3>
             
             <div className="space-y-4">
-              <div className="bg-slate-50 dark:bg-slate-900/20 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
-                <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+              <div className="bg-stone-50 dark:bg-stone-900/20 border border-stone-200 dark:border-stone-800 rounded-lg p-4">
+                <p className="text-sm text-stone-700 dark:text-stone-300 mb-2">
                   Your CSV file should contain transaction data with the following structure:
                 </p>
               </div>
 
               <div>
-                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">CSV Format:</h4>
-                <div className="bg-gray-50 dark:bg-gray-900/50 rounded p-3 border border-gray-200 dark:border-gray-700">
-                  <code className="text-sm bg-white dark:bg-gray-800 px-3 py-2 rounded block font-mono text-gray-800 dark:text-gray-200">
+                <h4 className="font-semibold text-sm mb-2 text-stone-700 dark:text-stone-200">CSV Format:</h4>
+                <div className="bg-stone-50 dark:bg-stone-900/50 rounded p-3 border border-stone-200 dark:border-stone-700">
+                  <code className="text-sm bg-white dark:bg-stone-800 px-3 py-2 rounded block font-mono text-stone-800 dark:text-stone-200">
                     date,amount,category,notes
                   </code>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">or using semicolon as delimiter:</p>
-                  <code className="text-sm bg-white dark:bg-gray-800 px-3 py-2 rounded block font-mono text-gray-800 dark:text-gray-200 mt-1">
+                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-2">or using semicolon as delimiter:</p>
+                  <code className="text-sm bg-white dark:bg-stone-800 px-3 py-2 rounded block font-mono text-stone-800 dark:text-stone-200 mt-1">
                     date;amount;category;notes
                   </code>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">Field Details:</h4>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <h4 className="font-semibold text-sm mb-2 text-stone-700 dark:text-stone-200">Field Details:</h4>
+                <ul className="space-y-2 text-sm text-stone-600 dark:text-stone-300">
                   <li className="flex gap-2">
-                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">date</span>
+                    <span className="font-mono bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded text-xs">date</span>
                     <span>Date in DD/MM/YYYY or YYYY-MM-DD format</span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">amount</span>
+                    <span className="font-mono bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded text-xs">amount</span>
                     <span>Transaction amount (use dot as decimal separator, e.g., 45.50)</span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">category</span>
+                    <span className="font-mono bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded text-xs">category</span>
                     <span>Category name (will be created if doesn't exist)</span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-xs">notes</span>
+                    <span className="font-mono bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded text-xs">notes</span>
                     <span>Optional transaction notes</span>
                   </li>
                 </ul>
@@ -1065,8 +1065,8 @@ export function SettingsPage() {
               </div>
 
               <div>
-                <h4 className="font-semibold text-sm mb-2 text-gray-700 dark:text-gray-200">Example CSV:</h4>
-                <div className="bg-gray-900 dark:bg-gray-950 rounded p-3 overflow-x-auto">
+                <h4 className="font-semibold text-sm mb-2 text-stone-700 dark:text-stone-200">Example CSV:</h4>
+                <div className="bg-stone-900 dark:bg-stone-950 rounded p-3 overflow-x-auto">
                   <pre className="text-xs text-green-400 font-mono">
 {`date,amount,category,notes
 25/10/2024,45.50,Groceries,Weekly shopping
@@ -1077,10 +1077,10 @@ export function SettingsPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-stone-200 dark:border-stone-700">
               <button
                 onClick={() => setShowImportInfo(false)}
-                className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+                className="px-4 py-2 rounded bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-300 dark:hover:bg-stone-600"
               >
                 Cancel
               </button>
@@ -1089,7 +1089,7 @@ export function SettingsPage() {
                   setShowImportInfo(false)
                   fileInputRef.current?.click()
                 }}
-                className="px-4 py-2 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 font-medium"
+                className="px-4 py-2 rounded bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-200 font-medium"
               >
                 Select CSV File
               </button>
@@ -1101,18 +1101,18 @@ export function SettingsPage() {
       {/* Modals */}
       {showCatModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md space-y-4 text-slate-900 dark:text-slate-100 shadow-xl">
+          <div className="bg-white dark:bg-stone-800 rounded-lg p-6 w-full max-w-md space-y-4 text-stone-900 dark:text-stone-100 shadow-xl">
             <h3 className="text-xl font-semibold">Add Category</h3>
             <input 
               value={catForm.name} 
               onChange={e=>setCatForm({...catForm, name:e.target.value})} 
               placeholder="Category name" 
-              className="w-full border p-2.5 rounded-md bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500" 
+              className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500" 
             />
             <select 
               value={catForm.type} 
               onChange={e=>setCatForm({...catForm, type:e.target.value})} 
-              className="w-full border p-2.5 rounded-md bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500"
+              className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500"
             >
               <option>Expense</option>
               <option>Income</option>
@@ -1121,7 +1121,7 @@ export function SettingsPage() {
             <div className="flex justify-end gap-3 pt-2">
               <button 
                 onClick={()=>setShowCatModal(false)} 
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                className="px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-700 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-200 font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -1133,7 +1133,7 @@ export function SettingsPage() {
                   setShowCatModal(false)
                   refresh() 
                 }} 
-                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
+                className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-stone-200 text-white dark:text-stone-900 font-medium transition-colors shadow-sm"
               >
                 Save
               </button>
@@ -1144,18 +1144,18 @@ export function SettingsPage() {
 
       {showGroupModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md space-y-4 text-slate-900 dark:text-slate-100 shadow-xl">
+          <div className="bg-white dark:bg-stone-800 rounded-lg p-6 w-full max-w-md space-y-4 text-stone-900 dark:text-stone-100 shadow-xl">
             <h3 className="text-xl font-semibold">Add Asset Group</h3>
             <input 
               value={groupForm.name} 
               onChange={e=>setGroupForm({...groupForm, name:e.target.value})} 
               placeholder="Group name (e.g., Stock & ETF)" 
-              className="w-full border p-2.5 rounded-md bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500" 
+              className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500" 
             />
             <div className="flex justify-end gap-3 pt-2">
               <button 
                 onClick={()=>setShowGroupModal(false)} 
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                className="px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-700 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-200 font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -1171,7 +1171,7 @@ export function SettingsPage() {
                   setShowGroupModal(false)
                   refresh() 
                 }} 
-                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
+                className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-stone-200 text-white dark:text-stone-900 font-medium transition-colors shadow-sm"
               >
                 Save
               </button>
@@ -1182,24 +1182,24 @@ export function SettingsPage() {
 
       {showItemModalForGroup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md space-y-4 text-slate-900 dark:text-slate-100 shadow-xl">
+          <div className="bg-white dark:bg-stone-800 rounded-lg p-6 w-full max-w-md space-y-4 text-stone-900 dark:text-stone-100 shadow-xl">
             <h3 className="text-xl font-semibold">Add Item</h3>
             <input 
               value={itemForm[showItemModalForGroup]?.name||''} 
               onChange={e=>setItemForm({ ...itemForm, [showItemModalForGroup]: { ...(itemForm[showItemModalForGroup]||{}), name:e.target.value } })} 
               placeholder="Item name (e.g., Trade Republic)" 
-              className="w-full border p-2.5 rounded-md bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500" 
+              className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500" 
             />
             <input 
               value={itemForm[showItemModalForGroup]?.description||''} 
               onChange={e=>setItemForm({ ...itemForm, [showItemModalForGroup]: { ...(itemForm[showItemModalForGroup]||{}), description:e.target.value } })} 
               placeholder="Description (optional)" 
-              className="w-full border p-2.5 rounded-md bg-white dark:bg-gray-700 text-slate-900 dark:text-slate-100 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500" 
+              className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500" 
             />
             <div className="flex justify-end gap-3 pt-2">
               <button 
                 onClick={()=>setShowItemModalForGroup(null)} 
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                className="px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-700 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-200 font-medium transition-colors"
               >
                 Cancel
               </button>
@@ -1216,7 +1216,7 @@ export function SettingsPage() {
                   setShowItemModalForGroup(null)
                   refresh() 
                 }} 
-                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-medium transition-colors shadow-sm"
+                className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-stone-200 text-white dark:text-stone-900 font-medium transition-colors shadow-sm"
               >
                 Save
               </button>

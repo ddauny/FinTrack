@@ -51,7 +51,7 @@ export const api = {
     importCsv: (file: File) => {
       const form = new FormData()
       form.append('file', file)
-      return fetch('/api/transactions/import', { method: 'POST', headers: { ...authHeaders() }, body: form }).then(r=>r.json())
+      return fetch('/api/transactions/import', { method: 'POST', headers: { ...authHeaders() }, body: form }).then(r => r.json())
     },
     getNotes: (query: string) => apiGet(`/api/transactions/notes?q=${encodeURIComponent(query)}`),
   },
@@ -73,21 +73,21 @@ export const api = {
     update: (id: number, data: Partial<Budget>) => apiJson<Budget>(`/api/budgets/${id}`, 'PUT', data),
     remove: (id: number) => apiJson<void>(`/api/budgets/${id}`, 'DELETE'),
   },
-    reports: {
-      cashflow: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/cashflow?start=${start||''}&end=${end||''}`),
-      spendingByCategory: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/spending-by-category?start=${start||''}&end=${end||''}`),
-      trends: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/trends?start=${start||''}&end=${end||''}`),
-      test: () => apiGet(`/api/reports/test`),
-      monthlyExpenses: (start?: string, end?: string) => apiGet(`/api/reports/monthly-expenses?start=${start||''}&end=${end||''}`),
-      categoryAnalysis: (start?: string, end?: string) => apiGet(`/api/reports/category-analysis?start=${start||''}&end=${end||''}`),
-      netWorthTrend: (start?: string, end?: string) => apiGet(`/api/reports/net-worth-trend?start=${start||''}&end=${end||''}`),
-      assetGrowthTrend: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-growth-trend?start=${start||''}&end=${end||''}`),
-      assetDistribution: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-distribution?start=${start||''}&end=${end||''}`),
-      assetGroupComparison: (start?: string, end?: string) => apiGet<any>(`/api/reports/asset-group-comparison?start=${start||''}&end=${end||''}`),
-      topAssetsEvolution: (start?: string, end?: string, limit?: number) => apiGet<any>(`/api/reports/top-assets-evolution?start=${start||''}&end=${end||''}&limit=${limit||5}`),
-      assetAllocationChanges: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-allocation-changes?start=${start||''}&end=${end||''}`),
-      exportCsv: (path: string) => fetch(path + (path.includes('?')? '&':'?') + 'format=csv', { headers: { ...authHeaders() } }).then(r=>r.text()),
-    },
+  reports: {
+    cashflow: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/cashflow?start=${start || ''}&end=${end || ''}`),
+    spendingByCategory: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/spending-by-category?start=${start || ''}&end=${end || ''}`),
+    trends: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/trends?start=${start || ''}&end=${end || ''}`),
+    test: () => apiGet(`/api/reports/test`),
+    monthlyExpenses: (start?: string, end?: string) => apiGet(`/api/reports/monthly-expenses?start=${start || ''}&end=${end || ''}`),
+    categoryAnalysis: (start?: string, end?: string) => apiGet(`/api/reports/category-analysis?start=${start || ''}&end=${end || ''}`),
+    netWorthTrend: (start?: string, end?: string) => apiGet(`/api/reports/net-worth-trend?start=${start || ''}&end=${end || ''}`),
+    assetGrowthTrend: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-growth-trend?start=${start || ''}&end=${end || ''}`),
+    assetDistribution: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-distribution?start=${start || ''}&end=${end || ''}`),
+    assetGroupComparison: (start?: string, end?: string) => apiGet<any>(`/api/reports/asset-group-comparison?start=${start || ''}&end=${end || ''}`),
+    topAssetsEvolution: (start?: string, end?: string, limit?: number) => apiGet<any>(`/api/reports/top-assets-evolution?start=${start || ''}&end=${end || ''}&limit=${limit || 5}`),
+    assetAllocationChanges: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-allocation-changes?start=${start || ''}&end=${end || ''}`),
+    exportCsv: (path: string) => fetch(path + (path.includes('?') ? '&' : '?') + 'format=csv', { headers: { ...authHeaders() } }).then(r => r.text()),
+  },
   assets: {
     portfolios: {
       list: () => apiGet<any[]>('/api/portfolios'),
@@ -120,7 +120,19 @@ export const api = {
     create: (data: any) => apiJson<any>('/api/recurring-transactions', 'POST', data),
     update: (id: number, data: any) => apiJson<any>(`/api/recurring-transactions/${id}`, 'PATCH', data),
     remove: (id: number) => apiJson<void>(`/api/recurring-transactions/${id}`, 'DELETE'),
-  }
+  },
+  forecast: {
+    netWorth: () => apiGet<any>('/api/forecast/net-worth'),
+    yearOverYear: (y1: number, y2: number) => apiGet<any>(`/api/forecast/year-over-year?year1=${y1}&year2=${y2}`),
+    monthlyForecast: () => apiGet<any>('/api/forecast/monthly-forecast'),
+  },
+  savingsGoals: {
+    list: () => apiGet<any[]>('/api/savings-goals'),
+    create: (data: any) => apiJson<any>('/api/savings-goals', 'POST', data),
+    update: (id: number, data: any) => apiJson<any>(`/api/savings-goals/${id}`, 'PUT', data),
+    remove: (id: number) => apiJson<void>(`/api/savings-goals/${id}`, 'DELETE'),
+  },
 }
+
 
 
