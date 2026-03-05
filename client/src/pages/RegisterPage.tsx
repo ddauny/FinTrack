@@ -40,7 +40,7 @@ export function RegisterPage() {
         <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none" />
         {passwordError && <div className="text-red-600 text-sm">{passwordError}</div>} {/* Display password error */}
         {error && <div className="text-red-600 text-sm">{error}</div>}
-        <button type="submit" disabled={loading} className="w-full bg-blue-600 disabled:bg-blue-400 text-white py-2 rounded">
+        <button type="submit" disabled={loading} className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
           {loading ? 'Creating...' : 'Create account'}
         </button>
       </form>

@@ -2,8 +2,95 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
+/* ═══════════════════════════════════════════════════════
+   DESIGN TOKENS  –  single source of truth for the
+   stone-based dark / light colour palette.
+   Components read these via the useChartTheme() hook
+   or the Tailwind semantic-colour extension.
+   ═══════════════════════════════════════════════════════ */
+
+@layer base {
+  :root {
+    /* ── Chart tokens (hex – consumed by ECharts) ────── */
+    --chart-bg: #ffffff;
+    --chart-tooltip-bg: #ffffff;
+    --chart-tooltip-border: #d6d3d1;
+    /* stone-300 */
+    --chart-tooltip-text: #1c1917;
+    /* stone-900 */
+    --chart-text: #1c1917;
+    /* stone-900 */
+    --chart-legend-text: #1c1917;
+    /* stone-900 */
+    --chart-axis-label: #78716c;
+    /* stone-500 */
+    --chart-axis-line: rgba(28, 25, 23, 0.12);
+    --chart-split-line: #e7e5e4;
+    /* stone-200 */
+    --chart-pie-border: #ffffff;
+  }
+
+  .dark {
+    --chart-bg: #1c1917;
+    /* stone-900 */
+    --chart-tooltip-bg: #292524;
+    /* stone-800 */
+    --chart-tooltip-border: #44403c;
+    /* stone-700 */
+    --chart-tooltip-text: #e7e5e4;
+    /* stone-200 */
+    --chart-text: #e7e5e4;
+    /* stone-200 */
+    --chart-legend-text: #e7e5e4;
+    /* stone-200 */
+    --chart-axis-label: #d6d3d1;
+    /* stone-300 */
+    --chart-axis-line: rgba(231, 229, 228, 0.12);
+    --chart-split-line: #292524;
+    /* stone-800 */
+    --chart-pie-border: #1c1917;
+    /* stone-900 */
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   GLOBAL BUTTON CLASSES
+   Use these across all pages for consistent styling.
+   ═══════════════════════════════════════════════════════ */
+
+@layer components {
+
+  /* Primary action – solid, high prominence */
+  .btn-primary {
+    @apply px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900;
+  }
+
+  /* Secondary / cancel – subtle, lower prominence */
+  .btn-secondary {
+    @apply px-4 py-2.5 rounded-xl font-medium transition-colors bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-700 dark:hover:bg-stone-600 dark:text-stone-200;
+  }
+
+  /* Danger – destructive actions */
+  .btn-danger {
+    @apply px-4 py-2.5 rounded-xl font-medium transition-colors border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20;
+  }
+
+  /* Danger solid – high-risk destructive actions */
+  .btn-danger-solid {
+    @apply px-4 py-2.5 rounded-xl font-medium transition-colors shadow-sm bg-red-600 hover:bg-red-700 text-white dark:bg-red-700 dark:hover:bg-red-800;
+  }
+
+  /* Ghost – minimal, text-like */
+  .btn-ghost {
+    @apply px-4 py-2.5 rounded-xl font-medium transition-colors text-stone-600 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-700;
+  }
+}
+
+html,
+body,
+#root {
   height: 100%;
+  overflow: hidden;
 }
 
 /* Hide number input spinners (Chrome, Safari, Edge, Opera) */
@@ -12,6 +99,7 @@ input[type=number]::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+
 /* Hide number input spinners (Firefox) */
 input[type=number] {
   -moz-appearance: textfield;
@@ -19,7 +107,8 @@ input[type=number] {
 
 /* GLOBAL SCROLLBAR SETTINGS - HIDE VERTICAL SCROLLBARS */
 ::-webkit-scrollbar {
-  width: 0px; /* Hide vertical scrollbar */
+  width: 0px;
+  /* Hide vertical scrollbar */
   background: transparent;
 }
 
@@ -43,12 +132,15 @@ input[type=number] {
 
 /* Utility to hide scrollbars completely (both axis) */
 .hide-scrollbar {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* Internet Explorer 10+ */
 }
 
 .hide-scrollbar::-webkit-scrollbar {
-  display: none; /* WebKit */
+  display: none;
+  /* WebKit */
 }
 
 /* Legacy custom-scrollbar class - now mapped to hidden to ensure compliance with user request */
@@ -68,8 +160,10 @@ input[type=number] {
 }
 
 .assets-scrollbar::-webkit-scrollbar {
-  width: 0px;   /* Hide vertical */
-  height: 8px;  /* Show horizontal */
+  width: 0px;
+  /* Hide vertical */
+  height: 8px;
+  /* Show horizontal */
   background: transparent;
 }
 

@@ -31,19 +31,21 @@ function PrivateRoute({ children }: { children: JSX.Element }) {
 export default function App() {
   return (
     <PrivacyProvider>
-      <div className="min-h-full bg-stone-50 dark:bg-stone-900 text-stone-900 dark:text-stone-100">
+      <div className="h-full overflow-hidden bg-stone-50 dark:bg-stone-900 text-stone-900 dark:text-stone-100 flex flex-col">
         <TopNav />
-        <Routes>
-          <Route path="/login" element={<div className="mx-auto max-w-7xl p-4"><LoginPage /></div>} />
-          <Route path="/register" element={<div className="mx-auto max-w-7xl p-4"><RegisterPage /></div>} />
-          <Route path="/" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><DashboardPage /></div></PrivateRoute>} />
-          <Route path="/transactions" element={<PrivateRoute><TransactionsPage /></PrivateRoute>} />
-          <Route path="/assets" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><AssetsPage /></div></PrivateRoute>} />
-          <Route path="/monthly-summary" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><MonthlySummaryPage /></div></PrivateRoute>} />
-          <Route path="/reports" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><ReportsPage /></div></PrivateRoute>} />
-          <Route path="/settings" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><SettingsPage /></div></PrivateRoute>} />
-          <Route path="/forecast" element={<PrivateRoute><div className="mx-auto max-w-7xl p-4"><ForecastPage /></div></PrivateRoute>} />
-        </Routes>
+        <div className="flex-1 overflow-hidden">
+          <Routes>
+            <Route path="/login" element={<div className="h-full overflow-y-auto hide-scrollbar"><div className="mx-auto max-w-7xl p-4"><LoginPage /></div></div>} />
+            <Route path="/register" element={<div className="h-full overflow-y-auto hide-scrollbar"><div className="mx-auto max-w-7xl p-4"><RegisterPage /></div></div>} />
+            <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+            <Route path="/transactions" element={<PrivateRoute><TransactionsPage /></PrivateRoute>} />
+            <Route path="/assets" element={<PrivateRoute><AssetsPage /></PrivateRoute>} />
+            <Route path="/monthly-summary" element={<PrivateRoute><MonthlySummaryPage /></PrivateRoute>} />
+            <Route path="/reports" element={<PrivateRoute><ReportsPage /></PrivateRoute>} />
+            <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
+            <Route path="/forecast" element={<PrivateRoute><ForecastPage /></PrivateRoute>} />
+          </Routes>
+        </div>
       </div>
     </PrivacyProvider>
   )

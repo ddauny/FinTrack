@@ -770,7 +770,7 @@ export function AssetsPage() {
                 </div>
                 <button
                   onClick={saveEdit}
-                  className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98]"
+                  className="btn-primary w-full !py-3.5 !font-bold shadow-lg shadow-blue-500/30 active:scale-[0.98]"
                 >
                   Save Update
                 </button>
@@ -796,7 +796,7 @@ export function AssetsPage() {
       ref={wrapperRef}
       className={isFullScreen
         ? "bg-stone-50 dark:bg-stone-950 fixed top-16 bottom-0 left-0 right-0 z-50"
-        : "relative w-full h-[calc(100vh-8rem)] bg-white dark:bg-stone-900 rounded-xl shadow-sm border border-stone-200 dark:border-stone-800 overflow-hidden"
+        : "relative w-full h-full bg-white dark:bg-stone-900 rounded-xl shadow-sm border border-stone-200 dark:border-stone-800 overflow-hidden"
       }
     >
       <div

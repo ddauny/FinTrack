@@ -4,6 +4,7 @@ import { api } from '../lib/api'
 import { formatEUR } from '../lib/format'
 import { PrivacyNumber } from '@/components/PrivacyNumber'
 import { usePrivacy } from '@/contexts/PrivacyContext'
+import { useChartTheme } from '@/hooks/useChartTheme'
 import { useThemeContext } from '@/contexts/ThemeContext'
 
 type Tab = 'forecast' | 'yoy' | 'goals' | 'monthly'
@@ -39,30 +40,32 @@ export function ForecastPage() {
     ]
 
     return (
-        <div className="p-3 space-y-3 lg:h-[calc(100vh-4.25rem)] lg:overflow-y-auto hide-scrollbar flex flex-col">
-            {/* Tab selector */}
-            <div className="flex gap-1 bg-white dark:bg-stone-800 p-1 rounded-2xl shadow-sm border border-stone-200 dark:border-stone-700 overflow-x-auto hide-scrollbar shrink-0">
-                {tabs.map(t => (
-                    <button
-                        key={t.key}
-                        onClick={() => setTab(t.key)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${tab === t.key
-                            ? 'bg-stone-200 dark:bg-stone-700 text-stone-900 dark:text-white shadow-sm'
-                            : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white hover:bg-stone-50 dark:hover:bg-stone-700/50'
-                            }`}
-                    >
-                        <span>{t.icon}</span>
-                        {!isMobile && <span>{t.label}</span>}
-                    </button>
-                ))}
-            </div>
+        <div className="h-full overflow-y-auto hide-scrollbar">
+            <div className="p-3 space-y-3 flex flex-col max-w-7xl mx-auto">
+                {/* Tab selector */}
+                <div className="flex gap-1 bg-white dark:bg-stone-800 p-1 rounded-2xl shadow-sm border border-stone-200 dark:border-stone-700 overflow-x-auto hide-scrollbar shrink-0">
+                    {tabs.map(t => (
+                        <button
+                            key={t.key}
+                            onClick={() => setTab(t.key)}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${tab === t.key
+                                ? 'bg-stone-200 dark:bg-stone-700 text-stone-900 dark:text-white shadow-sm'
+                                : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white hover:bg-stone-50 dark:hover:bg-stone-700/50'
+                                }`}
+                        >
+                            <span>{t.icon}</span>
+                            {!isMobile && <span>{t.label}</span>}
+                        </button>
+                    ))}
+                </div>
 
-            {/* Tab content */}
-            <div className="flex-1 min-h-0">
-                {tab === 'forecast' && <NetWorthForecastTab dark={dark} hideNumbers={hideNumbers} isMobile={isMobile} />}
-                {tab === 'yoy' && <YearOverYearTab dark={dark} hideNumbers={hideNumbers} isMobile={isMobile} />}
-                {tab === 'goals' && <SavingsGoalsTab dark={dark} hideNumbers={hideNumbers} />}
-                {tab === 'monthly' && <MonthlyForecastTab dark={dark} hideNumbers={hideNumbers} />}
+                {/* Tab content */}
+                <div className="flex-1 min-h-0">
+                    {tab === 'forecast' && <NetWorthForecastTab dark={dark} hideNumbers={hideNumbers} isMobile={isMobile} />}
+                    {tab === 'yoy' && <YearOverYearTab dark={dark} hideNumbers={hideNumbers} isMobile={isMobile} />}
+                    {tab === 'goals' && <SavingsGoalsTab dark={dark} hideNumbers={hideNumbers} />}
+                    {tab === 'monthly' && <MonthlyForecastTab dark={dark} hideNumbers={hideNumbers} />}
+                </div>
             </div>
         </div>
     )
@@ -72,6 +75,7 @@ export function ForecastPage() {
 // Tab 1: Net Worth Forecast
 // ═══════════════════════════════════════════════════════════
 function NetWorthForecastTab({ dark, hideNumbers, isMobile }: { dark: boolean; hideNumbers: boolean; isMobile: boolean }) {
+    const ct = useChartTheme()
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
 
@@ -92,18 +96,18 @@ function NetWorthForecastTab({ dark, hideNumbers, isMobile }: { dark: boolean; h
     const projectionLine = new Array(history.length - 1).fill(null).concat([history[history.length - 1].value, ...projection.map((p: any) => p.value)])
 
     const option = {
-        backgroundColor: dark ? '#1c1917' : '#ffffff',
+        backgroundColor: ct.bg,
         grid: { left: '5%', right: '5%', bottom: '12%', top: '15%', containLabel: true },
         legend: {
             data: ['Historical', 'Projected'],
             top: 5,
-            textStyle: { color: dark ? '#e7e5e4' : '#1c1917', fontSize: 11 },
+            textStyle: { color: ct.tooltipText, fontSize: 11 },
         },
         tooltip: {
             trigger: 'axis',
-            backgroundColor: dark ? '#292524' : '#fff',
-            borderColor: dark ? '#44403c' : '#d6d3d1',
-            textStyle: { color: dark ? '#e7e5e4' : '#1c1917' },
+            backgroundColor: ct.tooltipBg,
+            borderColor: ct.tooltipBorder,
+            textStyle: { color: ct.tooltipText },
             formatter: (params: any) => {
                 const lines = params.map((p: any) => {
                     if (p.value == null) return ''
@@ -117,17 +121,17 @@ function NetWorthForecastTab({ dark, hideNumbers, isMobile }: { dark: boolean; h
         xAxis: {
             type: 'category',
             data: labels,
-            axisLabel: { color: dark ? '#d6d3d1' : '#78716c', fontSize: 10, rotate: isMobile ? 45 : 0 },
+            axisLabel: { color: ct.axisLabel, fontSize: 10, rotate: isMobile ? 45 : 0 },
         },
         yAxis: {
             type: 'value',
             scale: true,
             axisLabel: {
                 formatter: (v: number) => hideNumbers ? '••••' : v >= 1000 ? `€${(v / 1000).toFixed(0)}k` : `€${v}`,
-                color: dark ? '#d6d3d1' : '#78716c',
+                color: ct.axisLabel,
                 fontSize: 10,
             },
-            splitLine: { lineStyle: { color: dark ? '#292524' : '#e7e5e4' } },
+            splitLine: { lineStyle: { color: ct.splitLine } },
         },
         series: [
             {
@@ -194,6 +198,7 @@ function NetWorthForecastTab({ dark, hideNumbers, isMobile }: { dark: boolean; h
 // Tab 2: Year over Year
 // ═══════════════════════════════════════════════════════════
 function YearOverYearTab({ dark, hideNumbers, isMobile }: { dark: boolean; hideNumbers: boolean; isMobile: boolean }) {
+    const ct = useChartTheme()
     const currentYear = new Date().getFullYear()
     const [year1, setYear1] = useState(currentYear - 1)
     const [year2, setYear2] = useState(currentYear)
@@ -219,19 +224,19 @@ function YearOverYearTab({ dark, hideNumbers, isMobile }: { dark: boolean; hideN
     const totalY2Exp = y2Exp.reduce((a: number, b: number) => a + b, 0)
 
     const barOption = {
-        backgroundColor: dark ? '#1c1917' : '#ffffff',
+        backgroundColor: ct.bg,
         grid: { left: '3%', right: '4%', top: '15%', bottom: '10%', containLabel: true },
         legend: {
             data: [`${year1} Income`, `${year1} Expenses`, `${year2} Income`, `${year2} Expenses`],
             top: 5,
-            textStyle: { color: dark ? '#e7e5e4' : '#1c1917', fontSize: 10 },
+            textStyle: { color: ct.tooltipText, fontSize: 10 },
             type: 'scroll',
         },
         tooltip: {
             trigger: 'axis',
-            backgroundColor: dark ? '#292524' : '#fff',
-            borderColor: dark ? '#44403c' : '#d6d3d1',
-            textStyle: { color: dark ? '#e7e5e4' : '#1c1917' },
+            backgroundColor: ct.tooltipBg,
+            borderColor: ct.tooltipBorder,
+            textStyle: { color: ct.tooltipText },
             formatter: (params: any) => {
                 const lines = params.map((p: any) => {
                     const val = hideNumbers ? '••••••' : formatEUR(p.value)
@@ -244,16 +249,16 @@ function YearOverYearTab({ dark, hideNumbers, isMobile }: { dark: boolean; hideN
         xAxis: {
             type: 'category',
             data: months,
-            axisLabel: { color: dark ? '#d6d3d1' : '#78716c', fontSize: 10 },
+            axisLabel: { color: ct.axisLabel, fontSize: 10 },
         },
         yAxis: {
             type: 'value',
             axisLabel: {
                 formatter: (v: number) => hideNumbers ? '••••' : v >= 1000 ? `€${(v / 1000).toFixed(0)}k` : `€${v}`,
-                color: dark ? '#d6d3d1' : '#78716c',
+                color: ct.axisLabel,
                 fontSize: 10,
             },
-            splitLine: { lineStyle: { color: dark ? '#292524' : '#e7e5e4' } },
+            splitLine: { lineStyle: { color: ct.splitLine } },
         },
         series: [
             { name: `${year1} Income`, type: 'bar', data: y1Inc, itemStyle: { color: '#6ee7b7' }, barGap: '10%' },
@@ -334,7 +339,7 @@ function SavingsGoalsTab({ dark, hideNumbers }: { dark: boolean; hideNumbers: bo
                 <h3 className="text-lg font-bold text-stone-900 dark:text-white">🎯 Savings Goals</h3>
                 <button
                     onClick={() => { setEditing(null); setShowModal(true) }}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-1"
+                    className="btn-primary !px-3 !py-1.5 text-sm flex items-center gap-1"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -523,11 +528,11 @@ function GoalModal({ dark, goal, onClose, onSave }: { dark: boolean; goal: Savin
                     </div>
                     <div className="flex gap-2 pt-2">
                         <button type="button" onClick={onClose}
-                            className="flex-1 px-3 py-2 text-sm font-medium rounded-xl border border-stone-300 dark:border-stone-600 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors">
+                            className="btn-secondary flex-1 !px-3 !py-2 text-sm">
                             Cancel
                         </button>
                         <button type="submit" disabled={saving}
-                            className="flex-1 px-3 py-2 text-sm font-medium rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50">
+                            className="btn-primary flex-1 !px-3 !py-2 text-sm disabled:opacity-50">
                             {saving ? 'Saving...' : goal ? 'Update' : 'Create'}
                         </button>
                     </div>

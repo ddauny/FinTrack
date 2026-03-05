@@ -724,7 +724,7 @@ export function TransactionsPage() {
   }, [categories])
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)] bg-stone-50 dark:bg-stone-900 border-none overflow-hidden">
+    <div className="flex flex-col h-full bg-stone-50 dark:bg-stone-900 border-none overflow-hidden">
       {/* Page Header */}
       <div className="flex-shrink-0 px-4 py-3 bg-white dark:bg-stone-800 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between z-20 shadow-sm relative">
         <div className="flex items-center gap-4">
@@ -748,7 +748,7 @@ export function TransactionsPage() {
               setEditingId(null);
               setShowModal(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 rounded-xl text-sm font-semibold shadow-sm hover:shadow-md transition-all active:scale-95"
+            className="btn-primary flex items-center gap-2 text-sm active:scale-95"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
               <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -1001,7 +1001,7 @@ export function TransactionsPage() {
           {showScrollTop && (
             <button
               onClick={scrollToTop}
-              className="fixed bottom-6 right-6 z-30 p-3 bg-stone-900 dark:bg-stone-100 text-white dark:text-stone-900 rounded-full shadow-lg shadow-stone-900/20 hover:-translate-y-1 transition-all"
+              className="btn-primary fixed bottom-6 right-6 z-30 !p-3 !rounded-full shadow-lg shadow-stone-900/20 hover:-translate-y-1"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
                 <path fillRule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clipRule="evenodd" />
@@ -1337,7 +1337,7 @@ export function TransactionsPage() {
               <button
                 onClick={createTxn}
                 disabled={!form.categoryId || !form.amount}
-                className="w-full py-3.5 bg-stone-900 dark:bg-white text-white dark:text-stone-900 font-bold rounded-xl shadow-lg shadow-stone-500/20 hover:shadow-stone-500/30 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
+                className="btn-primary w-full !py-3.5 !font-bold shadow-lg shadow-stone-500/20 hover:shadow-stone-500/30 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
               >
                 Save Transaction
               </button>
