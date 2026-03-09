@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../lib/api'
+import type { Tag } from '../types'
 import { formatEUR, formatDateDMY } from '../lib/format'
 import { PrivacyNumber } from '@/components/PrivacyNumber'
 
@@ -15,7 +16,8 @@ function MobileTransactionCard({
   setCategoryQuery,
   setShowModal,
   setItems,
-  setTotal
+  setTotal,
+  setFormTagIds
 }: any) {
   const [showMenu, setShowMenu] = useState(false);
   const t = transaction;
@@ -49,6 +51,15 @@ function MobileTransactionCard({
             {(t as any).recurringTransactionId && (
               <div className="inline-flex items-center gap-1 mt-2 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 rounded text-yellow-700 dark:text-yellow-400 text-xs font-medium">
                 ⟳ Recurring
+              </div>
+            )}
+            {t.tags?.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {t.tags.map((tag: any) => (
+                  <span key={tag.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-white" style={{ backgroundColor: tag.color }}>
+                    {tag.name}
+                  </span>
+                ))}
               </div>
             )}
           </div>
@@ -88,6 +99,7 @@ function MobileTransactionCard({
                       endDate: ''
                     });
                     setCategoryQuery(category?.name || '');
+                    setFormTagIds(t.tags?.map((tg: any) => tg.id) || []);
                     setShowModal(true);
                   }}
                   className="w-full flex items-center gap-2 px-4 py-3 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
@@ -134,13 +146,6 @@ export function TransactionsPage() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(true)
   const [showScrollTop, setShowScrollTop] = useState(false)
 
-  // Debug log for items changes
-  useEffect(() => {
-    console.log('Items state changed:', items.length, 'items')
-    if (items.length > 0) {
-      console.log('First item:', items[0])
-    }
-  }, [items])
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const initialAutoRefreshSkipped = useRef(false)
   const initialLoadDone = useRef(false)
@@ -165,6 +170,14 @@ export function TransactionsPage() {
   const [txnType, setTxnType] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [allTags, setAllTags] = useState<Tag[]>([])
+  const [selectedTagFilter, setSelectedTagFilter] = useState('')
+  const [formTagIds, setFormTagIds] = useState<number[]>([])
+  const [showBulkTagModal, setShowBulkTagModal] = useState(false)
+  const [showNewTagInput, setShowNewTagInput] = useState(false)
+  const [newTagName, setNewTagName] = useState('')
+  const [newTagColor, setNewTagColor] = useState('#6366f1')
+  const TAG_COLORS = ['#6366f1','#f43f5e','#10b981','#f59e0b','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b']
   const pageSize = 20
 
   async function fetchPage(p: number, mode: 'replace' | 'append' = 'replace') {
@@ -196,25 +209,18 @@ export function TransactionsPage() {
     if (endDate && !query.includes('&endDate=')) query += `&endDate=${endDate}`
     if (selectedCategory && !query.includes('&category=')) {
       query += `&category=${encodeURIComponent(selectedCategory)}`
-      console.log('Frontend filtering by category:', selectedCategory)
     }
     if (txnType && !query.includes('&type=')) {
       query += `&type=${encodeURIComponent(txnType)}`
-      console.log('Frontend filtering by type:', txnType)
     }
     if (searchQuery.trim() && !query.includes('&search=')) {
       query += `&search=${encodeURIComponent(searchQuery.trim())}`
-      console.log('Frontend filtering by search:', searchQuery.trim())
+    }
+    if (selectedTagFilter) {
+      query += `&filterByTag=${selectedTagFilter}`
     }
 
     const res: any = await api.transactions.list(query)
-    console.log('Frontend received data:', {
-      total: res.total,
-      itemsCount: res.items?.length,
-      category: selectedCategory,
-      query,
-      items: res.items
-    })
     // Defensive client-side filter: if txnType (or type in URL) is set, ensure we only
     // display transactions matching that type. This guards against server-side misses.
     let receivedItems = res.items || []
@@ -229,13 +235,10 @@ export function TransactionsPage() {
         if (it.category && it.category.type) return it.category.type === effectiveType
         return false
       })
-      if (receivedItems.length !== beforeCount) console.log(`Defensive filtered out ${beforeCount - receivedItems.length} items not matching type=${effectiveType}`)
     }
-    console.log('Setting items to:', receivedItems)
     setTotal(res.total || 0)
     if (mode === 'replace') {
       setItems(receivedItems)
-      console.log('Items set to:', receivedItems)
     } else {
       // Prevent duplicates by checking if item already exists
       setItems(prev => {
@@ -257,7 +260,7 @@ export function TransactionsPage() {
     const urlCategory = urlParams.get('category');
     const urlType = urlParams.get('type');
 
-    console.log('Reading URL parameters:', { urlStartDate, urlEndDate, urlCategory });
+
 
     if (urlStartDate && urlEndDate) {
       setStartDate(urlStartDate);
@@ -299,7 +302,7 @@ export function TransactionsPage() {
         if (urlCategory) query += `&category=${encodeURIComponent(urlCategory)}`
         if (urlType) query += `&type=${encodeURIComponent(urlType)}`
         if (searchQuery.trim()) query += `&search=${encodeURIComponent(searchQuery.trim())}`
-        console.log('Initial URL-driven fetch with query:', query)
+
         const res: any = await api.transactions.list(query)
         // Apply the same defensive filtering we use in fetchPage so initial
         // URL-driven responses are consistent (avoid showing incomes when
@@ -315,7 +318,7 @@ export function TransactionsPage() {
             if (it.category && it.category.type) return it.category.type === effectiveTypeLocal
             return false
           })
-          if (receivedItems.length !== beforeCount) console.log(`Defensive filtered out ${beforeCount - receivedItems.length} items not matching type=${effectiveTypeLocal}`)
+
         }
         setItems(receivedItems)
         setTotal(res.total || 0)
@@ -334,8 +337,9 @@ export function TransactionsPage() {
   }, [])
 
   useEffect(() => {
-    Promise.all([api.accounts.list(), api.categories.list()]).then(([accs, cats]) => {
+    Promise.all([api.accounts.list(), api.categories.list(), api.tags.list()]).then(([accs, cats, tags]) => {
       setCategories(cats as any[])
+      setAllTags(tags)
       if (!form.accountId && (accs as any[])[0]) setForm((f: any) => ({ ...f, accountId: (accs as any[])[0].id }))
       if (!form.categoryId && (cats as any[])[0]) setForm((f: any) => ({ ...f, categoryId: (cats as any[])[0].id }))
     })
@@ -354,7 +358,7 @@ export function TransactionsPage() {
     setItems([]); // Clear existing items to prevent duplicates
     // Force refresh with new parameters
     setTimeout(() => refresh(), 50); // Small delay to ensure state is updated
-  }, [sortBy, order, startDate, endDate, selectedCategory, searchQuery, txnType])
+  }, [sortBy, order, startDate, endDate, selectedCategory, searchQuery, txnType, selectedTagFilter])
 
   // infinite scroll on scrollable container
   useEffect(() => {
@@ -377,10 +381,10 @@ export function TransactionsPage() {
       if (nearBottom && hasMore && !loading) fetchPage(page + 1, 'append')
     }
 
-    window.addEventListener('scroll', onScroll)
+    window.addEventListener('scroll', onScroll, { passive: true })
     const container = scrollContainerRef.current
     if (container) {
-      container.addEventListener('scroll', onScroll)
+      container.addEventListener('scroll', onScroll, { passive: true })
     }
     return () => {
       window.removeEventListener('scroll', onScroll)
@@ -395,14 +399,21 @@ export function TransactionsPage() {
     }
   }
 
-  // Handle Scroll To Top visibility
+  // Handle Scroll To Top visibility (throttled with rAF)
   useEffect(() => {
+    let ticking = false
     const handleScroll = () => {
-      const containerScroll = scrollContainerRef.current ? scrollContainerRef.current.scrollTop > 400 : false
-      setShowScrollTop(containerScroll)
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const containerScroll = scrollContainerRef.current ? scrollContainerRef.current.scrollTop > 400 : false
+          setShowScrollTop(containerScroll)
+          ticking = false
+        })
+        ticking = true
+      }
     }
     const container = scrollContainerRef.current
-    if (container) container.addEventListener('scroll', handleScroll)
+    if (container) container.addEventListener('scroll', handleScroll, { passive: true })
     return () => {
       if (container) container.removeEventListener('scroll', handleScroll)
     }
@@ -458,7 +469,8 @@ export function TransactionsPage() {
         amount: Number(form.amount),
         accountId: acctId,
         categoryId: form.categoryId,
-        notes: form.notes
+        notes: form.notes,
+        tagIds: formTagIds
       }
       if (editingId) await api.transactions.update(editingId, payload)
       else await api.transactions.create(payload)
@@ -473,6 +485,7 @@ export function TransactionsPage() {
     setCategorySuggestions([])
     setSelectedCategoryIndex(-1)
     setForm({ date: new Date().toISOString().slice(0, 10), amount: 0, accountId: '', categoryId: '', notes: '', isRecurring: false, frequency: 'MONTHLY', endDate: '' })
+    setFormTagIds([])
     refresh()
   }
   function toggleSort(column: typeof sortBy) {
@@ -559,25 +572,28 @@ export function TransactionsPage() {
     }
   }
 
-  // Handle notes autocomplete
-  async function handleNotesChange(e: React.ChangeEvent<HTMLInputElement>) {
+  // Handle notes autocomplete (debounced)
+  const notesDebounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const handleNotesChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    setForm({ ...form, notes: value })
+    setForm((f: any) => ({ ...f, notes: value }))
+
+    if (notesDebounceRef.current) clearTimeout(notesDebounceRef.current)
 
     if (value.length >= 2) {
-      try {
-        const suggestions = await api.transactions.getNotes(value)
-        setNotesSuggestions(suggestions as string[])
-        setShowNotesSuggestions((suggestions as string[]).length > 0)
-        setSelectedSuggestionIndex(-1)
-      } catch (error) {
-        console.error('Error fetching notes suggestions:', error)
-      }
+      notesDebounceRef.current = setTimeout(async () => {
+        try {
+          const suggestions = await api.transactions.getNotes(value)
+          setNotesSuggestions(suggestions as string[])
+          setShowNotesSuggestions((suggestions as string[]).length > 0)
+          setSelectedSuggestionIndex(-1)
+        } catch { /* ignore */ }
+      }, 250)
     } else {
       setShowNotesSuggestions(false)
       setNotesSuggestions([])
     }
-  }
+  }, [])
 
   function handleNotesKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!showNotesSuggestions) return
@@ -824,10 +840,27 @@ export function TransactionsPage() {
               </select>
             </div>
 
+            {/* Tag */}
+            {allTags.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5">Tag</label>
+                <select
+                  value={selectedTagFilter}
+                  onChange={e => setSelectedTagFilter(e.target.value)}
+                  className="w-full px-2.5 py-2 text-sm bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-lg text-stone-700 dark:text-stone-300 focus:ring-1 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">All Tags</option>
+                  {allTags.map(tag => (
+                    <option key={tag.id} value={tag.id}>{tag.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Clear Filters */}
-            {(startDate || endDate || selectedCategory || searchQuery || txnType) && (
+            {(startDate || endDate || selectedCategory || searchQuery || txnType || selectedTagFilter) && (
               <button
-                onClick={() => { setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery(''); setTxnType('') }}
+                onClick={() => { setStartDate(''); setEndDate(''); setSelectedCategory(''); setSearchQuery(''); setTxnType(''); setSelectedTagFilter('') }}
                 className="w-full py-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
               >
                 Clear Filters
@@ -885,6 +918,7 @@ export function TransactionsPage() {
                     setShowModal={setShowModal}
                     setItems={setItems}
                     setTotal={setTotal}
+                    setFormTagIds={setFormTagIds}
                   />
                 ))}
               </div>
@@ -958,7 +992,18 @@ export function TransactionsPage() {
                               </div>
                             </td>
                             <td className="p-3 w-[35%] text-stone-500 dark:text-stone-400 italic text-sm truncate max-w-0">
-                              <span className="block truncate">{t.notes}</span>
+                              <div className="flex items-center gap-2 truncate">
+                                <span className="truncate">{t.notes}</span>
+                                {t.tags?.length > 0 && (
+                                  <div className="flex gap-1 shrink-0">
+                                    {t.tags.map((tag: any) => (
+                                      <span key={tag.id} className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium text-white not-italic" style={{ backgroundColor: tag.color }}>
+                                        {tag.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </td>
 
                             {/* Floating action buttons on hover */}
@@ -973,6 +1018,7 @@ export function TransactionsPage() {
                                   const category = categoryMap[t.categoryId] || t.category;
                                   setForm({ date: String(t.date).slice(0, 10), amount: t.amount, accountId: t.accountId, categoryId: t.categoryId, notes: t.notes || '', isRecurring: false, frequency: 'MONTHLY', endDate: '' });
                                   setCategoryQuery(category?.name || '');
+                                  setFormTagIds(t.tags?.map((tg: Tag) => tg.id) || []);
                                   setShowModal(true);
                                 }} className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-700 rounded transition-colors">
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M16.862 3.487a1.75 1.75 0 012.475 2.475l-9.9 9.9a4.5 4.5 0 01-1.69 1.06l-3.042.97.97-3.043a4.5 4.5 0 011.06-1.69l9.9-9.9z" /></svg>
@@ -1025,6 +1071,12 @@ export function TransactionsPage() {
             Change Category
           </button>
           <button
+            onClick={() => setShowBulkTagModal(true)}
+            className="px-3 py-1.5 text-sm font-medium hover:bg-stone-800 dark:hover:bg-stone-200 rounded-lg transition-colors"
+          >
+            Add Tags
+          </button>
+          <button
             onClick={handleBulkDelete}
             className="px-3 py-1.5 text-sm font-medium text-red-400 dark:text-red-600 hover:bg-red-900/30 dark:hover:bg-red-100 rounded-lg transition-colors"
           >
@@ -1044,7 +1096,7 @@ export function TransactionsPage() {
 
 
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-white dark:bg-stone-900 sm:bg-black/60 sm:backdrop-blur-sm p-0 sm:p-4">
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-white dark:bg-stone-900 sm:bg-black/60 p-0 sm:p-4">
           <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-md bg-white dark:bg-stone-900 sm:rounded-2xl shadow-none sm:shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-5 sm:slide-in-from-bottom-0 sm:zoom-in-95">
 
             {/* Header */}
@@ -1184,7 +1236,7 @@ export function TransactionsPage() {
                       if (!group || group.length === 0) return null;
                       return (
                         <div key={type}>
-                          <div className="px-4 py-2 text-[10px] font-bold text-stone-400 dark:text-stone-500 bg-stone-50 dark:bg-stone-800/50 uppercase tracking-wider sticky top-0 border-b border-stone-100 dark:border-stone-800">
+                          <div className="px-4 py-2 text-[10px] font-bold text-stone-400 dark:text-stone-500 bg-stone-50 dark:bg-stone-800 uppercase tracking-wider sticky top-0 border-b border-stone-100 dark:border-stone-800">
                             {type}
                           </div>
                           {group.map((c: any) => (
@@ -1233,6 +1285,104 @@ export function TransactionsPage() {
                     placeholder="Add a note..."
                     className="w-full px-4 py-3 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-base font-medium text-stone-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-stone-400"
                   />
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1.5">Tags</label>
+                <div className="flex flex-wrap gap-2">
+                  {allTags.map(tag => {
+                    const selected = formTagIds.includes(tag.id)
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => setFormTagIds(prev => selected ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${selected ? 'text-white border-transparent shadow-sm' : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600'}`}
+                        style={selected ? { backgroundColor: tag.color } : undefined}
+                      >
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: selected ? 'rgba(255,255,255,0.6)' : tag.color }} />
+                        {tag.name}
+                      </button>
+                    )
+                  })}
+
+                  {/* Inline new tag creation */}
+                  {!showNewTagInput ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowNewTagInput(true)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-stone-300 dark:border-stone-600 text-stone-500 dark:text-stone-400 hover:border-stone-400 dark:hover:border-stone-500 hover:text-stone-700 dark:hover:text-stone-200 transition-all"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                      </svg>
+                      New Tag
+                    </button>
+                  ) : (
+                    <div className="w-full mt-2 p-3 bg-stone-50 dark:bg-stone-800/80 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2.5 animate-in slide-in-from-top-2">
+                      <input
+                        type="text"
+                        value={newTagName}
+                        onChange={e => setNewTagName(e.target.value)}
+                        placeholder="Tag name..."
+                        autoFocus
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-lg text-stone-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            if (!newTagName.trim()) return
+                            const created = await api.tags.create({ name: newTagName.trim(), color: newTagColor })
+                            setAllTags(prev => [...prev, created])
+                            setFormTagIds(prev => [...prev, created.id])
+                            setNewTagName('')
+                            setNewTagColor('#6366f1')
+                            setShowNewTagInput(false)
+                          } else if (e.key === 'Escape') {
+                            setShowNewTagInput(false)
+                            setNewTagName('')
+                          }
+                        }}
+                      />
+                      <div className="flex items-center gap-1.5">
+                        {TAG_COLORS.map(c => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => setNewTagColor(c)}
+                            className={`w-5 h-5 rounded-full border-2 transition-all ${newTagColor === c ? 'border-stone-900 dark:border-white scale-110' : 'border-transparent hover:scale-105'}`}
+                            style={{ backgroundColor: c }}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setShowNewTagInput(false); setNewTagName('') }}
+                          className="px-3 py-1.5 text-xs font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!newTagName.trim()) return
+                            const created = await api.tags.create({ name: newTagName.trim(), color: newTagColor })
+                            setAllTags(prev => [...prev, created])
+                            setFormTagIds(prev => [...prev, created.id])
+                            setNewTagName('')
+                            setNewTagColor('#6366f1')
+                            setShowNewTagInput(false)
+                          }}
+                          disabled={!newTagName.trim()}
+                          className="px-3 py-1.5 text-xs font-medium text-white bg-stone-900 dark:bg-white dark:text-stone-900 rounded-lg hover:bg-stone-800 dark:hover:bg-stone-100 disabled:opacity-40 transition-colors"
+                        >
+                          Create
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1383,6 +1533,60 @@ export function TransactionsPage() {
                 className="px-4 py-2 rounded bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-300 dark:hover:bg-stone-600"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Tag Modal */}
+      {showBulkTagModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-2 sm:p-4 z-50">
+          <div className="bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 rounded-lg p-6 w-full max-w-md">
+            <h3 className="font-semibold text-lg mb-4">Add Tags</h3>
+            <p className="text-sm text-stone-600 dark:text-stone-400 mb-4">
+              Select tags to add to {selectedIds.size} selected transactions
+            </p>
+            <div className="flex flex-wrap gap-2 mb-6">
+              {allTags.map(tag => {
+                const selected = formTagIds.includes(tag.id)
+                return (
+                  <button
+                    key={tag.id}
+                    onClick={() => setFormTagIds(prev => selected ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all border ${selected ? 'text-white border-transparent shadow-sm' : 'bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 border-stone-200 dark:border-stone-700'}`}
+                    style={selected ? { backgroundColor: tag.color } : undefined}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: selected ? 'rgba(255,255,255,0.6)' : tag.color }} />
+                    {tag.name}
+                  </button>
+                )
+              })}
+            </div>
+            {allTags.length === 0 && (
+              <p className="text-sm text-stone-500 dark:text-stone-400 mb-4">No tags available. Create tags in Settings first.</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowBulkTagModal(false); setFormTagIds([]) }}
+                className="px-4 py-2 rounded bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-300 dark:hover:bg-stone-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (formTagIds.length === 0) return
+                  await api.transactions.bulkUpdateTags(Array.from(selectedIds), formTagIds)
+                  setShowBulkTagModal(false)
+                  setFormTagIds([])
+                  setSelectedIds(new Set())
+                  setSelectionMode(false)
+                  refresh()
+                }}
+                disabled={formTagIds.length === 0}
+                className="px-4 py-2 rounded bg-stone-900 dark:bg-white text-white dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-100 disabled:opacity-50"
+              >
+                Apply Tags
               </button>
             </div>
           </div>

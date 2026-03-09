@@ -16,7 +16,7 @@ dashboardRouter.get("/summary", requireAuth, async (req: AuthRequest, res) => {
       where: { userId }, 
       orderBy: { date: "desc" }, 
       take: 30,
-      include: { category: true }
+      include: { category: true, tags: { select: { id: true, name: true, color: true } } }
     }),
     prisma.manualAsset.findMany({ where: { userId } }),
     prisma.portfolio.findMany({ where: { userId }, include: { holdings: true } }),

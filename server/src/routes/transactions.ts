@@ -19,6 +19,7 @@ const createSchema = z.object({
   amount: z.number(),
   notes: z.string().optional(),
   recurringTransactionId: z.number().int().optional(),
+  tagIds: z.array(z.number().int()).optional(),
 });
 
 transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
@@ -31,9 +32,11 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
   const endDate = (req.query as any).endDate;
   const searchQuery = (req.query as any).search;
   const txnType = (req.query as any).type;
+  const filterByTag = (req.query as any).filterByTag ? Number((req.query as any).filterByTag) : undefined;
   
   const where: any = { userId: req.userId! };
   if (filterByCategory) where.categoryId = filterByCategory;
+  if (filterByTag) where.tags = { some: { id: filterByTag } };
   
   // FIXED: Handle date filtering robustly using dayjs to ensure inclusivity
   if (startDate || endDate) {
@@ -145,6 +148,13 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
             name: true,
             type: true
           }
+        },
+        tags: {
+          select: {
+            id: true,
+            name: true,
+            color: true
+          }
         }
       },
       skip, 
@@ -217,7 +227,9 @@ transactionsRouter.post("/", requireAuth, async (req: AuthRequest, res) => {
       type,
       notes: data.notes,
       recurringTransactionId: data.recurringTransactionId,
+      ...(data.tagIds?.length ? { tags: { connect: data.tagIds.map(id => ({ id })) } } : {}),
     },
+    include: { tags: { select: { id: true, name: true, color: true } } },
   });
   res.status(201).json(item);
 });
@@ -480,8 +492,11 @@ transactionsRouter.put("/:id", requireAuth, async (req: AuthRequest, res) => {
   const data = parse.data;
   const category = await prisma.category.findUnique({ where: { id: data.categoryId } });
   const type = category?.type || "Expense";
-  const updated = await prisma.transaction.updateMany({
-    where: { id, userId: req.userId! },
+  // Verify ownership
+  const existing = await prisma.transaction.findFirst({ where: { id, userId: req.userId! } });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+  const item = await prisma.transaction.update({
+    where: { id },
     data: {
       accountId: data.accountId,
       categoryId: data.categoryId,
@@ -491,10 +506,10 @@ transactionsRouter.put("/:id", requireAuth, async (req: AuthRequest, res) => {
       amount: data.amount,
       type,
       notes: data.notes,
+      ...(data.tagIds !== undefined ? { tags: { set: data.tagIds.map(id => ({ id })) } } : {}),
     },
+    include: { tags: { select: { id: true, name: true, color: true } } },
   });
-  if (updated.count === 0) return res.status(404).json({ error: "Not found" });
-  const item = await prisma.transaction.findUnique({ where: { id } });
   res.json(item);
 });
 
@@ -699,6 +714,40 @@ transactionsRouter.post("/bulk-delete", requireAuth, async (req: AuthRequest, re
 const bulkUpdateCategorySchema = z.object({
   ids: z.array(z.number().int()).min(1, "At least one ID required"),
   categoryId: z.number().int("Category ID is required"),
+});
+
+// Bulk update tags
+const bulkUpdateTagsSchema = z.object({
+  ids: z.array(z.number().int()).min(1),
+  tagIds: z.array(z.number().int()),
+});
+
+transactionsRouter.patch("/bulk-update-tags", requireAuth, async (req: AuthRequest, res) => {
+  const parse = bulkUpdateTagsSchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: "Invalid payload", details: parse.error });
+
+  const { ids, tagIds } = parse.data;
+  const userId = req.userId!;
+
+  // Verify tags belong to user
+  if (tagIds.length > 0) {
+    const tagCount = await prisma.tag.count({ where: { id: { in: tagIds }, userId } });
+    if (tagCount !== tagIds.length) return res.status(400).json({ error: "Some tags not found" });
+  }
+
+  // Update each transaction's tags (additive — merges with existing)
+  let updated = 0;
+  for (const txnId of ids) {
+    const txn = await prisma.transaction.findFirst({ where: { id: txnId, userId } });
+    if (!txn) continue;
+    await prisma.transaction.update({
+      where: { id: txnId },
+      data: { tags: { connect: tagIds.map(id => ({ id })) } },
+    });
+    updated++;
+  }
+
+  res.json({ updated });
 });
 
 transactionsRouter.patch("/bulk-update-category", requireAuth, async (req: AuthRequest, res) => {

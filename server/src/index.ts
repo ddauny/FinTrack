@@ -3,7 +3,7 @@ import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
 import { env } from "./config/env.js";
-import { authRouter, dashboardRouter, accountsRouter, categoriesRouter, transactionsRouter, budgetsRouter, reportsRouter, assetsRouter, settingsRouter, recurringTransactionsRouter, forecastRouter, savingsGoalsRouter } from "./routes/index.js";
+import { authRouter, dashboardRouter, accountsRouter, categoriesRouter, transactionsRouter, budgetsRouter, reportsRouter, assetsRouter, settingsRouter, recurringTransactionsRouter, forecastRouter, savingsGoalsRouter, tagsRouter } from "./routes/index.js";
 import { refreshMarketData } from "./services/marketData.js";
 import { startRecurringScheduler } from "./services/recurringScheduler.js";
 
@@ -28,6 +28,7 @@ app.use("/api/settings", settingsRouter);
 app.use("/api/recurring-transactions", recurringTransactionsRouter);
 app.use("/api/forecast", forecastRouter);
 app.use("/api/savings-goals", savingsGoalsRouter);
+app.use("/api/tags", tagsRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not Found" });

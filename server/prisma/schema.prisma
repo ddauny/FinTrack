@@ -24,6 +24,7 @@ model User {
   manualAssets ManualAsset[]
   assetGroups  AssetGroup[]
   savingsGoals SavingsGoal[]
+  tags         Tag[]
 }
 
 model Account {
@@ -64,8 +65,22 @@ model Transaction {
   account    Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   category   Category  @relation("TxnCategory", fields: [categoryId], references: [id])
   recurringTransaction RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
+  tags       Tag[]
 
   @@index([userId, date])
+}
+
+model Tag {
+  id           Int           @id @default(autoincrement())
+  userId       Int
+  name         String
+  color        String        @default("#6366f1") // hex color
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([userId, name])
+  @@index([userId])
 }
 
 model RecurringTransaction {

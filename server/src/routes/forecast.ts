@@ -139,14 +139,42 @@ forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, re
         // Actual transactions this month
         const actualTxns = await prisma.transaction.findMany({
             where: { userId, date: { gte: monthStart, lte: monthEnd } },
-            include: { category: { select: { type: true } } },
+            include: { category: { select: { type: true, name: true } } },
         });
 
         let actualIncome = 0, actualExpenses = 0;
+        const expenseByCategory: Record<string, number> = {};
+        const incomeByCategory: Record<string, number> = {};
+        const dailyExpenses: Record<number, number> = {};
+        const dailyIncome: Record<number, number> = {};
+
         for (const t of actualTxns) {
             const amount = Number(t.amount);
-            if (t.category?.type === "Income") actualIncome += amount;
-            else if (t.category?.type === "Expense") actualExpenses += amount;
+            const day = dayjs(t.date).date();
+            if (t.category?.type === "Income") {
+                actualIncome += amount;
+                incomeByCategory[t.category.name] = (incomeByCategory[t.category.name] || 0) + amount;
+                dailyIncome[day] = (dailyIncome[day] || 0) + amount;
+            } else if (t.category?.type === "Expense") {
+                actualExpenses += amount;
+                expenseByCategory[t.category.name] = (expenseByCategory[t.category.name] || 0) + amount;
+                dailyExpenses[day] = (dailyExpenses[day] || 0) + amount;
+            }
+        }
+
+        // Previous month data for comparison
+        const prevMonthStart = now.subtract(1, "month").startOf("month").toDate();
+        const prevMonthEnd = now.subtract(1, "month").endOf("month").toDate();
+        const prevTxns = await prisma.transaction.findMany({
+            where: { userId, date: { gte: prevMonthStart, lte: prevMonthEnd } },
+            include: { category: { select: { type: true } } },
+        });
+
+        let prevIncome = 0, prevExpenses = 0;
+        for (const t of prevTxns) {
+            const amount = Number(t.amount);
+            if (t.category?.type === "Income") prevIncome += amount;
+            else if (t.category?.type === "Expense") prevExpenses += amount;
         }
 
         // Recurring transactions that should fire in remaining days of month
@@ -158,15 +186,12 @@ forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, re
 
         for (const rt of recurringTxns) {
             const amount = Number(rt.amount);
-            // Calculate how many times this recurring fires between today+1 and monthEnd
             let nextDate = dayjs(rt.nextDate);
 
-            // If nextDate is before today, advance it
             while (nextDate.isBefore(dayjs(today), "day") || nextDate.isSame(dayjs(today), "day")) {
                 nextDate = advanceDate(nextDate, rt.frequency);
             }
 
-            // Count occurrences between tomorrow and end of month
             while (nextDate.isBefore(dayjs(monthEnd)) || nextDate.isSame(dayjs(monthEnd), "day")) {
                 if (rt.type === "Income") projectedIncome += amount;
                 else projectedExpenses += amount;
@@ -174,9 +199,39 @@ forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, re
             }
         }
 
-        const estimatedBalance = (actualIncome + projectedIncome) - (actualExpenses + projectedExpenses);
+        const totalIncome = actualIncome + projectedIncome;
+        const totalExpenses = actualExpenses + projectedExpenses;
+        const estimatedBalance = totalIncome - totalExpenses;
         const daysInMonth = now.daysInMonth();
         const daysPassed = now.date();
+
+        // Build daily cumulative data
+        const dailyCumulative: { day: number; expenses: number; income: number }[] = [];
+        let cumExp = 0, cumInc = 0;
+        for (let d = 1; d <= daysPassed; d++) {
+            cumExp += dailyExpenses[d] || 0;
+            cumInc += dailyIncome[d] || 0;
+            dailyCumulative.push({ day: d, expenses: Math.round(cumExp * 100) / 100, income: Math.round(cumInc * 100) / 100 });
+        }
+
+        // Top expense categories
+        const topExpenses = Object.entries(expenseByCategory)
+            .map(([name, amount]) => ({ name, amount: Math.round(amount * 100) / 100 }))
+            .sort((a, b) => b.amount - a.amount)
+            .slice(0, 6);
+
+        // Top income categories
+        const topIncome = Object.entries(incomeByCategory)
+            .map(([name, amount]) => ({ name, amount: Math.round(amount * 100) / 100 }))
+            .sort((a, b) => b.amount - a.amount)
+            .slice(0, 6);
+
+        // Average daily spending
+        const avgDailySpending = daysPassed > 0 ? Math.round((actualExpenses / daysPassed) * 100) / 100 : 0;
+        const projectedMonthlyExpenses = Math.round(avgDailySpending * daysInMonth * 100) / 100;
+
+        // Savings rate
+        const savingsRate = totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 10000) / 100 : 0;
 
         res.json({
             actualIncome: Math.round(actualIncome * 100) / 100,
@@ -187,6 +242,16 @@ forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, re
             daysInMonth,
             daysPassed,
             monthLabel: now.format("MMMM YYYY"),
+            // New fields
+            topExpenses,
+            topIncome,
+            dailyCumulative,
+            avgDailySpending,
+            projectedMonthlyExpenses,
+            savingsRate,
+            prevMonthIncome: Math.round(prevIncome * 100) / 100,
+            prevMonthExpenses: Math.round(prevExpenses * 100) / 100,
+            prevMonthBalance: Math.round((prevIncome - prevExpenses) * 100) / 100,
         });
     } catch (error) {
         console.error("Error in monthly-forecast:", error);

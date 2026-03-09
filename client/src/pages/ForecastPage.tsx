@@ -554,6 +554,7 @@ function GoalModal({ dark, goal, onClose, onSave }: { dark: boolean; goal: Savin
 function MonthlyForecastTab({ dark, hideNumbers }: { dark: boolean; hideNumbers: boolean }) {
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
+    const ct = useChartTheme()
 
     useEffect(() => {
         api.forecast.monthlyForecast().then(setData).catch(console.error).finally(() => setLoading(false))
@@ -566,6 +567,87 @@ function MonthlyForecastTab({ dark, hideNumbers }: { dark: boolean; hideNumbers:
     const totalIncome = data.actualIncome + data.projectedIncome
     const totalExpenses = data.actualExpenses + data.projectedExpenses
 
+    // Previous month comparison helpers
+    const incomeChange = data.prevMonthIncome > 0
+        ? Math.round(((totalIncome - data.prevMonthIncome) / data.prevMonthIncome) * 100) : null
+    const expenseChange = data.prevMonthExpenses > 0
+        ? Math.round(((totalExpenses - data.prevMonthExpenses) / data.prevMonthExpenses) * 100) : null
+
+    // Cumulative chart options
+    const cumulativeChartOption = {
+        tooltip: {
+            trigger: 'axis' as const,
+            backgroundColor: ct.tooltipBg,
+            borderColor: ct.tooltipBorder,
+            textStyle: { color: ct.tooltipText, fontSize: 12 },
+            formatter: (params: any) => {
+                if (hideNumbers) return `Day ${params[0]?.axisValue}`
+                const lines = params.map((p: any) =>
+                    `<span style="color:${p.color}">●</span> ${p.seriesName}: ${formatEUR(p.value)}`
+                )
+                return `<strong>Day ${params[0]?.axisValue}</strong><br/>${lines.join('<br/>')}`
+            },
+        },
+        grid: { left: 12, right: 12, top: 16, bottom: 24, containLabel: true },
+        xAxis: {
+            type: 'category' as const,
+            data: (data.dailyCumulative || []).map((d: any) => d.day),
+            axisLabel: { color: ct.axisLabel, fontSize: 10 },
+            axisLine: { lineStyle: { color: ct.axisLine } },
+        },
+        yAxis: {
+            type: 'value' as const,
+            axisLabel: { color: ct.axisLabel, fontSize: 10, formatter: (v: number) => hideNumbers ? '***' : `${(v / 1000).toFixed(1)}k` },
+            splitLine: { lineStyle: { color: ct.splitLine } },
+        },
+        series: [
+            {
+                name: 'Expenses',
+                type: 'line',
+                data: (data.dailyCumulative || []).map((d: any) => d.expenses),
+                smooth: true,
+                lineStyle: { width: 2.5 },
+                itemStyle: { color: '#f43f5e' },
+                areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(244,63,94,0.18)' }, { offset: 1, color: 'rgba(244,63,94,0.02)' }] } },
+                symbol: 'none',
+            },
+            {
+                name: 'Income',
+                type: 'line',
+                data: (data.dailyCumulative || []).map((d: any) => d.income),
+                smooth: true,
+                lineStyle: { width: 2.5 },
+                itemStyle: { color: '#10b981' },
+                areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(16,185,129,0.18)' }, { offset: 1, color: 'rgba(16,185,129,0.02)' }] } },
+                symbol: 'none',
+            },
+        ],
+    }
+
+    // Donut chart for expense categories
+    const expenseDonutOption = data.topExpenses?.length > 0 ? {
+        tooltip: {
+            trigger: 'item' as const,
+            backgroundColor: ct.tooltipBg,
+            borderColor: ct.tooltipBorder,
+            textStyle: { color: ct.tooltipText, fontSize: 12 },
+            formatter: (p: any) => hideNumbers ? `${p.name}` : `${p.name}: ${formatEUR(p.value)} (${p.percent?.toFixed(1)}%)`,
+        },
+        series: [{
+            type: 'pie',
+            radius: ['50%', '78%'],
+            center: ['50%', '50%'],
+            avoidLabelOverlap: true,
+            itemStyle: { borderRadius: 6, borderColor: ct.bg, borderWidth: 2 },
+            label: { show: false },
+            data: data.topExpenses.map((c: any, i: number) => ({
+                value: c.amount,
+                name: c.name,
+                itemStyle: { color: ['#f43f5e', '#f97316', '#eab308', '#8b5cf6', '#06b6d4', '#64748b'][i] || '#94a3b8' },
+            })),
+        }],
+    } : null
+
     return (
         <div className="space-y-3">
             {/* Month header */}
@@ -576,17 +658,32 @@ function MonthlyForecastTab({ dark, hideNumbers }: { dark: boolean; hideNumbers:
                         Day {data.daysPassed} of {data.daysInMonth}
                     </span>
                 </div>
-                <div className="w-full bg-stone-200 dark:bg-stone-700 rounded-full h-2">
-                    <div className="h-2 rounded-full bg-blue-500 transition-all duration-500" style={{ width: `${monthProgress}%` }} />
+                <div className="w-full bg-stone-200 dark:bg-stone-700 rounded-full h-2.5">
+                    <div className="h-2.5 rounded-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500" style={{ width: `${monthProgress}%` }} />
                 </div>
                 <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">{monthProgress}% of the month completed</p>
+            </div>
+
+            {/* KPI row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <KpiCard label="Actual Income" value={data.actualIncome} color="emerald" hideNumbers={hideNumbers} />
+                <KpiCard label="Actual Expenses" value={data.actualExpenses} color="rose" hideNumbers={hideNumbers} />
+                <KpiCard label="Avg Daily Spending" value={data.avgDailySpending} color="amber" hideNumbers={hideNumbers} />
+                <KpiCard label="Savings Rate" value={data.savingsRate} color="blue" hideNumbers={hideNumbers} suffix="%" isSavings />
             </div>
 
             {/* Actual vs Projected */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Income */}
                 <div className="bg-white dark:bg-stone-800 p-4 rounded-2xl shadow-sm border border-emerald-100 dark:border-emerald-900/40">
-                    <h4 className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-3">Income</h4>
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Income</h4>
+                        {incomeChange !== null && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${incomeChange >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'}`}>
+                                {incomeChange >= 0 ? '↑' : '↓'} {Math.abs(incomeChange)}% vs prev
+                            </span>
+                        )}
+                    </div>
                     <div className="space-y-3">
                         <ForecastRow label="Actual (recorded)" value={data.actualIncome} dark={dark} hideNumbers={hideNumbers} color="emerald" icon="✅" />
                         <ForecastRow label="Projected (recurring)" value={data.projectedIncome} dark={dark} hideNumbers={hideNumbers} color="emerald" icon="🔮" dashed />
@@ -598,7 +695,14 @@ function MonthlyForecastTab({ dark, hideNumbers }: { dark: boolean; hideNumbers:
 
                 {/* Expenses */}
                 <div className="bg-white dark:bg-stone-800 p-4 rounded-2xl shadow-sm border border-rose-100 dark:border-rose-900/40">
-                    <h4 className="text-xs font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider mb-3">Expenses</h4>
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Expenses</h4>
+                        {expenseChange !== null && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${expenseChange <= 0 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'}`}>
+                                {expenseChange >= 0 ? '↑' : '↓'} {Math.abs(expenseChange)}% vs prev
+                            </span>
+                        )}
+                    </div>
                     <div className="space-y-3">
                         <ForecastRow label="Actual (recorded)" value={data.actualExpenses} dark={dark} hideNumbers={hideNumbers} color="rose" icon="✅" />
                         <ForecastRow label="Projected (recurring)" value={data.projectedExpenses} dark={dark} hideNumbers={hideNumbers} color="rose" icon="🔮" dashed />
@@ -609,24 +713,89 @@ function MonthlyForecastTab({ dark, hideNumbers }: { dark: boolean; hideNumbers:
                 </div>
             </div>
 
-            {/* Estimated Balance */}
-            <div className={`bg-white dark:bg-stone-800 p-5 rounded-2xl shadow-sm border ${data.estimatedBalance >= 0
-                ? 'border-emerald-200 dark:border-emerald-900/40'
-                : 'border-rose-200 dark:border-rose-900/40'
-                }`}>
-                <div className="text-center">
-                    <p className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Estimated Monthly Balance</p>
-                    <div className={`text-3xl font-bold ${data.estimatedBalance >= 0
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-rose-600 dark:text-rose-400'
-                        }`}>
-                        <PrivacyNumber value={data.estimatedBalance}>
-                            {data.estimatedBalance > 0 ? '+' : ''}{formatEUR(data.estimatedBalance)}
-                        </PrivacyNumber>
+            {/* Cumulative chart */}
+            {(data.dailyCumulative?.length > 1) && (
+                <div className="bg-white dark:bg-stone-800 p-4 rounded-2xl shadow-sm border border-stone-200 dark:border-stone-700">
+                    <h4 className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2">Cumulative Income vs Expenses</h4>
+                    <ReactECharts option={cumulativeChartOption} style={{ height: 200 }} opts={{ renderer: 'svg' }} />
+                </div>
+            )}
+
+            {/* Expense breakdown + Balance */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Expense donut */}
+                {expenseDonutOption && (
+                    <div className="bg-white dark:bg-stone-800 p-4 rounded-2xl shadow-sm border border-stone-200 dark:border-stone-700">
+                        <h4 className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2">Top Expense Categories</h4>
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                                <ReactECharts option={expenseDonutOption} style={{ height: 160 }} opts={{ renderer: 'svg' }} />
+                            </div>
+                            <div className="space-y-1.5 min-w-0 flex-shrink-0">
+                                {data.topExpenses.slice(0, 5).map((c: any, i: number) => (
+                                    <div key={c.name} className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: ['#f43f5e', '#f97316', '#eab308', '#8b5cf6', '#06b6d4', '#64748b'][i] || '#94a3b8' }} />
+                                        <span className="text-[11px] text-stone-600 dark:text-stone-300 truncate max-w-[100px]">{c.name}</span>
+                                        <span className="text-[11px] font-semibold text-stone-700 dark:text-stone-200 ml-auto">
+                                            <PrivacyNumber value={c.amount}>{formatEUR(c.amount)}</PrivacyNumber>
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">Based on recorded transactions + scheduled recurring items</p>
+                )}
+
+                {/* Estimated Balance */}
+                <div className={`bg-white dark:bg-stone-800 p-5 rounded-2xl shadow-sm border flex flex-col justify-center ${data.estimatedBalance >= 0
+                    ? 'border-emerald-200 dark:border-emerald-900/40'
+                    : 'border-rose-200 dark:border-rose-900/40'
+                    }`}>
+                    <div className="text-center">
+                        <p className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Estimated Monthly Balance</p>
+                        <div className={`text-3xl font-bold ${data.estimatedBalance >= 0
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-rose-600 dark:text-rose-400'
+                            }`}>
+                            <PrivacyNumber value={data.estimatedBalance}>
+                                {data.estimatedBalance > 0 ? '+' : ''}{formatEUR(data.estimatedBalance)}
+                            </PrivacyNumber>
+                        </div>
+                        {data.prevMonthBalance !== undefined && data.prevMonthBalance !== 0 && (
+                            <p className="text-xs text-stone-400 dark:text-stone-500 mt-2">
+                                Last month: <span className={`font-semibold ${data.prevMonthBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    <PrivacyNumber value={data.prevMonthBalance}>{data.prevMonthBalance > 0 ? '+' : ''}{formatEUR(data.prevMonthBalance)}</PrivacyNumber>
+                                </span>
+                            </p>
+                        )}
+                        <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">Based on recorded transactions + scheduled recurring items</p>
+                    </div>
                 </div>
             </div>
+        </div>
+    )
+}
+
+// KPI card for monthly forecast
+function KpiCard({ label, value, color, hideNumbers, suffix, isSavings }: {
+    label: string; value: number; color: string; hideNumbers: boolean; suffix?: string; isSavings?: boolean
+}) {
+    const colorMap: Record<string, string> = {
+        emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/40',
+        rose: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 border-rose-100 dark:border-rose-900/40',
+        amber: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-900/40',
+        blue: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/40',
+    }
+    const display = isSavings
+        ? `${value}%`
+        : formatEUR(value)
+
+    return (
+        <div className={`p-3 rounded-2xl border ${colorMap[color] || colorMap.blue}`}>
+            <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70 mb-0.5">{label}</p>
+            <p className="text-base font-bold">
+                <PrivacyNumber value={value}>{display}</PrivacyNumber>
+            </p>
         </div>
     )
 }

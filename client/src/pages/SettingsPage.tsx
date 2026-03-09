@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { api } from '../lib/api'
+import type { Tag } from '../types'
 import { useNavigate } from 'react-router-dom'
 
 // Icons
@@ -95,6 +96,27 @@ type Group = {
   items?: Item[]
 }
 
+type CouponTier = {
+  fromYear: number
+  toYear: number
+  rate: number
+}
+
+type BondData = {
+  isin?: string | null
+  purchaseDate?: string | null
+  nominalValue: number
+  purchasePrice: number
+  bankCommissions: number
+  maturityDate: string
+  couponRate?: number | null
+  couponFrequency: number
+  taxRate: number
+  couponTiers?: CouponTier[]
+  linkedAccountId?: number | null
+  linkedCategoryId?: number | null
+}
+
 type Item = {
   id: number
   name: string
@@ -103,6 +125,8 @@ type Item = {
   depreciationAmount?: number | null
   order: number
   valuations?: any[]
+  isBond?: boolean
+  bondData?: BondData | null
 }
 
 export function SettingsPage() {
@@ -116,18 +140,37 @@ export function SettingsPage() {
   const [groups, setGroups] = useState<Group[]>([])
   const [groupForm, setGroupForm] = useState<any>({ name: '' })
   const [showGroupModal, setShowGroupModal] = useState(false)
-  const [itemForm, setItemForm] = useState<Record<number, { name: string; description?: string }>>({})
+  const [itemForm, setItemForm] = useState<Record<number, Partial<Item>>>({})
   const [showItemModalForGroup, setShowItemModalForGroup] = useState<number | null>(null)
+  const [editingItem, setEditingItem] = useState<Item | null>(null)
+  const [editingItemId, setEditingItemId] = useState<number | null>(null)
+  const [movingItemId, setMovingItemId] = useState<number | null>(null)
+  const [movingItemGroupId, setMovingItemGroupId] = useState<number | null>(null)
+  const [addingChildToItemId, setAddingChildToItemId] = useState<number | null>(null)
   const [depreciationValues, setDepreciationValues] = useState<Record<number, string>>({})
+  const [accounts, setAccounts] = useState<any[]>([])
   const [recurringTransactions, setRecurringTransactions] = useState<any[]>([])
   const [categoryMap, setCategoryMap] = useState<Record<number, any>>({})
   const [accountMap, setAccountMap] = useState<Record<number, any>>({})
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
   const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [tags, setTags] = useState<Tag[]>([])
+  const [tagForm, setTagForm] = useState<{ name: string; color: string }>({ name: '', color: '#6366f1' })
+  const [showTagModal, setShowTagModal] = useState(false)
+  const [editingTagId, setEditingTagId] = useState<number | null>(null)
+  const TAG_COLORS = ['#6366f1','#f43f5e','#10b981','#f59e0b','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b']
   const [automationToken, setAutomationToken] = useState<string | null>(null)
   const [showToken, setShowToken] = useState(false)
   const [showImportInfo, setShowImportInfo] = useState(false)
   const [activeGroupId, setActiveGroupId] = useState<number | null>(null)
+  const [isBondToggle, setIsBondToggle] = useState(false)
+  const [bondForm, setBondForm] = useState<BondData>({
+    isin: '', purchaseDate: '', nominalValue: 1000, purchasePrice: 100,
+    bankCommissions: 0, maturityDate: '', couponRate: null,
+    couponFrequency: 6, taxRate: 12.5, couponTiers: [],
+    linkedAccountId: null, linkedCategoryId: null,
+  })
+  const [useTieredCoupon, setUseTieredCoupon] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -156,13 +199,14 @@ export function SettingsPage() {
   }
 
   async function refresh() {
-    const [p, c, g, r, accounts, tokenData] = await Promise.all([
+    const [p, c, g, r, accounts, tokenData, tagsData] = await Promise.all([
       api.settings.profile(),
       api.categories.list(),
       fetch('/api/asset-groups', { headers: tokenHeader() }).then(r => r.json()),
       api.recurringTransactions.list(),
       api.accounts.list(),
-      api.settings.getAutomationToken()
+      api.settings.getAutomationToken(),
+      api.tags.list()
     ])
     setProfile(p)
     setEmail((p as any)?.email || '')
@@ -170,6 +214,7 @@ export function SettingsPage() {
     setGroups(g as Group[])
     setRecurringTransactions(r)
     setAutomationToken(tokenData.token)
+    setTags(tagsData)
 
     // Create maps for easier lookups
     const catMap: Record<number, any> = {}
@@ -179,6 +224,7 @@ export function SettingsPage() {
     const accMap: Record<number, any> = {}
     accounts.forEach((acc: any) => accMap[acc.id] = acc)
     setAccountMap(accMap)
+    setAccounts(accounts)
   }
 
   useEffect(() => { refresh() }, [])
@@ -224,6 +270,59 @@ export function SettingsPage() {
       headers: { 'Content-Type': 'application/json', ...tokenHeader() },
       body: JSON.stringify({ itemIds: items.map(it => it.id) })
     })
+  }
+
+  function resetBondForm() {
+    setIsBondToggle(false)
+    setUseTieredCoupon(false)
+    setBondForm({
+      isin: '', purchaseDate: '', nominalValue: 1000, purchasePrice: 100,
+      bankCommissions: 0, maturityDate: '', couponRate: null,
+      couponFrequency: 6, taxRate: 12.5, couponTiers: [],
+      linkedAccountId: null, linkedCategoryId: null,
+    })
+  }
+
+  function openItemModalForCreate(groupId: number) {
+    setEditingItem(null)
+    setItemForm({ ...itemForm, [groupId]: { name: '', description: '' } })
+    resetBondForm()
+    setShowItemModalForGroup(groupId)
+  }
+
+  function openItemModalForEdit(item: Item, groupId: number) {
+    setEditingItem(item)
+    setItemForm({ ...itemForm, [groupId]: { name: item.name, description: item.description || '' } })
+    if (item.bondData) {
+      setIsBondToggle(true)
+      const bd = item.bondData
+      const hasTiers = (bd.couponTiers && bd.couponTiers.length > 0)
+      setUseTieredCoupon(!!hasTiers)
+      setBondForm({
+        isin: bd.isin || '',
+        purchaseDate: bd.purchaseDate ? bd.purchaseDate.slice(0, 10) : '',
+        nominalValue: Number(bd.nominalValue),
+        purchasePrice: Number(bd.purchasePrice) || 100,
+        bankCommissions: Number(bd.bankCommissions) || 0,
+        maturityDate: bd.maturityDate ? bd.maturityDate.slice(0, 10) : '',
+        couponRate: bd.couponRate != null ? Number(bd.couponRate) : null,
+        couponFrequency: bd.couponFrequency || 6,
+        taxRate: bd.taxRate != null ? Number(bd.taxRate) : 12.5,
+        couponTiers: hasTiers ? bd.couponTiers!.map((t: any) => ({ fromYear: t.fromYear, toYear: t.toYear, rate: Number(t.rate) })) : [],
+        linkedAccountId: bd.linkedAccountId || null,
+        linkedCategoryId: bd.linkedCategoryId || null,
+      })
+    } else {
+      resetBondForm()
+    }
+    setShowItemModalForGroup(groupId)
+  }
+
+  function closeItemModal() {
+    setShowItemModalForGroup(null)
+    setEditingItem(null)
+    setAddingChildToItemId(null)
+    resetBondForm()
   }
 
   // Export functions
@@ -770,6 +869,58 @@ export function SettingsPage() {
           </div>
         </section>
 
+        {/* Tags Section */}
+        <section className="bg-white dark:bg-stone-800 p-4 sm:p-6 rounded-lg shadow-sm border border-stone-200 dark:border-stone-700">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+              </svg>
+              Tags
+            </h2>
+            <button
+              onClick={() => { setTagForm({ name: '', color: '#6366f1' }); setEditingTagId(null); setShowTagModal(true) }}
+              className="btn-primary flex items-center gap-1.5 px-3 py-2 text-sm"
+            >
+              <IconPlus />
+              Add Tag
+            </button>
+          </div>
+
+          {tags.length === 0 ? (
+            <p className="text-sm text-stone-500 dark:text-stone-400">No tags yet. Create one to label your transactions.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {tags.map(tag => (
+                <div
+                  key={tag.id}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/50 group"
+                >
+                  <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                  <span className="text-sm font-medium text-stone-700 dark:text-stone-200">{tag.name}</span>
+                  <button
+                    onClick={() => { setTagForm({ name: tag.name, color: tag.color }); setEditingTagId(tag.id); setShowTagModal(true) }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-stone-400 hover:text-blue-500"
+                  >
+                    <IconEdit />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Delete tag "${tag.name}"?`)) return
+                      await api.tags.remove(tag.id)
+                      refresh()
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-stone-400 hover:text-red-500"
+                  >
+                    <IconTrash />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         {/* Asset Groups Section */}
         <section className="bg-white dark:bg-stone-800 p-4 sm:p-6 rounded-lg shadow-sm border border-stone-200 dark:border-stone-700">
           <div className="flex justify-between items-center mb-6">
@@ -841,7 +992,7 @@ export function SettingsPage() {
                         }
                       ]} />
                       <button
-                        onClick={() => setShowItemModalForGroup(g.id)}
+                        onClick={() => openItemModalForCreate(g.id)}
                         className="btn-primary flex items-center gap-1.5 px-3 py-1.5 text-sm"
                       >
                         <IconPlus /> Add Item
@@ -857,22 +1008,33 @@ export function SettingsPage() {
                         <div key={it.id} className="bg-stone-50 dark:bg-stone-900/30 border border-stone-200 dark:border-stone-700 rounded-xl p-4 flex flex-col gap-3 hover:border-blue-300 dark:hover:border-blue-700 transition-colors group">
                           <div className="flex justify-between items-start">
                             <div>
-                              <h4 className="font-semibold text-stone-900 dark:text-stone-100">{it.name}</h4>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-semibold text-stone-900 dark:text-stone-100">{it.name}</h4>
+                                {it.bondData && <span className="text-[10px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">BTP</span>}
+                              </div>
                               {it.description && <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{it.description}</p>}
+                              {it.bondData && (
+                                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-stone-400 dark:text-stone-500">
+                                  {it.bondData.isin && <span>ISIN: {it.bondData.isin}</span>}
+                                  <span>Scadenza: {new Date(it.bondData.maturityDate).toLocaleDateString('it-IT')}</span>
+                                  <span>Nominale: {Number(it.bondData.nominalValue).toLocaleString('it-IT')}€</span>
+                                  {it.bondData.couponRate != null && <span>Cedola: {Number(it.bondData.couponRate)}%</span>}
+                                  {it.bondData.couponTiers && it.bondData.couponTiers.length > 0 && <span>Cedola a scaglioni ({it.bondData.couponTiers.length})</span>}
+                                </div>
+                              )}
                             </div>
                             <ActionMenu actions={[
+                              {
+                                label: 'Edit Item',
+                                icon: <IconEdit />,
+                                onClick: () => openItemModalForEdit(it, g.id)
+                              },
                               {
                                 label: 'Add Child Item',
                                 icon: <IconPlus />,
                                 onClick: () => {
-                                  const name = prompt('Child item name?')
-                                  if (name) {
-                                    fetch(`/api/asset-items/${it.id}/children`, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json', ...tokenHeader() },
-                                      body: JSON.stringify({ name })
-                                    }).then(() => refresh())
-                                  }
+                                  setAddingChildToItemId(it.id)
+                                  openItemModalForCreate(g.id)
                                 }
                               },
                               {
@@ -885,6 +1047,17 @@ export function SettingsPage() {
                                 icon: <IconDown />,
                                 onClick: () => moveItem(g.id, itIdx, 'down')
                               },
+                              ...(it.bondData ? [{
+                                label: 'Remove Bond Data',
+                                icon: <IconTrash />,
+                                variant: 'danger' as const,
+                                onClick: async () => {
+                                  const ok = confirm(`Remove bond data from "${it.name}"?`)
+                                  if (!ok) return
+                                  await fetch(`/api/asset-items/${it.id}/bond-data`, { method: 'DELETE', headers: tokenHeader() })
+                                  refresh()
+                                }
+                              }] : []),
                               {
                                 label: 'Delete Item',
                                 icon: <IconTrash />,
@@ -931,42 +1104,63 @@ export function SettingsPage() {
                             <div className="mt-1 space-y-2">
                               <div className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider">Sub-items</div>
                               {children.map(ch => (
-                                <div key={ch.id} className="flex items-center justify-between bg-white dark:bg-stone-800 p-2 rounded border border-stone-100 dark:border-stone-700/50">
-                                  <div className="min-w-0 flex-1">
-                                    <div className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">{ch.name}</div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex items-center gap-0.5 opacity-50 hover:opacity-100 transition-opacity">
-                                      <span className="text-stone-300 text-[10px]">€</span>
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        placeholder="0"
-                                        value={depreciationValues[ch.id] !== undefined ? depreciationValues[ch.id] : (ch.depreciationAmount || '')}
-                                        onChange={(e) => setDepreciationValues(prev => ({ ...prev, [ch.id]: e.target.value }))}
-                                        onBlur={async () => {
-                                          const value = depreciationValues[ch.id] ? Number(depreciationValues[ch.id]) : null
-                                          await fetch(`/api/asset-items/${ch.id}`, {
-                                            method: 'PUT',
-                                            headers: { 'Content-Type': 'application/json', ...tokenHeader() },
-                                            body: JSON.stringify({ depreciationAmount: value })
-                                          })
-                                          await refresh()
-                                        }}
-                                        className="w-12 text-right text-xs bg-transparent border-none p-0 focus:ring-0 text-stone-600 dark:text-stone-400"
-                                      />
+                                <div key={ch.id} className="bg-white dark:bg-stone-800 p-2 rounded border border-stone-100 dark:border-stone-700/50">
+                                  <div className="flex items-center justify-between">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">{ch.name}</span>
+                                        {ch.bondData && <span className="text-[9px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1 py-0.5 rounded">BTP</span>}
+                                      </div>
+                                      {ch.bondData && (
+                                        <div className="flex flex-wrap gap-x-2 gap-y-0 text-[9px] text-stone-400 dark:text-stone-500 mt-0.5">
+                                          {ch.bondData.isin && <span>{ch.bondData.isin}</span>}
+                                          <span>Scad: {new Date(ch.bondData.maturityDate).toLocaleDateString('it-IT')}</span>
+                                          <span>{Number(ch.bondData.nominalValue).toLocaleString('it-IT')}€</span>
+                                          {ch.bondData.couponRate != null && <span>{Number(ch.bondData.couponRate)}%</span>}
+                                          {ch.bondData.couponTiers && ch.bondData.couponTiers.length > 0 && <span>scaglioni ({ch.bondData.couponTiers.length})</span>}
+                                        </div>
+                                      )}
                                     </div>
-                                    <button
-                                      onClick={async () => {
-                                        const ok = confirm(`Delete child item "${ch.name}"?`)
-                                        if (!ok) return
-                                        await fetch(`/api/asset-items/${ch.id}`, { method: 'DELETE', headers: tokenHeader() })
-                                        refresh()
-                                      }}
-                                      className="text-stone-400 hover:text-red-500 transition-colors"
-                                    >
-                                      <IconTrash />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                      <div className="flex items-center gap-0.5 opacity-50 hover:opacity-100 transition-opacity">
+                                        <span className="text-stone-300 text-[10px]">€</span>
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          placeholder="0"
+                                          value={depreciationValues[ch.id] !== undefined ? depreciationValues[ch.id] : (ch.depreciationAmount || '')}
+                                          onChange={(e) => setDepreciationValues(prev => ({ ...prev, [ch.id]: e.target.value }))}
+                                          onBlur={async () => {
+                                            const value = depreciationValues[ch.id] ? Number(depreciationValues[ch.id]) : null
+                                            await fetch(`/api/asset-items/${ch.id}`, {
+                                              method: 'PUT',
+                                              headers: { 'Content-Type': 'application/json', ...tokenHeader() },
+                                              body: JSON.stringify({ depreciationAmount: value })
+                                            })
+                                            await refresh()
+                                          }}
+                                          className="w-12 text-right text-xs bg-transparent border-none p-0 focus:ring-0 text-stone-600 dark:text-stone-400"
+                                        />
+                                      </div>
+                                      <button
+                                        onClick={() => openItemModalForEdit(ch, g.id)}
+                                        className="text-stone-400 hover:text-blue-500 transition-colors p-0.5"
+                                        title="Edit"
+                                      >
+                                        <IconEdit />
+                                      </button>
+                                      <button
+                                        onClick={async () => {
+                                          const ok = confirm(`Delete child item "${ch.name}"?`)
+                                          if (!ok) return
+                                          await fetch(`/api/asset-items/${ch.id}`, { method: 'DELETE', headers: tokenHeader() })
+                                          refresh()
+                                        }}
+                                        className="text-stone-400 hover:text-red-500 transition-colors p-0.5"
+                                      >
+                                        <IconTrash />
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               ))}
@@ -981,7 +1175,7 @@ export function SettingsPage() {
                       <div className="col-span-full py-12 text-center border-2 border-dashed border-stone-200 dark:border-stone-700 rounded-xl">
                         <p className="text-stone-500 dark:text-stone-400 mb-2">This group is empty.</p>
                         <button
-                          onClick={() => setShowItemModalForGroup(g.id)}
+                          onClick={() => openItemModalForCreate(g.id)}
                           className="text-blue-600 dark:text-blue-400 font-medium hover:underline"
                         >
                           Add your first item
@@ -1140,6 +1334,52 @@ export function SettingsPage() {
           </div>
         )}
 
+        {/* Tag Modal */}
+        {showTagModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-stone-800 rounded-lg p-6 w-full max-w-md space-y-4 text-stone-900 dark:text-stone-100 shadow-xl">
+              <h3 className="text-xl font-semibold">{editingTagId ? 'Edit Tag' : 'Add Tag'}</h3>
+              <input
+                value={tagForm.name}
+                onChange={e => setTagForm({ ...tagForm, name: e.target.value })}
+                placeholder="Tag name"
+                className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500"
+              />
+              <div>
+                <label className="block text-sm font-medium text-stone-600 dark:text-stone-400 mb-2">Color</label>
+                <div className="flex flex-wrap gap-2">
+                  {TAG_COLORS.map(c => (
+                    <button
+                      key={c}
+                      onClick={() => setTagForm({ ...tagForm, color: c })}
+                      className={`w-8 h-8 rounded-full border-2 transition-all ${tagForm.color === c ? 'border-stone-900 dark:border-white scale-110' : 'border-transparent hover:scale-105'}`}
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setShowTagModal(false)} className="btn-secondary">Cancel</button>
+                <button
+                  onClick={async () => {
+                    if (!tagForm.name.trim()) return
+                    if (editingTagId) {
+                      await api.tags.update(editingTagId, tagForm)
+                    } else {
+                      await api.tags.create(tagForm)
+                    }
+                    setShowTagModal(false)
+                    refresh()
+                  }}
+                  className="btn-primary"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showGroupModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white dark:bg-stone-800 rounded-lg p-6 w-full max-w-md space-y-4 text-stone-900 dark:text-stone-100 shadow-xl">
@@ -1180,44 +1420,298 @@ export function SettingsPage() {
 
         {showItemModalForGroup && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white dark:bg-stone-800 rounded-lg p-6 w-full max-w-md space-y-4 text-stone-900 dark:text-stone-100 shadow-xl">
-              <h3 className="text-xl font-semibold">Add Item</h3>
-              <input
-                value={itemForm[showItemModalForGroup]?.name || ''}
-                onChange={e => setItemForm({ ...itemForm, [showItemModalForGroup]: { ...(itemForm[showItemModalForGroup] || {}), name: e.target.value } })}
-                placeholder="Item name (e.g., Trade Republic)"
-                className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                value={itemForm[showItemModalForGroup]?.description || ''}
-                onChange={e => setItemForm({ ...itemForm, [showItemModalForGroup]: { ...(itemForm[showItemModalForGroup] || {}), description: e.target.value } })}
-                placeholder="Description (optional)"
-                className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500"
-              />
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  onClick={() => setShowItemModalForGroup(null)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    const it = itemForm[showItemModalForGroup!]
-                    if (!it?.name) return
-                    await fetch(`/api/asset-groups/${showItemModalForGroup}/items`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', ...tokenHeader() },
-                      body: JSON.stringify(it)
-                    })
-                    setItemForm({ ...itemForm, [showItemModalForGroup!]: { name: '', description: '' } })
-                    setShowItemModalForGroup(null)
-                    refresh()
-                  }}
-                  className="btn-primary"
-                >
-                  Save
-                </button>
+            <div className={`bg-white dark:bg-stone-800 rounded-lg p-6 w-full ${isBondToggle ? 'max-w-2xl' : 'max-w-md'} text-stone-900 dark:text-stone-100 shadow-xl max-h-[90vh] overflow-y-auto transition-all`}>
+              <h3 className="text-xl font-semibold mb-4">{editingItem ? 'Edit Item' : addingChildToItemId ? 'Add Child Item' : 'Add Item'}</h3>
+
+              <div className="space-y-4">
+                {/* Name & Description */}
+                <input
+                  value={itemForm[showItemModalForGroup]?.name || ''}
+                  onChange={e => setItemForm({ ...itemForm, [showItemModalForGroup]: { ...(itemForm[showItemModalForGroup] || {}), name: e.target.value } })}
+                  placeholder="Item name (e.g., BTP Valore Mag 2030)"
+                  className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  value={itemForm[showItemModalForGroup]?.description || ''}
+                  onChange={e => setItemForm({ ...itemForm, [showItemModalForGroup]: { ...(itemForm[showItemModalForGroup] || {}), description: e.target.value } })}
+                  placeholder="Description (optional)"
+                  className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500"
+                />
+
+                {/* Bond Toggle */}
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <div className={`relative w-11 h-6 rounded-full transition-colors ${isBondToggle ? 'bg-blue-600' : 'bg-stone-300 dark:bg-stone-600'}`}
+                    onClick={() => setIsBondToggle(!isBondToggle)}>
+                    <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isBondToggle ? 'translate-x-5' : ''}`} />
+                  </div>
+                  <span className="text-sm font-medium">BTP / Obbligazione</span>
+                </label>
+
+                {/* Bond Data Form */}
+                {isBondToggle && (
+                  <div className="space-y-5 border-t border-stone-200 dark:border-stone-700 pt-4">
+
+                    {/* Dati Identificativi */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-2">Dati Identificativi</h4>
+                      <input
+                        value={bondForm.isin || ''}
+                        onChange={e => setBondForm({ ...bondForm, isin: e.target.value })}
+                        placeholder="ISIN (es. IT0005532715)"
+                        className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                      />
+                    </div>
+
+                    {/* Dati di Acquisto */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-2">Dati di Acquisto</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Data di acquisto</label>
+                          <input type="date" value={bondForm.purchaseDate || ''}
+                            onChange={e => setBondForm({ ...bondForm, purchaseDate: e.target.value })}
+                            className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Valore Nominale (&euro;) *</label>
+                          <input type="number" step="0.01" value={bondForm.nominalValue}
+                            onChange={e => setBondForm({ ...bondForm, nominalValue: Number(e.target.value) })}
+                            placeholder="1000"
+                            className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Prezzo di acquisto (% pari)</label>
+                          <input type="number" step="0.01" value={bondForm.purchasePrice}
+                            onChange={e => setBondForm({ ...bondForm, purchasePrice: Number(e.target.value) })}
+                            placeholder="100"
+                            className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Commissioni bancarie (&euro;)</label>
+                          <input type="number" step="0.01" value={bondForm.bankCommissions}
+                            onChange={e => setBondForm({ ...bondForm, bankCommissions: Number(e.target.value) })}
+                            placeholder="0"
+                            className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Caratteristiche del Titolo */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-2">Caratteristiche del Titolo</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Data di scadenza *</label>
+                          <input type="date" value={bondForm.maturityDate}
+                            onChange={e => setBondForm({ ...bondForm, maturityDate: e.target.value })}
+                            className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Frequenza cedola (mesi)</label>
+                          <input type="number" min="1" max="12" value={bondForm.couponFrequency}
+                            onChange={e => setBondForm({ ...bondForm, couponFrequency: Number(e.target.value) })}
+                            className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Coupon Type Toggle */}
+                      <div className="mt-3 flex items-center gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="radio" name="couponType" checked={!useTieredCoupon}
+                            onChange={() => setUseTieredCoupon(false)}
+                            className="accent-blue-600" />
+                          <span className="text-sm">Tasso fisso</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="radio" name="couponType" checked={useTieredCoupon}
+                            onChange={() => setUseTieredCoupon(true)}
+                            className="accent-blue-600" />
+                          <span className="text-sm">Tasso a scaglioni (BTP Valore)</span>
+                        </label>
+                      </div>
+
+                      {/* Fixed Coupon Rate */}
+                      {!useTieredCoupon && (
+                        <div className="mt-3">
+                          <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Tasso cedolare annuo lordo (%)</label>
+                          <input type="number" step="0.01"
+                            value={bondForm.couponRate ?? ''}
+                            onChange={e => setBondForm({ ...bondForm, couponRate: e.target.value ? Number(e.target.value) : null })}
+                            placeholder="4.00"
+                            className="w-full sm:w-1/2 border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                      )}
+
+                      {/* Tiered Coupon Rates */}
+                      {useTieredCoupon && (
+                        <div className="mt-3 space-y-2">
+                          <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Scaglioni cedolari</label>
+                          {(bondForm.couponTiers || []).map((tier, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <div className="flex items-center gap-1 text-xs text-stone-500">
+                                <span>Anno</span>
+                                <input type="number" min="1" value={tier.fromYear}
+                                  onChange={e => {
+                                    const tiers = [...(bondForm.couponTiers || [])]
+                                    tiers[idx] = { ...tiers[idx], fromYear: Number(e.target.value) }
+                                    setBondForm({ ...bondForm, couponTiers: tiers })
+                                  }}
+                                  className="w-12 border p-1.5 rounded bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 text-sm text-center"
+                                />
+                                <span>-</span>
+                                <input type="number" min="1" value={tier.toYear}
+                                  onChange={e => {
+                                    const tiers = [...(bondForm.couponTiers || [])]
+                                    tiers[idx] = { ...tiers[idx], toYear: Number(e.target.value) }
+                                    setBondForm({ ...bondForm, couponTiers: tiers })
+                                  }}
+                                  className="w-12 border p-1.5 rounded bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 text-sm text-center"
+                                />
+                              </div>
+                              <div className="flex items-center gap-1 text-xs text-stone-500">
+                                <span>Tasso</span>
+                                <input type="number" step="0.01" value={tier.rate}
+                                  onChange={e => {
+                                    const tiers = [...(bondForm.couponTiers || [])]
+                                    tiers[idx] = { ...tiers[idx], rate: Number(e.target.value) }
+                                    setBondForm({ ...bondForm, couponTiers: tiers })
+                                  }}
+                                  className="w-16 border p-1.5 rounded bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 text-sm text-center"
+                                />
+                                <span>%</span>
+                              </div>
+                              <button onClick={() => {
+                                const tiers = (bondForm.couponTiers || []).filter((_, i) => i !== idx)
+                                setBondForm({ ...bondForm, couponTiers: tiers })
+                              }} className="text-red-400 hover:text-red-600 ml-1"><IconTrash /></button>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => {
+                              const tiers = [...(bondForm.couponTiers || [])]
+                              const lastTo = tiers.length > 0 ? tiers[tiers.length - 1].toYear : 0
+                              tiers.push({ fromYear: lastTo + 1, toYear: lastTo + 2, rate: 0 })
+                              setBondForm({ ...bondForm, couponTiers: tiers })
+                            }}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                          >
+                            <IconPlus /> Aggiungi scaglione
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dati Fiscali */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-2">Dati Fiscali</h4>
+                      <div>
+                        <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Aliquota fiscale (%)</label>
+                        <input type="number" step="0.1" value={bondForm.taxRate}
+                          onChange={e => setBondForm({ ...bondForm, taxRate: Number(e.target.value) })}
+                          className="w-full sm:w-1/2 border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 text-sm"
+                        />
+                        <p className="text-[10px] text-stone-400 mt-1">Titoli di Stato: 12,5% — Azioni/ETF: 26%</p>
+                      </div>
+                    </div>
+
+                    {/* Collegamento Automatico Cedole */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mb-2">Collegamento Automatico Cedole</h4>
+                      <p className="text-[10px] text-stone-400 dark:text-stone-500 mb-2">Collega un conto e una categoria per generare automaticamente le transazioni delle cedole.</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Conto</label>
+                          <select
+                            value={bondForm.linkedAccountId ?? ''}
+                            onChange={e => setBondForm({ ...bondForm, linkedAccountId: e.target.value ? Number(e.target.value) : null })}
+                            className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 text-sm"
+                          >
+                            <option value="">— Nessuno —</option>
+                            {accounts.map((acc: any) => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Categoria (Income)</label>
+                          <select
+                            value={bondForm.linkedCategoryId ?? ''}
+                            onChange={e => setBondForm({ ...bondForm, linkedCategoryId: e.target.value ? Number(e.target.value) : null })}
+                            className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 text-sm"
+                          >
+                            <option value="">— Nessuna —</option>
+                            {categories.filter((c: any) => c.type === 'Income').map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex justify-end gap-3 pt-2">
+                  <button onClick={closeItemModal} className="btn-secondary">Cancel</button>
+                  <button
+                    onClick={async () => {
+                      const formData = itemForm[showItemModalForGroup!]
+                      if (!formData?.name) return
+
+                      const payload: any = { name: formData.name, description: formData.description }
+
+                      if (isBondToggle) {
+                        if (!bondForm.maturityDate || !bondForm.nominalValue) {
+                          alert('Valore Nominale e Data di Scadenza sono obbligatori per un BTP.')
+                          return
+                        }
+                        payload.bondData = {
+                          isin: bondForm.isin || null,
+                          purchaseDate: bondForm.purchaseDate || null,
+                          nominalValue: bondForm.nominalValue,
+                          purchasePrice: bondForm.purchasePrice,
+                          bankCommissions: bondForm.bankCommissions,
+                          maturityDate: bondForm.maturityDate,
+                          couponRate: useTieredCoupon ? null : (bondForm.couponRate ?? null),
+                          couponFrequency: bondForm.couponFrequency,
+                          taxRate: bondForm.taxRate,
+                          couponTiers: useTieredCoupon ? (bondForm.couponTiers || []) : [],
+                          linkedAccountId: bondForm.linkedAccountId || null,
+                          linkedCategoryId: bondForm.linkedCategoryId || null,
+                        }
+                      }
+
+                      if (editingItem) {
+                        await fetch(`/api/asset-items/${editingItem.id}`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json', ...tokenHeader() },
+                          body: JSON.stringify(payload)
+                        })
+                      } else if (addingChildToItemId) {
+                        await fetch(`/api/asset-items/${addingChildToItemId}/children`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', ...tokenHeader() },
+                          body: JSON.stringify(payload)
+                        })
+                      } else {
+                        await fetch(`/api/asset-groups/${showItemModalForGroup}/items`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', ...tokenHeader() },
+                          body: JSON.stringify(payload)
+                        })
+                      }
+
+                      closeItemModal()
+                      refresh()
+                    }}
+                    className="btn-primary"
+                  >
+                    {editingItem ? 'Update' : 'Save'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

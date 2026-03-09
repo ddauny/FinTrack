@@ -20,7 +20,7 @@ const IconEyeSlash = () => (
 )
 
 type Group = { id: number; name: string; items: Item[] }
-type Item = { id: number; name: string; description?: string; parentItemId?: number | null; hidden?: boolean; depreciationAmount?: number; valuations?: { month: string; value: number; formula?: string | null; note?: string | null }[] }
+type Item = { id: number; name: string; description?: string; parentItemId?: number | null; hidden?: boolean; depreciationAmount?: number; bondData?: any; valuations?: { month: string; value: number; formula?: string | null; note?: string | null }[] }
 
 export function AssetsPage() {
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
@@ -626,6 +626,7 @@ export function AssetsPage() {
               <span className={`truncate ${depth === 0 ? 'font-medium text-stone-900 dark:text-stone-200' : 'text-stone-600 dark:text-stone-400 text-sm'}`}>
                 {item.name}
               </span>
+              {item.bondData && <span className="text-[9px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1 py-0.5 rounded shrink-0">BTP</span>}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {item.valuations?.find(v => monthKey(new Date(v.month)) === currentMonth)?.note && (
@@ -931,6 +932,7 @@ export function AssetsPage() {
                           </button>
                         )}
                         <span className="truncate">{row.name}</span>
+                        {row.item?.bondData && <span className="text-[9px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1 py-0.5 rounded shrink-0">BTP</span>}
                         <button
                           title="Hide row"
                           onClick={() => toggleHidden(row.item!)}

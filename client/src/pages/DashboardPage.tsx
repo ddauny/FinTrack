@@ -306,6 +306,11 @@ function RecentTransactions({ data }: { data: any }) {
                 <span className="text-[10px] text-stone-500 dark:text-stone-400">{formatDateDMY(new Date(txn.date))}</span>
                 <span className="text-[10px] text-stone-400 dark:text-stone-500">•</span>
                 <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate max-w-[80px]">{txn.category?.name || 'Uncategorized'}</span>
+                {txn.tags?.length > 0 && txn.tags.map((tag: any) => (
+                  <span key={tag.id} className="inline-flex items-center px-1.5 py-0 rounded-full text-[9px] font-medium text-white" style={{ backgroundColor: tag.color }}>
+                    {tag.name}
+                  </span>
+                ))}
               </div>
             </div>
             <div className={`text-sm font-bold whitespace-nowrap ${txn.category?.type === 'Income' ? 'text-emerald-600 dark:text-emerald-400' :

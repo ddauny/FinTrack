@@ -3,6 +3,7 @@ import type {
   RegisterResponse,
   DashboardSummary,
   Transaction,
+  Tag,
   Budget,
   Account,
   Category,
@@ -48,6 +49,7 @@ export const api = {
     remove: (id: number) => apiJson<void>(`/api/transactions/${id}`, 'DELETE'),
     bulkDelete: (ids: number[]) => apiJson<{ deleted: number }>('/api/transactions/bulk-delete', 'POST', { ids }),
     bulkUpdateCategory: (ids: number[], categoryId: number) => apiJson<{ updated: number }>('/api/transactions/bulk-update-category', 'PATCH', { ids, categoryId }),
+    bulkUpdateTags: (ids: number[], tagIds: number[]) => apiJson<{ updated: number }>('/api/transactions/bulk-update-tags', 'PATCH', { ids, tagIds }),
     importCsv: (file: File) => {
       const form = new FormData()
       form.append('file', file)
@@ -125,6 +127,12 @@ export const api = {
     netWorth: () => apiGet<any>('/api/forecast/net-worth'),
     yearOverYear: (y1: number, y2: number) => apiGet<any>(`/api/forecast/year-over-year?year1=${y1}&year2=${y2}`),
     monthlyForecast: () => apiGet<any>('/api/forecast/monthly-forecast'),
+  },
+  tags: {
+    list: () => apiGet<Tag[]>('/api/tags'),
+    create: (data: { name: string; color: string }) => apiJson<Tag>('/api/tags', 'POST', data),
+    update: (id: number, data: { name?: string; color?: string }) => apiJson<Tag>(`/api/tags/${id}`, 'PUT', data),
+    remove: (id: number) => apiJson<void>(`/api/tags/${id}`, 'DELETE'),
   },
   savingsGoals: {
     list: () => apiGet<any[]>('/api/savings-goals'),

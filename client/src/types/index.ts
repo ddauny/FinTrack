@@ -22,6 +22,12 @@ export interface DashboardSummary {
   expenseBreakdown: ExpenseBreakdown[];
 }
 
+export interface Tag {
+  id: number;
+  name: string;
+  color: string;
+}
+
 export interface Transaction {
   id: number;
   amount: number;
@@ -31,6 +37,7 @@ export interface Transaction {
     name: string;
     type: string;
   };
+  tags?: Tag[];
 }
 
 export interface NetWorthPoint {
