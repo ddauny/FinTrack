@@ -155,6 +155,7 @@ model AssetItem {
   parentItem        AssetItem?  @relation("AssetItemToChildren", fields: [parentItemId], references: [id], onDelete: Cascade)
   children          AssetItem[] @relation("AssetItemToChildren")
   valuations        AssetValuation[]
+  bondData          BondData?
 }
 
 // Snapshot values per month for each item
@@ -168,6 +169,37 @@ model AssetValuation {
 
   item      AssetItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
   @@unique([itemId, month])
+}
+
+// Bond/BTP data linked to an AssetItem (1:1)
+model BondData {
+  id                Int       @id @default(autoincrement())
+  itemId            Int       @unique
+  isin              String?            // e.g. "IT0005532715"
+  purchaseDate      DateTime?          // Data di acquisto
+  nominalValue      Decimal            // Valore nominale (es. 10000)
+  purchasePrice     Decimal   @default(100) // Prezzo di carico (es. 98.50 = sotto la pari)
+  bankCommissions   Decimal   @default(0)   // Commissioni bancarie
+  maturityDate      DateTime           // Data di scadenza
+  couponRate        Decimal?           // Tasso fisso annuo lordo (es. 4.00) — null se ha scaglioni
+  couponFrequency   Int       @default(6)   // Frequenza cedola in mesi (6 = semestrale)
+  taxRate           Decimal   @default(12.5) // Aliquota fiscale (12.5% titoli di stato)
+  linkedAccountId   Int?               // Account per l'accredito cedole
+  linkedCategoryId  Int?               // Categoria per le cedole
+
+  item              AssetItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  couponTiers       CouponTier[]
+}
+
+// Scaglioni di tasso per BTP Valore
+model CouponTier {
+  id          Int       @id @default(autoincrement())
+  bondId      Int
+  fromYear    Int                // Anno di inizio scaglione (1 = primo anno)
+  toYear      Int                // Anno di fine scaglione (incluso)
+  rate        Decimal            // Tasso annuo lordo per questo scaglione (es. 3.25)
+
+  bond        BondData  @relation(fields: [bondId], references: [id], onDelete: Cascade)
 }
 
 model SavingsGoal {

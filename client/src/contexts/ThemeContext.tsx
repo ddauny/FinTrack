@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
-export type ThemePreference = 'light' | 'dark' | 'system'
-export type ThemeResolved = 'light' | 'dark'
+type ThemePreference = 'light' | 'dark' | 'system'
+type ThemeResolved = 'light' | 'dark'
 
 const STORAGE_KEY = 'theme-preference'
 
@@ -109,5 +109,3 @@ export function useThemeContext() {
   if (!ctx) throw new Error('useThemeContext must be used within ThemeProvider')
   return ctx
 }
-
-export default ThemeContext

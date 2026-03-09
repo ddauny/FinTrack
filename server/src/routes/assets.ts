@@ -107,10 +107,33 @@ assetsRouter.get("/market-data", requireAuth, async (_req: AuthRequest, res) => 
 
 // Asset Groups & Items & Valuations
 const groupSchema = z.object({ name: z.string().min(1) });
+
+// --- BTP / Bond schemas ---
+const couponTierSchema = z.object({
+  fromYear: z.number().int().min(1),
+  toYear: z.number().int().min(1),
+  rate: z.number(),
+});
+const bondDataSchema = z.object({
+  isin: z.string().nullable().optional(),
+  purchaseDate: z.string().nullable().optional(),
+  nominalValue: z.number(),
+  purchasePrice: z.number().optional().default(100),
+  bankCommissions: z.number().optional().default(0),
+  maturityDate: z.string(),
+  couponRate: z.number().nullable().optional(),
+  couponFrequency: z.number().int().optional().default(6),
+  taxRate: z.number().optional().default(12.5),
+  couponTiers: z.array(couponTierSchema).optional(),
+  linkedAccountId: z.number().int().nullable().optional(),
+  linkedCategoryId: z.number().int().nullable().optional(),
+});
+// --- Fine BTP schemas ---
+
 assetsRouter.get("/asset-groups", requireAuth, async (req: AuthRequest, res) => {
-  const groups = await prisma.assetGroup.findMany({ 
-    where: { userId: req.userId! }, 
-    include: { items: { include: { valuations: true }, orderBy: { order: 'asc' } } },
+  const groups = await prisma.assetGroup.findMany({
+    where: { userId: req.userId! },
+    include: { items: { include: { valuations: true, bondData: { include: { couponTiers: true } } }, orderBy: { order: 'asc' } } },
     orderBy: { order: 'asc' }
   });
   res.json(groups);
@@ -127,7 +150,7 @@ assetsRouter.put("/asset-groups/:id", requireAuth, async (req: AuthRequest, res)
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const u = await prisma.assetGroup.updateMany({ where: { id, userId: req.userId! }, data: { name: parse.data.name } });
   if (u.count === 0) return res.status(404).json({ error: "Not Found" });
-  const g = await prisma.assetGroup.findUnique({ where: { id }, include: { items: { include: { valuations: true } } } });
+  const g = await prisma.assetGroup.findUnique({ where: { id }, include: { items: { include: { valuations: true, bondData: { include: { couponTiers: true } } } } } });
   res.json(g);
 });
 assetsRouter.delete("/asset-groups/:id", requireAuth, async (req: AuthRequest, res) => {
@@ -138,28 +161,52 @@ assetsRouter.delete("/asset-groups/:id", requireAuth, async (req: AuthRequest, r
 });
 
 // --- MODIFICA CHIAVE: Schemi separati per Creazione e Aggiornamento ---
-const itemCreateSchema = z.object({ 
-  name: z.string().min(1), 
-  description: z.string().optional(), 
+const itemCreateSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
   hidden: z.boolean().optional(),
-  depreciationAmount: z.number().optional()
+  depreciationAmount: z.number().optional(),
+  bondData: bondDataSchema.optional()
 });
 // Lo schema di aggiornamento ha tutti i campi opzionali
-const itemUpdateSchema = itemCreateSchema.partial();
+const itemUpdateSchema = itemCreateSchema.partial().extend({
+  groupId: z.number().optional()
+});
 // --- FINE MODIFICA ---
 
 assetsRouter.post("/asset-groups/:groupId/items", requireAuth, async (req: AuthRequest, res) => {
   const groupId = Number(req.params.groupId);
-  // Usa lo schema di CREAZIONE
   const parse = itemCreateSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
-  const item = await prisma.assetItem.create({ 
-    data: { 
-      groupId, 
-      name: parse.data.name, 
-      description: parse.data.description,
-      depreciationAmount: parse.data.depreciationAmount
-    } 
+  const { bondData: bondInput, ...itemData } = parse.data;
+  const item = await prisma.assetItem.create({
+    data: {
+      groupId,
+      name: itemData.name,
+      description: itemData.description,
+      depreciationAmount: itemData.depreciationAmount,
+      ...(bondInput ? {
+        bondData: {
+          create: {
+            isin: bondInput.isin,
+            purchaseDate: bondInput.purchaseDate ? new Date(bondInput.purchaseDate) : null,
+            nominalValue: bondInput.nominalValue,
+            purchasePrice: bondInput.purchasePrice,
+            bankCommissions: bondInput.bankCommissions,
+            maturityDate: new Date(bondInput.maturityDate),
+            couponRate: bondInput.couponRate,
+            couponFrequency: bondInput.couponFrequency,
+            taxRate: bondInput.taxRate,
+            linkedAccountId: bondInput.linkedAccountId,
+            linkedCategoryId: bondInput.linkedCategoryId,
+            ...(bondInput.couponTiers && bondInput.couponTiers.length > 0 ? {
+              couponTiers: { create: bondInput.couponTiers }
+            } : {})
+          }
+        }
+      } : {})
+    },
+    include: { bondData: { include: { couponTiers: true } } }
   });
   res.status(201).json(item);
 });
@@ -167,28 +214,105 @@ assetsRouter.post("/asset-groups/:groupId/items", requireAuth, async (req: AuthR
 // --- MODIFICA CHIAVE: L'endpoint PUT ora usa il nuovo schema ---
 assetsRouter.put("/asset-items/:itemId", requireAuth, async (req: AuthRequest, res) => {
   const itemId = Number(req.params.itemId);
-  
-  // Usa lo schema di AGGIORNAMENTO
+
   const parse = itemUpdateSchema.safeParse(req.body);
   if (!parse.success) {
-    // Se la validazione fallisce, rispondi 400
     return res.status(400).json({ error: "Invalid payload", details: parse.error });
   }
 
-  // Controlla che l'utente sia proprietario di questo item
   const itemToUpdate = await prisma.assetItem.findFirst({
     where: { id: itemId, group: { userId: req.userId! } }
   });
   if (!itemToUpdate) return res.status(404).json({ error: "Not found or forbidden" });
-  
-  // Esegui l'aggiornamento
-  const item = await prisma.assetItem.update({ 
-    where: { id: itemId }, 
-    data: parse.data // parse.data contiene solo i campi inviati (es. { hidden: true })
+
+  const { bondData: bondInput, groupId, ...itemFields } = parse.data;
+
+  // Se l'utente ha provato a spostare l'item in un altro gruppo, verifica che quel gruppo esista e gli appartenga
+  if (groupId !== undefined) {
+    const targetGroup = await prisma.assetGroup.findFirst({
+      where: { id: groupId, userId: req.userId! }
+    });
+    if (!targetGroup) return res.status(400).json({ error: "Target group not found or forbidden" });
+  }
+
+  // Aggiorna i campi base dell'item
+  const item = await prisma.assetItem.update({
+    where: { id: itemId },
+    data: {
+      ...itemFields,
+      ...(groupId !== undefined ? { groupId } : {})
+    }
   });
-  res.json(item);
+
+  // Gestisci bondData se presente nel payload
+  if (bondInput !== undefined) {
+    // Upsert bondData
+    await prisma.bondData.upsert({
+      where: { itemId },
+      update: {
+        isin: bondInput.isin,
+        purchaseDate: bondInput.purchaseDate ? new Date(bondInput.purchaseDate) : null,
+        nominalValue: bondInput.nominalValue,
+        purchasePrice: bondInput.purchasePrice,
+        bankCommissions: bondInput.bankCommissions,
+        maturityDate: new Date(bondInput.maturityDate!),
+        couponRate: bondInput.couponRate,
+        couponFrequency: bondInput.couponFrequency,
+        taxRate: bondInput.taxRate,
+        linkedAccountId: bondInput.linkedAccountId,
+        linkedCategoryId: bondInput.linkedCategoryId,
+      },
+      create: {
+        itemId,
+        isin: bondInput.isin,
+        purchaseDate: bondInput.purchaseDate ? new Date(bondInput.purchaseDate) : null,
+        nominalValue: bondInput.nominalValue!,
+        purchasePrice: bondInput.purchasePrice,
+        bankCommissions: bondInput.bankCommissions,
+        maturityDate: new Date(bondInput.maturityDate!),
+        couponRate: bondInput.couponRate,
+        couponFrequency: bondInput.couponFrequency,
+        taxRate: bondInput.taxRate,
+        linkedAccountId: bondInput.linkedAccountId,
+        linkedCategoryId: bondInput.linkedCategoryId,
+      }
+    });
+
+    // Replace coupon tiers if provided
+    if (bondInput.couponTiers !== undefined) {
+      const existingBond = await prisma.bondData.findUnique({ where: { itemId } });
+      if (existingBond) {
+        await prisma.couponTier.deleteMany({ where: { bondId: existingBond.id } });
+        if (bondInput.couponTiers.length > 0) {
+          await prisma.couponTier.createMany({
+            data: bondInput.couponTiers.map(t => ({ bondId: existingBond.id, ...t }))
+          });
+        }
+      }
+    }
+  }
+
+  // Ritorna l'item aggiornato con bondData
+  const updated = await prisma.assetItem.findUnique({
+    where: { id: itemId },
+    include: { bondData: { include: { couponTiers: true } } }
+  });
+  res.json(updated);
 });
 // --- FINE MODIFICA ---
+
+// Delete bond data from an item (toggle off)
+assetsRouter.delete("/asset-items/:itemId/bond-data", requireAuth, async (req: AuthRequest, res) => {
+  const itemId = Number(req.params.itemId);
+  const itemCheck = await prisma.assetItem.findFirst({
+    where: { id: itemId, group: { userId: req.userId! } }
+  });
+  if (!itemCheck) return res.status(404).json({ error: "Not found or forbidden" });
+
+  const del = await prisma.bondData.deleteMany({ where: { itemId } });
+  if (del.count === 0) return res.status(404).json({ error: "No bond data found" });
+  res.status(204).end();
+});
 
 assetsRouter.delete("/asset-items/:itemId", requireAuth, async (req: AuthRequest, res) => {
   const itemId = Number(req.params.itemId);
@@ -209,7 +333,7 @@ async function getDescendantIds(rootId: number): Promise<number[]> {
   while (frontier.length > 0) {
     const children = await prisma.assetItem.findMany({ where: { parentItemId: { in: frontier } }, select: { id: true } });
     if (children.length === 0) break;
-    const childIds = children.map((c : any) => c.id);
+    const childIds = children.map((c: any) => c.id);
     ids.push(...childIds);
     frontier = childIds;
   }
@@ -254,7 +378,36 @@ assetsRouter.post("/asset-items/:itemId/children", requireAuth, async (req: Auth
   const parent = await prisma.assetItem.findUnique({ where: { id: itemId } });
   if (!parent) return res.status(404).json({ error: "Parent not found" });
   if (!parent.groupId) return res.status(400).json({ error: "Parent missing group" });
-  const child = await prisma.assetItem.create({ data: { groupId: parent.groupId, parentItemId: itemId, name: parse.data.name, description: parse.data.description } });
+
+  const { bondData: bondInput, ...itemData } = parse.data;
+
+  const child = await prisma.assetItem.create({
+    data: {
+      groupId: parent.groupId,
+      parentItemId: itemId,
+      name: itemData.name,
+      description: itemData.description,
+      ...(bondInput ? {
+        bondData: {
+          create: {
+            isin: bondInput.isin,
+            purchaseDate: bondInput.purchaseDate ? new Date(bondInput.purchaseDate) : null,
+            nominalValue: bondInput.nominalValue,
+            purchasePrice: bondInput.purchasePrice,
+            bankCommissions: bondInput.bankCommissions,
+            maturityDate: new Date(bondInput.maturityDate),
+            couponRate: bondInput.couponRate,
+            couponFrequency: bondInput.couponFrequency,
+            taxRate: bondInput.taxRate,
+            ...(bondInput.couponTiers && bondInput.couponTiers.length > 0 ? {
+              couponTiers: { create: bondInput.couponTiers }
+            } : {})
+          }
+        }
+      } : {})
+    },
+    include: { bondData: { include: { couponTiers: true } } }
+  });
   res.status(201).json(child);
 });
 
@@ -284,22 +437,22 @@ assetsRouter.post("/asset-items/:itemId/valuations", requireAuth, async (req: Au
 
   const childCount = await prisma.assetItem.count({ where: { parentItemId: itemId } });
   if (childCount > 0) return res.status(400).json({ error: "Valuations are only allowed on leaf items" });
-  
+
   const month = dayjs(parse.data.month).startOf("month").toDate();
-  
+
   const v = await prisma.assetValuation.upsert({
     where: { itemId_month: { itemId, month } },
-    update: { 
-      value: parse.data.value, 
-      formula: parse.data.formula, 
-      note: parse.data.note 
+    update: {
+      value: parse.data.value,
+      formula: parse.data.formula,
+      note: parse.data.note
     },
-    create: { 
-      itemId, 
-      month, 
-      value: parse.data.value, 
-      formula: parse.data.formula, 
-      note: parse.data.note 
+    create: {
+      itemId,
+      month,
+      value: parse.data.value,
+      formula: parse.data.formula,
+      note: parse.data.note
     }
   });
   res.status(201).json(v);
@@ -320,39 +473,39 @@ assetsRouter.delete("/asset-valuations", requireAuth, async (req: AuthRequest, r
 assetsRouter.post("/asset-valuations/apply-depreciation", requireAuth, async (req: AuthRequest, res) => {
   const { month } = req.body;
   if (!month) return res.status(400).json({ error: "Month parameter required" });
-  
+
   const monthDate = new Date(month);
   const previousMonth = new Date(monthDate);
   previousMonth.setMonth(previousMonth.getMonth() - 1);
   const previousMonthKey = `${previousMonth.getFullYear()}-${String(previousMonth.getMonth() + 1).padStart(2, '0')}-01`;
-  
+
   const itemsWithDepreciation = await prisma.assetItem.findMany({
     where: {
       group: { userId: req.userId! },
       depreciationAmount: { not: null },
-      children: { none: {} } 
+      children: { none: {} }
     },
     include: {
       valuations: {
-        where: { 
-          month: { 
-            lt: monthDate 
-          } 
+        where: {
+          month: {
+            lt: monthDate
+          }
         },
         orderBy: { month: 'desc' },
         take: 1
       }
     }
   });
-  
+
   const valuationsToCreate: any[] = [];
-  
+
   for (const item of itemsWithDepreciation) {
     if (item.valuations.length > 0) {
       const previousValue = Number(item.valuations[0].value);
       const depreciationAmount = Number(item.depreciationAmount || 0);
-      const newValue = Math.max(0, previousValue - depreciationAmount); 
-      
+      const newValue = Math.max(0, previousValue - depreciationAmount);
+
       if (previousValue > 0) {
         valuationsToCreate.push({
           itemId: item.id,
@@ -362,14 +515,14 @@ assetsRouter.post("/asset-valuations/apply-depreciation", requireAuth, async (re
       }
     }
   }
-  
+
   if (valuationsToCreate.length > 0) {
     await prisma.assetValuation.createMany({
       data: valuationsToCreate,
       skipDuplicates: true
     });
   }
-  
+
   res.json({ applied: valuationsToCreate.length });
 });
 
@@ -395,9 +548,9 @@ assetsRouter.post("/asset-groups/:groupId/hide-all", requireAuth, async (req: Au
 assetsRouter.post("/asset-items/show-all", requireAuth, async (req: AuthRequest, res) => {
   // Mostra tutte le righe nascoste per l'utente loggato
   const updated = await prisma.assetItem.updateMany({
-    where: { 
+    where: {
       group: { userId: req.userId! },
-      hidden: true 
+      hidden: true
     },
     data: { hidden: false }
   });
@@ -409,7 +562,7 @@ assetsRouter.post("/asset-items/show-all", requireAuth, async (req: AuthRequest,
 assetsRouter.post("/asset-groups/reorder", requireAuth, async (req: AuthRequest, res) => {
   const { groupIds } = req.body as { groupIds: number[] };
   if (!Array.isArray(groupIds)) return res.status(400).json({ error: "Invalid payload" });
-  
+
   // Update order for each group
   await Promise.all(
     groupIds.map((id, index) =>
@@ -419,7 +572,7 @@ assetsRouter.post("/asset-groups/reorder", requireAuth, async (req: AuthRequest,
       })
     )
   );
-  
+
   res.json({ success: true });
 });
 
@@ -427,7 +580,7 @@ assetsRouter.post("/asset-groups/reorder", requireAuth, async (req: AuthRequest,
 assetsRouter.post("/asset-items/reorder", requireAuth, async (req: AuthRequest, res) => {
   const { itemIds } = req.body as { itemIds: number[] };
   if (!Array.isArray(itemIds)) return res.status(400).json({ error: "Invalid payload" });
-  
+
   // Update order for each item
   await Promise.all(
     itemIds.map((id, index) =>
@@ -437,6 +590,6 @@ assetsRouter.post("/asset-items/reorder", requireAuth, async (req: AuthRequest, 
       })
     )
   );
-  
+
   res.json({ success: true });
 });

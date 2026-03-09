@@ -18,14 +18,14 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+async function apiGet<T>(path: string): Promise<T> {
   const url = path.includes('?') ? `${path}&_t=${Date.now()}` : `${path}?_t=${Date.now()}`
   const res = await fetch(base + url, { headers: { ...authHeaders() }, cache: 'no-store' as RequestCache })
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }
 
-export async function apiJson<T>(path: string, method: string, body?: any): Promise<T> {
+async function apiJson<T>(path: string, method: string, body?: any): Promise<T> {
   const res = await fetch(base + path, {
     method,
     headers: { 'Content-Type': 'application/json', ...authHeaders() },

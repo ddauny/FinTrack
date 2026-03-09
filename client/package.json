@@ -7,7 +7,8 @@
     "dev": "vite",
     "dev-exposed": "vite --host",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "doctor": "npx react-doctor ."
   },
   "dependencies": {
     "@types/react-datepicker": "^6.2.0",
@@ -26,6 +27,7 @@
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
+    "react-doctor": "^0.0.30",
     "tailwindcss": "^3.4.13",
     "terser": "^5.44.0",
     "typescript": "^5.6.3",

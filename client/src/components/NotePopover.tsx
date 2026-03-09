@@ -27,7 +27,7 @@ export default function NotePopover({ visible, initial, onClose, onSave }: NoteP
 
   useEffect(() => {
     if (!visible) return;
-    
+
     setValue(initial || '');
     valueRef.current = initial || '';
 
@@ -38,7 +38,7 @@ export default function NotePopover({ visible, initial, onClose, onSave }: NoteP
         // Place cursor at end of text
         textareaRef.current.setSelectionRange(textareaRef.current.value.length, textareaRef.current.value.length);
       }
-    }, 50); 
+    }, 50);
 
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -51,7 +51,7 @@ export default function NotePopover({ visible, initial, onClose, onSave }: NoteP
         }
       }
     };
-    
+
     window.addEventListener('keydown', handleEsc);
     return () => {
       window.removeEventListener('keydown', handleEsc);
@@ -62,20 +62,24 @@ export default function NotePopover({ visible, initial, onClose, onSave }: NoteP
   if (!visible) return null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 flex items-center justify-center z-[110]"
       role="dialog"
       aria-modal="true"
     >
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm transition-opacity"
         onClick={handleClose}
+        onKeyDown={(e) => { if (e.key === 'Enter') handleClose() }}
+        role="button"
+        tabIndex={0}
       />
 
       {/* Modal Content */}
-      <div 
+      <div
         className="relative bg-white dark:bg-stone-900 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden border border-stone-100 dark:border-stone-800 transform transition-all"
+        role="presentation"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -86,7 +90,7 @@ export default function NotePopover({ visible, initial, onClose, onSave }: NoteP
             </svg>
             Edit Note
           </h3>
-          <button 
+          <button
             onClick={handleClose}
             className="text-stone-400 hover:text-stone-500 dark:hover:text-stone-300 transition-colors rounded-full p-1 hover:bg-stone-100 dark:hover:bg-stone-800"
           >

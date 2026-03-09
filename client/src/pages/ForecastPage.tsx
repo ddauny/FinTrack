@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useReducer } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { api } from '../lib/api'
 import { formatEUR } from '../lib/format'
@@ -275,16 +275,16 @@ function YearOverYearTab({ dark, hideNumbers, isMobile }: { dark: boolean; hideN
             {/* Year selectors */}
             <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-stone-800 p-3 rounded-2xl shadow-sm border border-stone-200 dark:border-stone-700 shrink-0">
                 <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider">Year 1</label>
-                    <select value={year1} onChange={e => setYear1(Number(e.target.value))}
+                    <label htmlFor="year1" className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider">Year 1</label>
+                    <select id="year1" value={year1} onChange={e => setYear1(Number(e.target.value))}
                         className="px-2 py-1 text-sm rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-900 dark:text-white">
                         {years.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                 </div>
                 <span className="text-stone-400 dark:text-stone-500 font-bold">vs</span>
                 <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider">Year 2</label>
-                    <select value={year2} onChange={e => setYear2(Number(e.target.value))}
+                    <label htmlFor="year2" className="text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider">Year 2</label>
+                    <select id="year2" value={year2} onChange={e => setYear2(Number(e.target.value))}
                         className="px-2 py-1 text-sm rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-900 dark:text-white">
                         {years.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
@@ -442,17 +442,23 @@ function SavingsGoalsTab({ dark, hideNumbers }: { dark: boolean; hideNumbers: bo
 }
 
 function GoalModal({ dark, goal, onClose, onSave }: { dark: boolean; goal: SavingsGoal | null; onClose: () => void; onSave: () => void }) {
-    const [name, setName] = useState(goal?.name || '')
-    const [target, setTarget] = useState(goal ? String(Number(goal.targetAmount)) : '')
-    const [current, setCurrent] = useState(goal ? String(Number(goal.currentAmount)) : '0')
-    const [deadline, setDeadline] = useState(goal?.deadline ? goal.deadline.split('T')[0] : '')
-    const [icon, setIcon] = useState(goal?.icon || '💰')
-    const [color, setColor] = useState(goal?.color || '#3b82f6')
-    const [saving, setSaving] = useState(false)
+    const [state, dispatch] = useReducer((state: any, action: any) => {
+        return { ...state, [action.type]: action.payload }
+    }, {
+        name: goal?.name || '',
+        target: goal ? String(Number(goal.targetAmount)) : '',
+        current: goal ? String(Number(goal.currentAmount)) : '0',
+        deadline: goal?.deadline ? goal.deadline.split('T')[0] : '',
+        icon: goal?.icon || '💰',
+        color: goal?.color || '#3b82f6',
+        saving: false
+    })
+
+    const { name, target, current, deadline, icon, color, saving } = state
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        setSaving(true)
+        dispatch({ type: 'saving', payload: true })
         try {
             const data = {
                 name,
@@ -472,7 +478,7 @@ function GoalModal({ dark, goal, onClose, onSave }: { dark: boolean; goal: Savin
         } catch (err) {
             console.error(err)
         } finally {
-            setSaving(false)
+            dispatch({ type: 'saving', payload: false })
         }
     }
 
@@ -480,47 +486,47 @@ function GoalModal({ dark, goal, onClose, onSave }: { dark: boolean; goal: Savin
     const colorOptions = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316']
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
-            <div className="bg-white dark:bg-stone-800 rounded-2xl shadow-xl w-full max-w-md p-5 space-y-4 border border-stone-200 dark:border-stone-700" onClick={e => e.stopPropagation()}>
-                <h3 className="text-lg font-bold text-stone-900 dark:text-white">{goal ? 'Edit Goal' : 'New Savings Goal'}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }} onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') onClose() }} role="button" tabIndex={0}>
+            <div className="bg-white dark:bg-stone-800 rounded-2xl shadow-xl w-full max-w-md p-5 space-y-4 border border-stone-200 dark:border-stone-700" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+                <h3 id="modal-title" className="text-lg font-bold text-stone-900 dark:text-white">{goal ? 'Edit Goal' : 'New Savings Goal'}</h3>
                 <form onSubmit={handleSubmit} className="space-y-3">
                     <div>
-                        <label className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Name</label>
-                        <input value={name} onChange={e => setName(e.target.value)} required
+                        <label htmlFor="goal-name" className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Name</label>
+                        <input id="goal-name" value={name} onChange={e => dispatch({ type: 'name', payload: e.target.value })} required
                             className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-900 dark:text-white" placeholder="e.g. Vacation Fund" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Target (€)</label>
-                            <input type="number" value={target} onChange={e => setTarget(e.target.value)} required min="1" step="0.01"
+                            <label htmlFor="goal-target" className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Target (€)</label>
+                            <input id="goal-target" type="number" value={target} onChange={e => dispatch({ type: 'target', payload: e.target.value })} required min="1" step="0.01"
                                 className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-900 dark:text-white" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Current (€)</label>
-                            <input type="number" value={current} onChange={e => setCurrent(e.target.value)} min="0" step="0.01"
+                            <label htmlFor="goal-current" className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Current (€)</label>
+                            <input id="goal-current" type="number" value={current} onChange={e => dispatch({ type: 'current', payload: e.target.value })} min="0" step="0.01"
                                 className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-900 dark:text-white" />
                         </div>
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Deadline (optional)</label>
-                        <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)}
+                        <label htmlFor="goal-deadline" className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Deadline (optional)</label>
+                        <input id="goal-deadline" type="date" value={deadline} onChange={e => dispatch({ type: 'deadline', payload: e.target.value })}
                             className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-900 dark:text-white" />
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Icon</label>
+                        <div className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Icon</div>
                         <div className="flex flex-wrap gap-2">
                             {emojiOptions.map(e => (
-                                <button key={e} type="button" onClick={() => setIcon(e)}
+                                <button key={e} type="button" onClick={() => dispatch({ type: 'icon', payload: e })}
                                     className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-all ${icon === e ? 'bg-blue-100 dark:bg-blue-900/50 ring-2 ring-blue-500' : 'hover:bg-stone-100 dark:hover:bg-stone-700'
                                         }`}>{e}</button>
                             ))}
                         </div>
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Color</label>
+                        <div className="block text-xs font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Color</div>
                         <div className="flex gap-2">
                             {colorOptions.map(c => (
-                                <button key={c} type="button" onClick={() => setColor(c)}
+                                <button key={c} type="button" onClick={() => dispatch({ type: 'color', payload: c })}
                                     className={`w-7 h-7 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-stone-400 dark:ring-offset-stone-800' : ''}`}
                                     style={{ backgroundColor: c }} />
                             ))}
