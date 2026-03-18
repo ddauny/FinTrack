@@ -140,6 +140,14 @@ export const api = {
     update: (id: number, data: any) => apiJson<any>(`/api/savings-goals/${id}`, 'PUT', data),
     remove: (id: number) => apiJson<void>(`/api/savings-goals/${id}`, 'DELETE'),
   },
+  externalIncomeSources: {
+    list: () => apiGet<any[]>('/api/external-income-sources'),
+    create: (data: any) => apiJson<any>('/api/external-income-sources', 'POST', data),
+    update: (id: number, data: any) => apiJson<any>(`/api/external-income-sources/${id}`, 'PUT', data),
+    remove: (id: number) => apiJson<void>(`/api/external-income-sources/${id}`, 'DELETE'),
+    test: (id: number) => apiJson<{ ok: boolean; value?: number; error?: string }>(`/api/external-income-sources/${id}/test`, 'POST', {}),
+    refresh: (id: number) => apiJson<{ value: number }>(`/api/external-income-sources/${id}/refresh`, 'POST', {}),
+  },
 }
 
 

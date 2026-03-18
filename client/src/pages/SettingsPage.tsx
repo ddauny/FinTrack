@@ -129,6 +129,43 @@ type Item = {
   bondData?: BondData | null
 }
 
+type ExternalIncomeAuthType = 'NONE' | 'BEARER' | 'API_KEY_HEADER' | 'API_KEY_QUERY' | 'CUSTOM_HEADER'
+type ExternalIncomeMethod = 'GET' | 'POST'
+
+type ExternalIncomeSource = {
+  id: number
+  name: string
+  icon?: string | null
+  color?: string | null
+  apiUrl: string
+  httpMethod: ExternalIncomeMethod
+  authType: ExternalIncomeAuthType
+  authToken?: string | null
+  authHeaderName?: string | null
+  authQueryParam?: string | null
+  responseField: string
+  cacheTtlMinutes: number
+  lastFetchedAt?: string | null
+  lastFetchedValue?: number | null
+  lastFetchError?: string | null
+  isActive: boolean
+}
+
+type ExternalIncomeForm = {
+  name: string
+  icon: string
+  color: string
+  apiUrl: string
+  httpMethod: ExternalIncomeMethod
+  authType: ExternalIncomeAuthType
+  authToken: string
+  authHeaderName: string
+  authQueryParam: string
+  responseField: string
+  cacheTtlMinutes: number
+  isActive: boolean
+}
+
 export function SettingsPage() {
   const navigate = useNavigate()
   const [profile, setProfile] = useState<any>(null)
@@ -162,6 +199,25 @@ export function SettingsPage() {
   const [automationToken, setAutomationToken] = useState<string | null>(null)
   const [showToken, setShowToken] = useState(false)
   const [showImportInfo, setShowImportInfo] = useState(false)
+  const [externalIncomeSources, setExternalIncomeSources] = useState<ExternalIncomeSource[]>([])
+  const [showExternalIncomeModal, setShowExternalIncomeModal] = useState(false)
+  const [editingExternalIncomeId, setEditingExternalIncomeId] = useState<number | null>(null)
+  const [externalIncomeForm, setExternalIncomeForm] = useState<ExternalIncomeForm>({
+    name: '',
+    icon: '📡',
+    color: '#10b981',
+    apiUrl: '',
+    httpMethod: 'GET',
+    authType: 'BEARER',
+    authToken: '',
+    authHeaderName: '',
+    authQueryParam: '',
+    responseField: '',
+    cacheTtlMinutes: 15,
+    isActive: true,
+  })
+  const [externalIncomeTestResult, setExternalIncomeTestResult] = useState<{ ok: boolean; value?: number; error?: string } | null>(null)
+  const [testingExternalIncome, setTestingExternalIncome] = useState(false)
   const [activeGroupId, setActiveGroupId] = useState<number | null>(null)
   const [isBondToggle, setIsBondToggle] = useState(false)
   const [bondForm, setBondForm] = useState<BondData>({
@@ -199,14 +255,15 @@ export function SettingsPage() {
   }
 
   async function refresh() {
-    const [p, c, g, r, accounts, tokenData, tagsData] = await Promise.all([
+    const [p, c, g, r, accounts, tokenData, tagsData, externalSources] = await Promise.all([
       api.settings.profile(),
       api.categories.list(),
       fetch('/api/asset-groups', { headers: tokenHeader() }).then(r => r.json()),
       api.recurringTransactions.list(),
       api.accounts.list(),
       api.settings.getAutomationToken(),
-      api.tags.list()
+      api.tags.list(),
+      api.externalIncomeSources.list(),
     ])
     setProfile(p)
     setEmail((p as any)?.email || '')
@@ -215,6 +272,7 @@ export function SettingsPage() {
     setRecurringTransactions(r)
     setAutomationToken(tokenData.token)
     setTags(tagsData)
+    setExternalIncomeSources((externalSources as ExternalIncomeSource[]) || [])
 
     // Create maps for easier lookups
     const catMap: Record<number, any> = {}
@@ -323,6 +381,80 @@ export function SettingsPage() {
     setEditingItem(null)
     setAddingChildToItemId(null)
     resetBondForm()
+  }
+
+  function resetExternalIncomeForm() {
+    setExternalIncomeForm({
+      name: '',
+      icon: '📡',
+      color: '#10b981',
+      apiUrl: '',
+      httpMethod: 'GET',
+      authType: 'BEARER',
+      authToken: '',
+      authHeaderName: '',
+      authQueryParam: '',
+      responseField: '',
+      cacheTtlMinutes: 15,
+      isActive: true,
+    })
+    setEditingExternalIncomeId(null)
+    setExternalIncomeTestResult(null)
+  }
+
+  function openExternalIncomeCreate() {
+    resetExternalIncomeForm()
+    setShowExternalIncomeModal(true)
+  }
+
+  function openExternalIncomeEdit(source: ExternalIncomeSource) {
+    setEditingExternalIncomeId(source.id)
+    setExternalIncomeForm({
+      name: source.name,
+      icon: source.icon || '📡',
+      color: source.color || '#10b981',
+      apiUrl: source.apiUrl,
+      httpMethod: source.httpMethod,
+      authType: source.authType,
+      authToken: source.authToken || '',
+      authHeaderName: source.authHeaderName || '',
+      authQueryParam: source.authQueryParam || '',
+      responseField: source.responseField,
+      cacheTtlMinutes: source.cacheTtlMinutes,
+      isActive: source.isActive,
+    })
+    setExternalIncomeTestResult(null)
+    setShowExternalIncomeModal(true)
+  }
+
+  function closeExternalIncomeModal() {
+    setShowExternalIncomeModal(false)
+    setExternalIncomeTestResult(null)
+    setTestingExternalIncome(false)
+  }
+
+  function buildExternalIncomePayload() {
+    return {
+      name: externalIncomeForm.name.trim(),
+      icon: externalIncomeForm.icon.trim() || null,
+      color: externalIncomeForm.color.trim() || null,
+      apiUrl: externalIncomeForm.apiUrl.trim(),
+      httpMethod: externalIncomeForm.httpMethod,
+      authType: externalIncomeForm.authType,
+      authToken: externalIncomeForm.authToken.trim() || null,
+      authHeaderName: externalIncomeForm.authHeaderName.trim() || null,
+      authQueryParam: externalIncomeForm.authQueryParam.trim() || null,
+      responseField: externalIncomeForm.responseField.trim(),
+      cacheTtlMinutes: externalIncomeForm.cacheTtlMinutes,
+      isActive: externalIncomeForm.isActive,
+    }
+  }
+
+  function formatLastUpdated(value?: string | null) {
+    if (!value) return 'Never'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return 'Unknown'
+    return date.toLocaleString('en-US', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
   }
 
   // Export functions
@@ -589,6 +721,100 @@ export function SettingsPage() {
               </p>
             </div>
           </div>
+        </section>
+
+        {/* External Income Sources Section */}
+        <section className="bg-white dark:bg-stone-800 p-4 sm:p-6 rounded-lg shadow-sm border border-stone-200 dark:border-stone-700">
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h16.5M3.75 12h16.5m-16.5 6.75h16.5" />
+                </svg>
+                External Income Sources
+              </h2>
+              <p className="text-sm text-stone-600 dark:text-stone-400 mt-1">
+                Configure API endpoints to enrich your monthly forecast with live external income.
+              </p>
+            </div>
+            <button onClick={openExternalIncomeCreate} className="btn-primary flex items-center gap-1.5 px-3 py-2 text-sm whitespace-nowrap">
+              <IconPlus /> Add Source
+            </button>
+          </div>
+
+          {externalIncomeSources.length === 0 ? (
+            <div className="text-center py-8 border border-dashed border-stone-300 dark:border-stone-600 rounded-lg text-stone-500 dark:text-stone-400">
+              <p className="text-sm">No external income sources configured yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {externalIncomeSources.map((source) => (
+                <div key={source.id} className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 bg-stone-50 dark:bg-stone-900/30">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{source.icon || '📡'}</span>
+                        <h3 className="font-semibold text-stone-900 dark:text-stone-100 truncate">{source.name}</h3>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${source.lastFetchError ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300' : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'}`}>
+                          {source.lastFetchError ? 'ERROR' : 'OK'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-1">{source.apiUrl}</div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await api.externalIncomeSources.refresh(source.id)
+                            await refresh()
+                          } catch (error) {
+                            console.error('Refresh external source failed:', error)
+                            alert('Unable to refresh source now.')
+                          }
+                        }}
+                        className="px-2 py-1 text-xs rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors"
+                      >
+                        Refresh
+                      </button>
+                      <button
+                        onClick={() => openExternalIncomeEdit(source)}
+                        className="px-2 py-1 text-xs rounded bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-300 dark:hover:bg-stone-600 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Delete source "${source.name}"?`)) return
+                          await api.externalIncomeSources.remove(source.id)
+                          await refresh()
+                        }}
+                        className="px-2 py-1 text-xs rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="text-stone-500 dark:text-stone-400">Last value</div>
+                    <div className="font-semibold text-right" style={{ color: source.color || undefined }}>
+                      {source.lastFetchedValue != null ? `EUR ${Number(source.lastFetchedValue).toFixed(2)}` : '-'}
+                    </div>
+                    <div className="text-stone-500 dark:text-stone-400">Cache TTL</div>
+                    <div className="text-right text-stone-700 dark:text-stone-200">{source.cacheTtlMinutes} min</div>
+                    <div className="text-stone-500 dark:text-stone-400">Last updated</div>
+                    <div className="text-right text-stone-700 dark:text-stone-200">{formatLastUpdated(source.lastFetchedAt)}</div>
+                  </div>
+
+                  {source.lastFetchError && (
+                    <div className="mt-3 text-xs text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded px-2 py-1">
+                      {source.lastFetchError}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Recurring Transactions Section */}
@@ -1291,6 +1517,221 @@ export function SettingsPage() {
         )}
 
         {/* Modals */}
+        {showExternalIncomeModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-stone-800 rounded-lg p-6 w-full max-w-2xl space-y-4 text-stone-900 dark:text-stone-100 shadow-xl max-h-[90vh] overflow-y-auto">
+              <h3 className="text-xl font-semibold">{editingExternalIncomeId ? 'Edit External Income Source' : 'Add External Income Source'}</h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Name</label>
+                  <input
+                    value={externalIncomeForm.name}
+                    onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, name: e.target.value })}
+                    placeholder="Tutoring"
+                    className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Icon</label>
+                  <input
+                    value={externalIncomeForm.icon}
+                    onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, icon: e.target.value })}
+                    placeholder="📚"
+                    className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Color</label>
+                  <input
+                    type="color"
+                    value={externalIncomeForm.color || '#10b981'}
+                    onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, color: e.target.value })}
+                    className="w-full h-10 border p-1 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">HTTP Method</label>
+                  <select
+                    value={externalIncomeForm.httpMethod}
+                    onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, httpMethod: e.target.value as ExternalIncomeMethod })}
+                    className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                  >
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">API URL</label>
+                <input
+                  value={externalIncomeForm.apiUrl}
+                  onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, apiUrl: e.target.value })}
+                  placeholder="https://your-api.example.com/forecast"
+                  className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Auth Type</label>
+                  <select
+                    value={externalIncomeForm.authType}
+                    onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, authType: e.target.value as ExternalIncomeAuthType })}
+                    className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                  >
+                    <option value="NONE">None</option>
+                    <option value="BEARER">Bearer Token</option>
+                    <option value="API_KEY_HEADER">API Key Header</option>
+                    <option value="API_KEY_QUERY">API Key Query</option>
+                    <option value="CUSTOM_HEADER">Custom Header</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Cache TTL</label>
+                  <select
+                    value={externalIncomeForm.cacheTtlMinutes}
+                    onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, cacheTtlMinutes: Number(e.target.value) })}
+                    className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                  >
+                    <option value={5}>5 min</option>
+                    <option value={15}>15 min</option>
+                    <option value={60}>1 hour</option>
+                    <option value={360}>6 hours</option>
+                    <option value={1440}>24 hours</option>
+                  </select>
+                </div>
+              </div>
+
+              {externalIncomeForm.authType !== 'NONE' && (
+                <div>
+                  <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Auth Token / Key</label>
+                  <input
+                    value={externalIncomeForm.authToken}
+                    onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, authToken: e.target.value })}
+                    placeholder="Token or API key"
+                    className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                  />
+                </div>
+              )}
+
+              {(externalIncomeForm.authType === 'CUSTOM_HEADER' || externalIncomeForm.authType === 'API_KEY_HEADER') && (
+                <div>
+                  <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Header Name</label>
+                  <input
+                    value={externalIncomeForm.authHeaderName}
+                    onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, authHeaderName: e.target.value })}
+                    placeholder="X-API-Key"
+                    className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                  />
+                </div>
+              )}
+
+              {externalIncomeForm.authType === 'API_KEY_QUERY' && (
+                <div>
+                  <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Query Param Name</label>
+                  <input
+                    value={externalIncomeForm.authQueryParam}
+                    onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, authQueryParam: e.target.value })}
+                    placeholder="api_key"
+                    className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Response Field</label>
+                <input
+                  value={externalIncomeForm.responseField}
+                  onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, responseField: e.target.value })}
+                  placeholder="data.amount"
+                  className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                />
+                <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">Use dot notation for nested fields, for example: data.monthly.total</p>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-300">
+                <input
+                  type="checkbox"
+                  checked={externalIncomeForm.isActive}
+                  onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, isActive: e.target.checked })}
+                />
+                Active source
+              </label>
+
+              {externalIncomeTestResult && (
+                <div className={`text-sm rounded-md px-3 py-2 border ${externalIncomeTestResult.ok
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+                  }`}>
+                  {externalIncomeTestResult.ok
+                    ? `Connection OK. Value: EUR ${Number(externalIncomeTestResult.value || 0).toFixed(2)}`
+                    : `Connection failed: ${externalIncomeTestResult.error || 'Unknown error'}`}
+                </div>
+              )}
+
+              <div className="flex justify-between items-center gap-3 pt-2">
+                <button
+                  onClick={async () => {
+                    if (!editingExternalIncomeId) {
+                      alert('Save the source first, then run Test Connection.')
+                      return
+                    }
+                    setTestingExternalIncome(true)
+                    try {
+                      const result = await api.externalIncomeSources.test(editingExternalIncomeId)
+                      setExternalIncomeTestResult(result)
+                      await refresh()
+                    } catch (error) {
+                      console.error('Test connection failed:', error)
+                      setExternalIncomeTestResult({ ok: false, error: 'Request failed' })
+                    } finally {
+                      setTestingExternalIncome(false)
+                    }
+                  }}
+                  disabled={testingExternalIncome}
+                  className="btn-secondary"
+                >
+                  {testingExternalIncome ? 'Testing...' : 'Test Connection'}
+                </button>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      closeExternalIncomeModal()
+                      resetExternalIncomeForm()
+                    }}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const payload = buildExternalIncomePayload()
+                      if (!payload.name || !payload.apiUrl || !payload.responseField) {
+                        alert('Please fill in name, API URL, and response field.')
+                        return
+                      }
+                      if (editingExternalIncomeId) {
+                        await api.externalIncomeSources.update(editingExternalIncomeId, payload)
+                      } else {
+                        await api.externalIncomeSources.create(payload)
+                      }
+                      closeExternalIncomeModal()
+                      resetExternalIncomeForm()
+                      refresh()
+                    }}
+                    className="btn-primary"
+                  >
+                    {editingExternalIncomeId ? 'Update' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showCatModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white dark:bg-stone-800 rounded-lg p-6 w-full max-w-md space-y-4 text-stone-900 dark:text-stone-100 shadow-xl">

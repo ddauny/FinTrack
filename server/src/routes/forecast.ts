@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
 import dayjs from "dayjs";
+import { fetchExternalValue } from "../services/externalIncome.js";
 
 export const forecastRouter = Router();
 
@@ -144,6 +145,7 @@ forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, re
         const monthStart = targetMonth.startOf("month").toDate();
         const monthEnd = targetMonth.endOf("month").toDate();
         const daysInMonth = targetMonth.daysInMonth();
+        const targetMonthKey = targetMonth.format("YYYY-MM");
 
         // Determine if this is a past, current, or future month
         const isCurrentMonth = targetMonth.format("YYYY-MM") === now.format("YYYY-MM");
@@ -220,7 +222,66 @@ forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, re
             }
         }
 
-        const totalIncome = actualIncome + projectedIncome;
+        // External income sources with cache fallback
+        const externalSources = await prisma.externalIncomeSource.findMany({
+            where: { userId, isActive: true },
+            orderBy: { createdAt: "asc" },
+        });
+
+        const externalIncome: {
+            name: string;
+            icon: string | null;
+            color: string | null;
+            value: number;
+            lastUpdated: string | null;
+            error: string | null;
+        }[] = [];
+        let totalExternalIncome = 0;
+
+        for (const source of externalSources) {
+            const cacheStillValid = !!source.lastFetchedAt && dayjs(source.lastFetchedAt)
+                .add(source.cacheTtlMinutes, "minute")
+                .isAfter(now);
+
+            let value = 0;
+            let error = source.lastFetchError;
+            let lastUpdated = source.lastFetchedAt;
+
+            if (isPastMonth) {
+                value = 0;
+                error = null;
+            } else {
+                const canUseCache = isCurrentMonth && cacheStillValid;
+
+                if (canUseCache) {
+                    value = source.lastFetchedValue != null ? Number(source.lastFetchedValue) : 0;
+                } else {
+                    const fetchResult = await fetchExternalValue(source, targetMonthKey, { persist: isCurrentMonth });
+                    lastUpdated = fetchResult.fetchedAt;
+                    if (fetchResult.ok && fetchResult.value !== null) {
+                        value = fetchResult.value;
+                        error = null;
+                    } else {
+                        error = fetchResult.error ?? "External API fetch failed";
+                    }
+                }
+            }
+
+            value = Math.round(value * 100) / 100;
+            totalExternalIncome += value;
+            externalIncome.push({
+                name: source.name,
+                icon: source.icon,
+                color: source.color,
+                value,
+                lastUpdated: lastUpdated ? lastUpdated.toISOString() : null,
+                error,
+            });
+        }
+
+        totalExternalIncome = Math.round(totalExternalIncome * 100) / 100;
+
+        const totalIncome = actualIncome + projectedIncome + totalExternalIncome;
         const totalExpenses = actualExpenses + projectedExpenses;
         const estimatedBalance = totalIncome - totalExpenses;
 
@@ -271,6 +332,8 @@ forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, re
             prevMonthIncome: Math.round(prevIncome * 100) / 100,
             prevMonthExpenses: Math.round(prevExpenses * 100) / 100,
             prevMonthBalance: Math.round((prevIncome - prevExpenses) * 100) / 100,
+            externalIncome,
+            totalExternalIncome,
         });
     } catch (error) {
         console.error("Error in monthly-forecast:", error);

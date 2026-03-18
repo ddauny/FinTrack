@@ -25,6 +25,39 @@ model User {
   assetGroups  AssetGroup[]
   savingsGoals SavingsGoal[]
   tags         Tag[]
+  externalIncomeSources ExternalIncomeSource[]
+}
+
+model ExternalIncomeSource {
+  id              Int       @id @default(autoincrement())
+  userId          Int
+  name            String
+  icon            String?
+  color           String?
+  apiUrl          String
+  httpMethod      String    @default("GET") // "GET" | "POST"
+
+  // Dynamic auth configuration
+  authType        String    @default("BEARER") // "BEARER" | "API_KEY_HEADER" | "API_KEY_QUERY" | "CUSTOM_HEADER" | "NONE"
+  authToken       String?
+  authHeaderName  String?
+  authQueryParam  String?
+
+  // Dot-notation path in response JSON
+  responseField   String
+
+  // Cache metadata
+  cacheTtlMinutes Int       @default(15)
+  lastFetchedAt   DateTime?
+  lastFetchedValue Decimal?
+  lastFetchError  String?
+
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Account {

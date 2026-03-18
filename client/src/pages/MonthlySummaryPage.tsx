@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react'
+import { useEffect, useReducer, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
 import { api } from '../lib/api'
@@ -18,6 +18,15 @@ interface State {
   loading: boolean
   selectedCategory: string | null
   isMobile: boolean
+}
+
+interface ExternalIncomeForecastItem {
+  name: string
+  icon?: string | null
+  color?: string | null
+  value: number
+  lastUpdated?: string | null
+  error?: string | null
 }
 
 type Action =
@@ -57,6 +66,19 @@ function formatMonthDisplay(monthStr: string) {
   const [year, month] = monthStr.split('-').map(Number)
   const date = new Date(year, month - 1, 1)
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
+
+function formatUpdatedAgo(lastUpdated?: string | null) {
+  if (!lastUpdated) return 'not updated yet'
+  const then = dayjs(lastUpdated)
+  if (!then.isValid()) return 'unknown'
+  const diffMinutes = Math.max(0, dayjs().diff(then, 'minute'))
+  if (diffMinutes < 1) return 'updated just now'
+  if (diffMinutes < 60) return `updated ${diffMinutes} min ago`
+  const diffHours = Math.floor(diffMinutes / 60)
+  if (diffHours < 24) return `updated ${diffHours}h ago`
+  const diffDays = Math.floor(diffHours / 24)
+  return `updated ${diffDays}d ago`
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -219,6 +241,8 @@ export function MonthlySummaryPage() {
   })
 
   const { selectedMonth, monthlyData, forecastData, loading, selectedCategory, isMobile } = state
+  const monthlyRequestRef = useRef(0)
+  const forecastRequestRef = useRef(0)
 
 
 
@@ -231,11 +255,13 @@ export function MonthlySummaryPage() {
   // Load monthly transaction data when month changes
   useEffect(() => {
     const loadMonthlyData = async () => {
+      const requestId = ++monthlyRequestRef.current
       dispatch({ type: 'SET_LOADING', payload: true })
       try {
         const [startDate, endDate] = getMonthRange(selectedMonth)
         const query = `?startDate=${startDate}&endDate=${endDate}&limit=1000`
         const res = await api.transactions.list(query)
+        if (requestId !== monthlyRequestRef.current) return
         const transactions = (res as any).items || []
 
         const income = new Map()
@@ -268,6 +294,7 @@ export function MonthlySummaryPage() {
           }
         })
       } catch (error) {
+        if (requestId !== monthlyRequestRef.current) return
         console.error('Error loading monthly data:', error)
         dispatch({ type: 'SET_DATA', payload: null })
       }
@@ -277,9 +304,18 @@ export function MonthlySummaryPage() {
 
   // Load forecast data for the selected month
   useEffect(() => {
+    const requestId = ++forecastRequestRef.current
+    dispatch({ type: 'SET_FORECAST', payload: null })
     api.forecast.monthlyForecast(selectedMonth)
-      .then(data => dispatch({ type: 'SET_FORECAST', payload: data }))
-      .catch(err => { console.error('Error loading forecast:', err); dispatch({ type: 'SET_FORECAST', payload: null }) })
+      .then(data => {
+        if (requestId !== forecastRequestRef.current) return
+        dispatch({ type: 'SET_FORECAST', payload: data })
+      })
+      .catch(err => {
+        if (requestId !== forecastRequestRef.current) return
+        console.error('Error loading forecast:', err)
+        dispatch({ type: 'SET_FORECAST', payload: null })
+      })
   }, [selectedMonth])
 
   // Parse query params for deep-linking
@@ -400,7 +436,9 @@ export function MonthlySummaryPage() {
   // Forecast computed values
   const fd = forecastData
   const monthProgress = fd ? Math.round((fd.daysPassed / fd.daysInMonth) * 100) : 0
-  const totalForecastIncome = fd ? fd.actualIncome + fd.projectedIncome : 0
+  const externalIncomeItems: ExternalIncomeForecastItem[] = (fd?.externalIncome || [])
+  const totalExternalIncome = fd?.totalExternalIncome || 0
+  const totalForecastIncome = fd ? fd.actualIncome + fd.projectedIncome + totalExternalIncome : 0
   const totalForecastExpenses = fd ? fd.actualExpenses + fd.projectedExpenses : 0
   const incomeChange = fd && fd.prevMonthIncome > 0
     ? Math.round(((totalForecastIncome - fd.prevMonthIncome) / fd.prevMonthIncome) * 100) : null
@@ -464,6 +502,25 @@ export function MonthlySummaryPage() {
                 <div className="space-y-3">
                   <ForecastRow label="Actual (recorded)" value={fd.actualIncome} color="emerald" icon="✅" />
                   <ForecastRow label="Projected (recurring)" value={fd.projectedIncome} color="emerald" icon="🔮" dashed />
+                  {externalIncomeItems.map((item, idx) => (
+                    <div key={`${item.name}-${idx}`} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm">{item.icon || '📡'}</span>
+                        <span className="text-sm font-medium truncate" style={{ color: item.color || undefined }}>
+                          {item.name}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-stone-100 dark:bg-stone-700 text-stone-500 dark:text-stone-300">
+                          {formatUpdatedAgo(item.lastUpdated)}
+                        </span>
+                        {item.error && (
+                          <span className="text-[11px] text-amber-600 dark:text-amber-300" title={item.error}>⚠️</span>
+                        )}
+                      </div>
+                      <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                        <PrivacyNumber value={item.value}>{formatEUR(item.value)}</PrivacyNumber>
+                      </div>
+                    </div>
+                  ))}
                   <div className="border-t border-stone-200 dark:border-stone-700 pt-2">
                     <ForecastRow label="Total estimated" value={totalForecastIncome} color="emerald" icon="📊" bold />
                   </div>

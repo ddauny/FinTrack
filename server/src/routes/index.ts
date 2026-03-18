@@ -11,5 +11,6 @@ export { default as recurringTransactionsRouter } from "./recurringTransactions.
 export { forecastRouter } from "./forecast.js";
 export { savingsGoalsRouter } from "./savingsGoals.js";
 export { tagsRouter } from "./tags.js";
+export { externalIncomeSourcesRouter } from "./externalIncomeSources.js";
 
 
