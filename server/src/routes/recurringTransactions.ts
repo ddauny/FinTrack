@@ -24,7 +24,7 @@ const createSchema = z.object({
   accountId: z.number(),
   categoryId: z.number(),
   amount: z.number(),
-  type: z.enum(['Income', 'Expense']),
+  type: z.enum(['Income', 'Expense', 'Transfer']),
   notes: z.string().optional(),
   frequency: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY', 'BIMONTHLY', 'QUARTERLY', 'YEARLY']),
   startDate: z.string(), // ISO date string
@@ -35,7 +35,7 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     const data = createSchema.parse(req.body)
     const startDate = new Date(data.startDate)
-    
+
     const recurring = await prisma.recurringTransaction.create({
       data: {
         userId: req.userId!,
@@ -62,16 +62,16 @@ router.patch('/:id', requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id)
     const { isActive, endDate, categoryId } = req.body
-    
+
     // Verify ownership
     const existing = await prisma.recurringTransaction.findFirst({
       where: { id, userId: req.userId! }
     })
-    
+
     if (!existing) {
       return res.status(404).json({ error: 'Recurring transaction not found' })
     }
-    
+
     const updated = await prisma.recurringTransaction.update({
       where: { id },
       data: {
@@ -91,16 +91,16 @@ router.patch('/:id', requireAuth, async (req, res) => {
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id)
-    
+
     // Verify ownership
     const existing = await prisma.recurringTransaction.findFirst({
       where: { id, userId: req.userId! }
     })
-    
+
     if (!existing) {
       return res.status(404).json({ error: 'Recurring transaction not found' })
     }
-    
+
     await prisma.recurringTransaction.delete({ where: { id } })
     res.json({ success: true })
   } catch (error) {

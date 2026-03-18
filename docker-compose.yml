@@ -49,6 +49,6 @@ networks:
     external: true
   fintrack-prod:
     external: true
-    name: fintrack_fintrack-prod
+    name: fintrack-prod-network
   default-dev:
     driver: bridge

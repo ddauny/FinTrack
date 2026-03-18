@@ -127,16 +127,33 @@ forecastRouter.get("/year-over-year", requireAuth, async (req: AuthRequest, res)
 });
 
 // ─── GET /monthly-forecast ──────────────────────────────────
-// Current month: actual + projected from recurring transactions
+// Accepts optional ?month=YYYY-MM query parameter
 forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, res) => {
     try {
         const userId = req.userId!;
         const now = dayjs();
-        const monthStart = now.startOf("month").toDate();
-        const monthEnd = now.endOf("month").toDate();
-        const today = now.toDate();
 
-        // Actual transactions this month
+        // Parse month parameter — default to current month
+        const monthParam = req.query.month as string | undefined;
+        const targetMonth = monthParam ? dayjs(monthParam, "YYYY-MM") : now;
+        if (!targetMonth.isValid()) {
+            res.status(400).json({ error: "Invalid month format. Use YYYY-MM." });
+            return;
+        }
+
+        const monthStart = targetMonth.startOf("month").toDate();
+        const monthEnd = targetMonth.endOf("month").toDate();
+        const daysInMonth = targetMonth.daysInMonth();
+
+        // Determine if this is a past, current, or future month
+        const isCurrentMonth = targetMonth.format("YYYY-MM") === now.format("YYYY-MM");
+        const isPastMonth = targetMonth.isBefore(now, "month");
+
+        // For current month: today's date; for past months: last day; for future: 0
+        const daysPassed = isCurrentMonth ? now.date() : isPastMonth ? daysInMonth : 0;
+        const cutoffDate = isCurrentMonth ? now.toDate() : isPastMonth ? monthEnd : monthStart;
+
+        // Actual transactions for the target month
         const actualTxns = await prisma.transaction.findMany({
             where: { userId, date: { gte: monthStart, lte: monthEnd } },
             include: { category: { select: { type: true, name: true } } },
@@ -163,8 +180,8 @@ forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, re
         }
 
         // Previous month data for comparison
-        const prevMonthStart = now.subtract(1, "month").startOf("month").toDate();
-        const prevMonthEnd = now.subtract(1, "month").endOf("month").toDate();
+        const prevMonthStart = targetMonth.subtract(1, "month").startOf("month").toDate();
+        const prevMonthEnd = targetMonth.subtract(1, "month").endOf("month").toDate();
         const prevTxns = await prisma.transaction.findMany({
             where: { userId, date: { gte: prevMonthStart, lte: prevMonthEnd } },
             include: { category: { select: { type: true } } },
@@ -177,33 +194,35 @@ forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, re
             else if (t.category?.type === "Expense") prevExpenses += amount;
         }
 
-        // Recurring transactions that should fire in remaining days of month
-        const recurringTxns = await prisma.recurringTransaction.findMany({
-            where: { userId, isActive: true },
-        });
-
+        // Recurring transactions projections (only for current/future months)
         let projectedIncome = 0, projectedExpenses = 0;
 
-        for (const rt of recurringTxns) {
-            const amount = Number(rt.amount);
-            let nextDate = dayjs(rt.nextDate);
+        if (!isPastMonth) {
+            const recurringTxns = await prisma.recurringTransaction.findMany({
+                where: { userId, isActive: true },
+            });
 
-            while (nextDate.isBefore(dayjs(today), "day") || nextDate.isSame(dayjs(today), "day")) {
-                nextDate = advanceDate(nextDate, rt.frequency);
-            }
+            for (const rt of recurringTxns) {
+                const amount = Number(rt.amount);
+                let nextDate = dayjs(rt.nextDate);
 
-            while (nextDate.isBefore(dayjs(monthEnd)) || nextDate.isSame(dayjs(monthEnd), "day")) {
-                if (rt.type === "Income") projectedIncome += amount;
-                else projectedExpenses += amount;
-                nextDate = advanceDate(nextDate, rt.frequency);
+                // Advance past the cutoff date
+                while (nextDate.isBefore(dayjs(cutoffDate), "day") || nextDate.isSame(dayjs(cutoffDate), "day")) {
+                    nextDate = advanceDate(nextDate, rt.frequency);
+                }
+
+                // Count occurrences in remaining days of month
+                while (nextDate.isBefore(dayjs(monthEnd)) || nextDate.isSame(dayjs(monthEnd), "day")) {
+                    if (rt.type === "Income") projectedIncome += amount;
+                    else projectedExpenses += amount;
+                    nextDate = advanceDate(nextDate, rt.frequency);
+                }
             }
         }
 
         const totalIncome = actualIncome + projectedIncome;
         const totalExpenses = actualExpenses + projectedExpenses;
         const estimatedBalance = totalIncome - totalExpenses;
-        const daysInMonth = now.daysInMonth();
-        const daysPassed = now.date();
 
         // Build daily cumulative data
         const dailyCumulative: { day: number; expenses: number; income: number }[] = [];
@@ -241,7 +260,7 @@ forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, re
             estimatedBalance: Math.round(estimatedBalance * 100) / 100,
             daysInMonth,
             daysPassed,
-            monthLabel: now.format("MMMM YYYY"),
+            monthLabel: targetMonth.format("MMMM YYYY"),
             // New fields
             topExpenses,
             topIncome,

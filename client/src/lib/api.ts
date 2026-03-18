@@ -126,7 +126,7 @@ export const api = {
   forecast: {
     netWorth: () => apiGet<any>('/api/forecast/net-worth'),
     yearOverYear: (y1: number, y2: number) => apiGet<any>(`/api/forecast/year-over-year?year1=${y1}&year2=${y2}`),
-    monthlyForecast: () => apiGet<any>('/api/forecast/monthly-forecast'),
+    monthlyForecast: (month?: string) => apiGet<any>(`/api/forecast/monthly-forecast${month ? `?month=${month}` : ''}`),
   },
   tags: {
     list: () => apiGet<Tag[]>('/api/tags'),

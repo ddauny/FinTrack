@@ -99,7 +99,7 @@ type Group = {
 type CouponTier = {
   fromYear: number
   toYear: number
-  rate: number
+  rate: number | string
 }
 
 type BondData = {
@@ -109,7 +109,7 @@ type BondData = {
   purchasePrice: number
   bankCommissions: number
   maturityDate: string
-  couponRate?: number | null
+  couponRate?: number | string | null
   couponFrequency: number
   taxRate: number
   couponTiers?: CouponTier[]
@@ -158,7 +158,7 @@ export function SettingsPage() {
   const [tagForm, setTagForm] = useState<{ name: string; color: string }>({ name: '', color: '#6366f1' })
   const [showTagModal, setShowTagModal] = useState(false)
   const [editingTagId, setEditingTagId] = useState<number | null>(null)
-  const TAG_COLORS = ['#6366f1','#f43f5e','#10b981','#f59e0b','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b']
+  const TAG_COLORS = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b']
   const [automationToken, setAutomationToken] = useState<string | null>(null)
   const [showToken, setShowToken] = useState(false)
   const [showImportInfo, setShowImportInfo] = useState(false)
@@ -305,10 +305,10 @@ export function SettingsPage() {
         purchasePrice: Number(bd.purchasePrice) || 100,
         bankCommissions: Number(bd.bankCommissions) || 0,
         maturityDate: bd.maturityDate ? bd.maturityDate.slice(0, 10) : '',
-        couponRate: bd.couponRate != null ? Number(bd.couponRate) : null,
+        couponRate: bd.couponRate != null ? String(bd.couponRate) : null,
         couponFrequency: bd.couponFrequency || 6,
         taxRate: bd.taxRate != null ? Number(bd.taxRate) : 12.5,
-        couponTiers: hasTiers ? bd.couponTiers!.map((t: any) => ({ fromYear: t.fromYear, toYear: t.toYear, rate: Number(t.rate) })) : [],
+        couponTiers: hasTiers ? bd.couponTiers!.map((t: any) => ({ fromYear: t.fromYear, toYear: t.toYear, rate: String(t.rate) })) : [],
         linkedAccountId: bd.linkedAccountId || null,
         linkedCategoryId: bd.linkedCategoryId || null,
       })
@@ -1540,9 +1540,14 @@ export function SettingsPage() {
                       {!useTieredCoupon && (
                         <div className="mt-3">
                           <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Tasso cedolare annuo lordo (%)</label>
-                          <input type="number" step="0.01"
+                          <input type="text" inputMode="decimal"
                             value={bondForm.couponRate ?? ''}
-                            onChange={e => setBondForm({ ...bondForm, couponRate: e.target.value ? Number(e.target.value) : null })}
+                            onChange={e => {
+                              const v = e.target.value.replace(',', '.')
+                              if (v === '' || /^\d*\.?\d*$/.test(v)) {
+                                setBondForm({ ...bondForm, couponRate: v === '' ? null : v })
+                              }
+                            }}
                             placeholder="4.00"
                             className="w-full sm:w-1/2 border p-2.5 rounded-md bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 focus:ring-2 focus:ring-blue-500 text-sm"
                           />
@@ -1577,11 +1582,14 @@ export function SettingsPage() {
                               </div>
                               <div className="flex items-center gap-1 text-xs text-stone-500">
                                 <span>Tasso</span>
-                                <input type="number" step="0.01" value={tier.rate}
+                                <input type="text" inputMode="decimal" value={tier.rate}
                                   onChange={e => {
-                                    const tiers = [...(bondForm.couponTiers || [])]
-                                    tiers[idx] = { ...tiers[idx], rate: Number(e.target.value) }
-                                    setBondForm({ ...bondForm, couponTiers: tiers })
+                                    const v = e.target.value.replace(',', '.')
+                                    if (v === '' || /^\d*\.?\d*$/.test(v)) {
+                                      const tiers = [...(bondForm.couponTiers || [])]
+                                      tiers[idx] = { ...tiers[idx], rate: v }
+                                      setBondForm({ ...bondForm, couponTiers: tiers })
+                                    }
                                   }}
                                   className="w-16 border p-1.5 rounded bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 border-stone-300 dark:border-stone-600 text-sm text-center"
                                 />
@@ -1597,7 +1605,7 @@ export function SettingsPage() {
                             onClick={() => {
                               const tiers = [...(bondForm.couponTiers || [])]
                               const lastTo = tiers.length > 0 ? tiers[tiers.length - 1].toYear : 0
-                              tiers.push({ fromYear: lastTo + 1, toYear: lastTo + 2, rate: 0 })
+                              tiers.push({ fromYear: lastTo + 1, toYear: lastTo + 2, rate: '' })
                               setBondForm({ ...bondForm, couponTiers: tiers })
                             }}
                             className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
@@ -1675,10 +1683,10 @@ export function SettingsPage() {
                           purchasePrice: bondForm.purchasePrice,
                           bankCommissions: bondForm.bankCommissions,
                           maturityDate: bondForm.maturityDate,
-                          couponRate: useTieredCoupon ? null : (bondForm.couponRate ?? null),
+                          couponRate: useTieredCoupon ? null : (bondForm.couponRate != null && bondForm.couponRate !== '' ? Number(String(bondForm.couponRate).replace(',', '.')) : null),
                           couponFrequency: bondForm.couponFrequency,
                           taxRate: bondForm.taxRate,
-                          couponTiers: useTieredCoupon ? (bondForm.couponTiers || []) : [],
+                          couponTiers: useTieredCoupon ? (bondForm.couponTiers || []).map(t => ({ ...t, rate: Number(String(t.rate).replace(',', '.')) || 0 })) : [],
                           linkedAccountId: bondForm.linkedAccountId || null,
                           linkedCategoryId: bondForm.linkedCategoryId || null,
                         }

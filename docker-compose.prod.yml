@@ -83,3 +83,4 @@ networks:
     external: true
   fintrack-prod:
     driver: bridge
+    name: fintrack-prod-network 
