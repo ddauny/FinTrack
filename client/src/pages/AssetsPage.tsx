@@ -806,13 +806,13 @@ export function AssetsPage() {
       >
         <table className="min-w-full border-collapse text-sm">
           <thead className="sticky top-0 z-50 shadow-md">
-            <tr className="bg-stone-900 text-white">
-              <th className="px-6 py-4 sticky top-0 left-0 text-left bg-stone-900 z-50 font-bold uppercase tracking-wider text-xs border-b border-stone-700 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]" style={{ minWidth: '240px', width: '20%' }}>
+            <tr className="bg-stone-100 text-stone-800 dark:bg-stone-900 dark:text-white">
+              <th className="px-6 py-4 sticky top-0 left-0 text-left bg-stone-100 dark:bg-stone-900 z-50 font-bold uppercase tracking-wider text-xs border-b border-stone-200 dark:border-stone-700 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]" style={{ minWidth: '240px', width: '20%' }}>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setIsFullScreen(!isFullScreen)}
                     title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
-                    className="p-1.5 -ml-2 text-stone-400 hover:text-white rounded-lg hover:bg-stone-800 transition-colors"
+                    className="p-1.5 -ml-2 text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-white rounded-lg hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors"
                   >
                     {isFullScreen ? (
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
@@ -829,7 +829,7 @@ export function AssetsPage() {
                     <button
                       onClick={showAllHidden}
                       title={`Show ${countHiddenRows()} hidden row${countHiddenRows() > 1 ? 's' : ''}`}
-                      className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-stone-700 text-stone-300 hover:bg-stone-600 transition-colors"
+                      className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-stone-200 text-stone-700 hover:bg-stone-300 dark:bg-stone-700 dark:text-stone-300 dark:hover:bg-stone-600 transition-colors"
                     >
                       <IconEye />
                       {countHiddenRows()}
@@ -838,14 +838,14 @@ export function AssetsPage() {
                   <button
                     onClick={() => setIsMobileView(true)}
                     title="Switch to card view"
-                    className="ml-auto md:hidden text-stone-400 hover:text-white"
+                    className="ml-auto md:hidden text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-white"
                   >
                     📱
                   </button>
                 </div>
               </th>
               {months.map((m, i) => (
-                <th key={m} className="px-4 py-4 whitespace-nowrap text-center font-medium text-xs uppercase tracking-wider border-b border-stone-700 bg-stone-900 text-stone-300 group relative" style={{ minWidth: '140px', width: 'auto' }}>
+                <th key={m} className="px-4 py-4 whitespace-nowrap text-center font-medium text-xs uppercase tracking-wider border-b border-stone-200 dark:border-stone-700 bg-stone-100 dark:bg-stone-900 text-stone-600 dark:text-stone-300 group relative" style={{ minWidth: '140px', width: 'auto' }}>
                   <div className="relative flex items-center justify-center gap-2 group/inner">
                     {i === 0 && (
                       <button onClick={addNextMonth} className="opacity-0 group-hover/inner:opacity-100 transition-opacity absolute -left-2 p-1 hover:text-white">‹</button>
@@ -867,7 +867,7 @@ export function AssetsPage() {
                         })
                       }
                     }}
-                    className="absolute top-1 right-1 p-1 text-stone-500 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-1 right-1 p-1 text-stone-400 dark:text-stone-500 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
                     title="Delete month"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
@@ -1016,9 +1016,9 @@ export function AssetsPage() {
               )
             })}
           </tbody>
-          <tfoot className="sticky bottom-0 z-[60] bg-stone-900 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
-            <tr className="bg-stone-900 text-white">
-              <td className="p-4 sticky left-0 bg-stone-900 z-50 font-bold text-sm uppercase tracking-wider shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]">
+          <tfoot className="sticky bottom-0 z-[60] bg-stone-100 dark:bg-stone-900 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] dark:shadow-[0_-4px_12px_rgba(0,0,0,0.2)]">
+            <tr className="bg-stone-100 text-stone-900 dark:bg-stone-900 dark:text-white">
+              <td className="p-4 sticky left-0 bg-stone-100 dark:bg-stone-900 z-50 font-bold text-sm uppercase tracking-wider shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]">
                 Total Net Worth
               </td>
               {months.map(m => {
@@ -1027,13 +1027,13 @@ export function AssetsPage() {
                   const s = roots.reduce((acc, it) => acc + valueFor(it, m, true), 0)
                   return sum + s
                 }, 0)
-                return <td key={m} className="p-4 text-center font-bold text-sm tabular-nums bg-stone-900 text-white shadow-[inset_1px_0_0_0_#1e293b]">
+                return <td key={m} className="p-4 text-center font-bold text-sm tabular-nums bg-stone-100 text-stone-900 dark:bg-stone-900 dark:text-white shadow-[inset_1px_0_0_0_#e5e7eb] dark:shadow-[inset_1px_0_0_0_#1e293b]">
                   {v ? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber> : ''}
                 </td>
               })}
             </tr>
-            <tr className="bg-stone-800 text-stone-300">
-              <td className="p-3 sticky left-0 bg-stone-800 z-50 font-medium text-xs uppercase tracking-wide shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]">
+            <tr className="bg-stone-50 text-stone-700 dark:bg-stone-800 dark:text-stone-300">
+              <td className="p-3 sticky left-0 bg-stone-50 dark:bg-stone-800 z-50 font-medium text-xs uppercase tracking-wide shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)] dark:shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]">
                 Growth (Amount)
               </td>
               {months.map((m, i) => {
@@ -1050,13 +1050,13 @@ export function AssetsPage() {
                 }, 0) : 0
                 const diff = prevKey ? (curr - prev) : 0
                 const isPos = diff > 0
-                return <td key={m} className={`p-3 text-center font-medium text-xs tabular-nums bg-stone-800 shadow-[inset_1px_0_0_0_#334155] ${isPos ? 'text-emerald-400' : (diff < 0 ? 'text-rose-400' : '')}`}>
+                return <td key={m} className={`p-3 text-center font-medium text-xs tabular-nums bg-stone-50 dark:bg-stone-800 shadow-[inset_1px_0_0_0_#e5e7eb] dark:shadow-[inset_1px_0_0_0_#334155] ${isPos ? 'text-emerald-600 dark:text-emerald-400' : (diff < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-stone-600 dark:text-stone-300')}`}>
                   {prevKey ? <PrivacyNumber value={diff}>{diff > 0 ? '+' : ''}{formatEUR(diff)}</PrivacyNumber> : ''}
                 </td>
               })}
             </tr>
-            <tr className="bg-stone-800 text-stone-300">
-              <td className="p-3 sticky left-0 bg-stone-800 z-50 font-medium text-xs uppercase tracking-wide shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3),inset_0_1px_0_0_#334155]">
+            <tr className="bg-stone-50 text-stone-700 dark:bg-stone-800 dark:text-stone-300">
+              <td className="p-3 sticky left-0 bg-stone-50 dark:bg-stone-800 z-50 font-medium text-xs uppercase tracking-wide shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08),inset_0_1px_0_0_#e5e7eb] dark:shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3),inset_0_1px_0_0_#334155]">
                 Growth (%)
               </td>
               {months.map((m, i) => {
@@ -1074,13 +1074,13 @@ export function AssetsPage() {
                 const pct = prevKey && prev !== 0 ? ((curr - prev) / prev) * 100 : 0
 
                 // Heatmap logic for text color instead of background
-                let textColor = 'text-stone-400';
+                let textColor = 'text-stone-600 dark:text-stone-400';
                 if (prevKey && prev !== 0) {
-                  if (pct > 0) textColor = 'text-emerald-400';
-                  else if (pct < 0) textColor = 'text-rose-400';
+                  if (pct > 0) textColor = 'text-emerald-600 dark:text-emerald-400';
+                  else if (pct < 0) textColor = 'text-rose-600 dark:text-rose-400';
                 }
 
-                return <td key={m} className={`p-3 text-center font-medium text-xs tabular-nums bg-stone-800 shadow-[inset_1px_1px_0_0_#334155] ${textColor}`}>
+                return <td key={m} className={`p-3 text-center font-medium text-xs tabular-nums bg-stone-50 dark:bg-stone-800 shadow-[inset_1px_1px_0_0_#e5e7eb] dark:shadow-[inset_1px_1px_0_0_#334155] ${textColor}`}>
                   {prevKey && prev !== 0 ? `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%` : ''}
                 </td>
               })}
