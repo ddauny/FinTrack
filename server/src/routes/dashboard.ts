@@ -115,6 +115,36 @@ dashboardRouter.get("/summary", requireAuth, async (req: AuthRequest, res) => {
   const incomeCurrentMonth = { _sum: { amount: incomeResult[0]?.total || 0 } };
   const expenseCurrentMonth = { _sum: { amount: expenseResult[0]?.total || 0 } };
   const cashFlowCurrentMonth = Number(incomeCurrentMonth._sum.amount || 0) - Number(expenseCurrentMonth._sum.amount || 0);
+  const monthlyIncomeValue = Number(incomeCurrentMonth._sum.amount || 0);
+
+  // Monthly cash flow history: last 12 months
+  const twelveMonthsAgo = dayjs().subtract(11, 'month').startOf('month').toDate();
+  const monthlyCashFlowRaw = await prisma.$queryRaw<any[]>`
+    SELECT 
+      TO_CHAR(DATE_TRUNC('month', t.date), 'YYYY-MM') as month,
+      c.type,
+      SUM(t.amount) as total
+    FROM "Transaction" t
+    JOIN "Category" c ON c.id = t."categoryId"
+    WHERE t."userId" = ${userId}
+      AND t.date >= ${twelveMonthsAgo}
+      AND c.type IN ('Income', 'Expense')
+    GROUP BY DATE_TRUNC('month', t.date), c.type
+    ORDER BY DATE_TRUNC('month', t.date) ASC
+  `;
+  const monthlyMap = new Map<string, { income: number; expense: number }>();
+  for (const row of monthlyCashFlowRaw) {
+    if (!monthlyMap.has(row.month)) monthlyMap.set(row.month, { income: 0, expense: 0 });
+    const entry = monthlyMap.get(row.month)!;
+    if (row.type === 'Income') entry.income = Number(row.total || 0);
+    if (row.type === 'Expense') entry.expense = Number(row.total || 0);
+  }
+  const monthlyCashFlowHistory = Array.from(monthlyMap.entries()).map(([month, v]) => ({
+    month,
+    income: v.income,
+    expense: v.expense,
+    net: v.income - v.expense,
+  }));
   // Get expense breakdown using category types
   const expenseByCategoryResult = await prisma.$queryRaw<any[]>`SELECT t."categoryId", SUM(t.amount) as total FROM "Transaction" t JOIN "Category" c ON c.id = t."categoryId" WHERE t."userId" = ${userId} AND c.type = 'Expense' AND t.date >= ${monthStart} GROUP BY t."categoryId"`;
   const expenseByCategory = expenseByCategoryResult.map((e: any) => ({ categoryId: e.categoryId, _sum: { amount: e.total } }));
@@ -136,6 +166,8 @@ dashboardRouter.get("/summary", requireAuth, async (req: AuthRequest, res) => {
     netWorthGrowth,
     cashFlowLast30Days: cashFlowCurrentMonth,
     monthlyExpenses: Number(expenseCurrentMonth._sum.amount || 0),
+    monthlyIncome: monthlyIncomeValue,
+    monthlyCashFlowHistory,
     recentTransactions: transactions,
     netWorthHistory,
     assetAllocation: latestAllocation,

@@ -23,6 +23,17 @@ model User {
   portfolios   Portfolio[]
   manualAssets ManualAsset[]
   assetGroups  AssetGroup[]
+  tags         Tag[]
+}
+
+model Tag {
+  id           Int           @id @default(autoincrement())
+  userId       Int
+  name         String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([userId, name])
 }
 
 model Account {
@@ -37,10 +48,12 @@ model Account {
 }
 
 model Category {
-  id       Int       @id @default(autoincrement())
-  userId   Int
-  name     String
-  type     String    // 'Income' | 'Expense'
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  name           String
+  type           String    // 'Income' | 'Expense'
+  color          String?
+  isAssetLinked  Boolean   @default(false) // If true, transactions with this category can be linked to an asset item
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   budgets  Budget[]
@@ -56,15 +69,24 @@ model Transaction {
   amount     Decimal
   type       String    // 'Income' | 'Expense'
   notes      String?
+  attachmentPath String? // Path to stored receipt/file
   createdAt  DateTime  @default(now())
   recurringTransactionId Int? // Link to recurring transaction if generated automatically
+  splitGroupId String?  // UUID to group split transactions together
+  parentSplitId Int?    // ID of the parent transaction if this is a split
+  assetItemId  Int?     // Link to asset item for contribution tracking
 
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   account    Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   category   Category  @relation("TxnCategory", fields: [categoryId], references: [id])
   recurringTransaction RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
+  assetItem  AssetItem? @relation(fields: [assetItemId], references: [id], onDelete: SetNull)
+  tags       Tag[]
+  splits     Transaction[] @relation("TransactionSplits")
+  parentSplit Transaction? @relation("TransactionSplits", fields: [parentSplitId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
+  @@index([userId, splitGroupId])
 }
 
 model RecurringTransaction {
@@ -75,14 +97,16 @@ model RecurringTransaction {
   amount       Decimal
   type         String    // 'Income' | 'Expense'
   notes        String?
-  frequency    String    // 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'BIMONTHLY' | 'QUARTERLY' | 'YEARLY'
+  frequency    String    // 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'BIMONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'YEARLY'
   startDate    DateTime  // When to start generating transactions
   nextDate     DateTime  // Next scheduled transaction date
   endDate      DateTime? // Optional end date
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
+  assetItemId  Int?      // Link to asset item for contribution tracking
 
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetItem    AssetItem? @relation(fields: [assetItemId], references: [id], onDelete: SetNull)
   generatedTransactions Transaction[]
 
   @@index([userId, nextDate, isActive])
@@ -154,6 +178,8 @@ model AssetItem {
   parentItem        AssetItem?  @relation("AssetItemToChildren", fields: [parentItemId], references: [id], onDelete: Cascade)
   children          AssetItem[] @relation("AssetItemToChildren")
   valuations        AssetValuation[]
+  transactions      Transaction[]
+  recurringTransactions RecurringTransaction[]
 }
 
 // Snapshot values per month for each item

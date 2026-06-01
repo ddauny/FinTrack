@@ -1,0 +1,61 @@
+
+               {/* Recurring Toggle */}
+               {!editingId && (
+                <div className="pt-2">
+                  <label className="flex items-center gap-3 p-3 rounded-xl border border-stone-200 dark:border-stone-700 cursor-pointer hover:bg-stone-200 dark:hover:bg-stone-800/50 transition-colors">
+                    <div className="relative flex items-center">
+                      <input 
+                        type="checkbox" 
+                        checked={form.isRecurring} 
+                        onChange={e => setForm({...form, isRecurring: e.target.checked})}
+                        className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-stone-300 dark:border-stone-600 transition-all checked:border-blue-500 checked:bg-blue-500"
+                      />
+                      <svg className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path fillRule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <span className="text-sm font-medium text-stone-700 dark:text-stone-200">Recurring Transaction</span>
+                  </label>
+                  
+                  {form.isRecurring && (
+                    <div className="mt-3 pl-3 border-l-2 border-stone-100 dark:border-stone-800 space-y-3 animate-in slide-in-from-top-2">
+                      <div>
+                        <label className="block text-xs font-bold text-stone-500 dark:text-stone-300 uppercase tracking-wider mb-1.5">Frequency</label>
+                        <div className="relative">
+                          <div 
+                            onClick={() => setShowFrequencyDropdown(!showFrequencyDropdown)}
+                            className={`w-full px-4 py-3 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm font-medium text-stone-900 dark:text-white cursor-pointer flex items-center justify-between transition-all ${showFrequencyDropdown ? 'ring-2 ring-blue-500 border-transparent' : ''}`}
+                          >
+                            <span>
+                              {form.frequency === 'WEEKLY' && 'Weekly'}
+                              {form.frequency === 'BIWEEKLY' && 'Every 2 weeks'}
+                              {form.frequency === 'MONTHLY' && 'Monthly'}
+                              {form.frequency === 'BIMONTHLY' && 'Every 2 months'}
+                              {form.frequency === 'QUARTERLY' && 'Quarterly'}
+                              {form.frequency === 'SEMIANNUAL' && 'Every 6 months'}
+                              {form.frequency === 'YEARLY' && 'Yearly'}
+                            </span>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-5 h-5 text-stone-500 dark:text-stone-300 transition-transform ${showFrequencyDropdown ? 'rotate-180' : ''}`}>
+                              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          
+                          {showFrequencyDropdown && (
+                            <>
+                              <div className="fixed inset-0 z-10" onClick={() => setShowFrequencyDropdown(false)}></div>
+                              <div className="absolute z-20 w-full bottom-full mb-1 bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                                {[
+                                  { val: 'WEEKLY', label: 'Weekly' },
+                                  { val: 'BIWEEKLY', label: 'Every 2 weeks' },
+                                  { val: 'MONTHLY', label: 'Monthly' },
+                                  { val: 'BIMONTHLY', label: 'Every 2 months' },
+                                  { val: 'QUARTERLY', label: 'Quarterly' },
+                                  { val: 'SEMIANNUAL', label: 'Every 6 months' },
+                                  { val: 'YEARLY', label: 'Yearly' }
+                                ].map(opt => (
+                                  <div 
+                                    key={opt.val}
+                                    onClick={() => { setForm({...form, frequency: opt.val}); setShowFrequencyDropdown(false); }}
+                                    className={`px-4 py-3 text-sm font-medium cursor-pointer transition-colors flex items-center justify-between ${
+                                      form.frequency === opt.val 
+                                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 

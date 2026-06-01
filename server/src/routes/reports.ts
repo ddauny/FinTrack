@@ -70,6 +70,26 @@ function maybeCsv(req: any, res: any, rows: any[], headers: string[]) {
 
 // --- Endpoint Corretti ---
 
+reportsRouter.get("/period-totals", requireAuth, async (req: AuthRequest, res) => {
+  const userId = req.userId!;
+  const { start, end } = parseRange(req.query);
+
+  const rows = await prisma.$queryRaw<any[]>`SELECT c.type, SUM(t.amount) as total
+    FROM "Transaction" t
+    JOIN "Category" c ON c.id = t."categoryId"
+    WHERE t."userId"=${userId}
+      AND t.date >= ${start}
+      AND t.date <= ${end}
+    GROUP BY c.type`;
+
+  const result = rows.map(r => ({
+    type: r.type,
+    amount: Number(r.total || 0)
+  }));
+
+  return res.json(result);
+});
+
 reportsRouter.get("/cashflow", requireAuth, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const { start, end } = parseRange(req.query); // Ora restituisce Date corrette
@@ -87,14 +107,19 @@ reportsRouter.get("/cashflow", requireAuth, async (req: AuthRequest, res) => {
     GROUP BY date_trunc('month', t.date)
     ORDER BY date_trunc('month', t.date)`;
 
-  // Converte i tipi numerici (potrebbero essere stringhe/BigInt da $queryRaw)
-   const result = rows.map(r => ({
-     period: r.period,
-     income: Number(r.income || 0),
-     expense: Number(r.expense || 0)
-   }));
+  // Converte i tipi numerici e calcola il Net Result
+   const result = rows.map(r => {
+     const income = Number(r.income || 0);
+     const expense = Number(r.expense || 0);
+     return {
+       period: r.period,
+       income,
+       expense,
+       net: income - Math.abs(expense)
+     };
+   });
 
-  return maybeCsv(req, res, result, ["period", "income", "expense"]);
+  return maybeCsv(req, res, result, ["period", "income", "expense", "net"]);
 });
 
 reportsRouter.get("/spending-by-category", requireAuth, async (req: AuthRequest, res) => {
@@ -123,8 +148,8 @@ reportsRouter.get("/trends", requireAuth, async (req: AuthRequest, res) => {
 
   const rows = await prisma.$queryRaw<any[]>`SELECT
     to_char(date_trunc('month', t.date), 'YYYY-MM') as period,
-    SUM(CASE WHEN c.type='Income' THEN t.amount ELSE 0 END) as income,
-    SUM(CASE WHEN c.type='Expense' THEN t.amount ELSE 0 END) as expense
+    SUM(CASE WHEN c.type='Income' THEN t.amount ELSE 0 END) as total_income,
+    SUM(CASE WHEN c.type='Expense' THEN t.amount ELSE 0 END) as total_expense
     FROM "Transaction" t
     JOIN "Category" c ON c.id = t."categoryId"
     WHERE t."userId"=${userId}
@@ -136,11 +161,11 @@ reportsRouter.get("/trends", requireAuth, async (req: AuthRequest, res) => {
 
    const result = rows.map(r => ({
      period: r.period,
-     income: Number(r.income || 0),
-     expense: Number(r.expense || 0)
+     total_income: Number(r.total_income || 0),
+     total_expense: Number(r.total_expense || 0)
    }));
 
-  return maybeCsv(req, res, result, ["period", "income", "expense"]);
+  return maybeCsv(req, res, result, ["period", "total_income", "total_expense"]);
 });
 
 reportsRouter.get("/networth-history", requireAuth, async (_req: AuthRequest, res) => {
@@ -191,7 +216,7 @@ reportsRouter.get("/category-analysis", requireAuth, async (req: AuthRequest, re
     const userId = req.userId!;
     const { start, end } = parseRange(req.query); // Ora restituisce Date corrette
 
-    const rows = await prisma.$queryRaw<any[]>`SELECT c.name as category,
+    const rows = await prisma.$queryRaw<any[]>`SELECT c.name as category, c.id as "categoryId",
       SUM(t.amount) as total
       FROM "Transaction" t
       JOIN "Category" c ON c.id = t."categoryId"
@@ -199,9 +224,9 @@ reportsRouter.get("/category-analysis", requireAuth, async (req: AuthRequest, re
         -- [FIXED] Usa >= e <= con gli oggetti Date corretti
         AND t.date >= ${start}
         AND t.date <= ${end}
-      GROUP BY c.name ORDER BY total DESC`;
+      GROUP BY c.name, c.id ORDER BY total DESC`;
 
-    const numericRows = rows.map(r => ({ ...r, total: Number(r.total || 0) }));
+    const numericRows = rows.map(r => ({ ...r, total: Number(r.total || 0), categoryId: Number(r.categoryId) }));
     // Evita maxValue=0 per il grafico radar
     const maxValue = numericRows.length > 0 ? Math.max(1, ...numericRows.map(r => r.total)) : 1;
     const rowsWithMax = numericRows.map(r => ({ ...r, maxValue: maxValue }));
@@ -213,11 +238,109 @@ reportsRouter.get("/category-analysis", requireAuth, async (req: AuthRequest, re
   }
 });
 
+reportsRouter.get("/tag-analysis", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { start, end } = parseRange(req.query);
+
+    const rows = await prisma.$queryRaw<any[]>`
+      SELECT t.name as tag, SUM(txn.amount) as total
+      FROM "Transaction" txn
+      JOIN "_TagToTransaction" link ON link."B" = txn.id
+      JOIN "Tag" t ON t.id = link."A"
+      JOIN "Category" c ON c.id = txn."categoryId"
+      WHERE txn."userId" = ${userId}
+      AND c.type = 'Expense'
+      AND txn.date >= ${start}
+      AND txn.date <= ${end}
+      GROUP BY t.name
+      ORDER BY total DESC
+    `;
+
+    const result = rows.map(r => ({
+      tag: r.tag,
+      total: Number(r.total || 0)
+    }));
+
+    return maybeCsv(req, res, result, ["tag", "total"]);
+  } catch (error) {
+    console.error('Error in tag-analysis:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 reportsRouter.get("/net-worth-trend", requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    const { start, end } = parseRange(req.query); // Ora restituisce Date corrette
-    return res.json([]); // Invariato
+    const { start, end } = parseRange(req.query);
+
+    const assetGroups = await prisma.assetGroup.findMany({
+      where: { userId },
+      include: {
+        items: {
+          include: {
+            valuations: {
+              where: {
+                month: { gte: start, lte: end }
+              },
+              orderBy: { month: 'asc' }
+            },
+            children: {
+              include: {
+                valuations: {
+                  where: {
+                    month: { gte: start, lte: end }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    // Collect all unique months
+    const monthsSet = new Set<string>();
+    assetGroups.forEach(group => {
+      group.items.forEach(item => {
+        item.valuations.forEach(v => {
+          monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+        });
+        item.children.forEach(child => {
+          child.valuations.forEach(v => {
+            monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+          });
+        });
+      });
+    });
+    
+    const months = Array.from(monthsSet).sort();
+    
+    // Calculate total value for each month
+    const result = months.map(monthStr => {
+      let total = 0;
+      assetGroups.forEach(group => {
+        group.items.filter(i => !i.parentItemId).forEach(item => {
+          const val = item.valuations.find(v => 
+            v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
+          );
+          if (val) {
+            total += Number(val.value);
+          }
+          // Add children
+          item.children.forEach(child => {
+            const childVal = child.valuations.find(v =>
+              v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
+            );
+            if (childVal) total += Number(childVal.value);
+          });
+        });
+      });
+      
+      return { date: monthStr + '-01', net_worth: total };
+    }).filter(item => item.net_worth > 0);
+    
+    return res.json(result);
   } catch (error) {
     console.error('Error in net-worth-trend:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -476,91 +599,70 @@ reportsRouter.get("/asset-group-comparison", requireAuth, async (req: AuthReques
 });
 
 // Top Assets Evolution - Evoluzione dei principali asset
+
 reportsRouter.get("/top-assets-evolution", requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const { start, end } = parseRange(req.query);
-    const limit = parseInt(req.query.limit as string) || 5;
     
-    const assetGroups = await prisma.assetGroup.findMany({
-      where: { userId },
+    // Recupera asset che hanno valutazioni nel periodo e sono "top" (per ultimo valore > 0)
+    // 1. Troviamo gli ID degli asset che hanno un valore > 0 nell'ultima data disponibile
+    const lastValuations = await prisma.assetValuation.findMany({
+        where: {
+            item: { group: { userId } },
+            month: { gte: start, lte: end }
+        },
+        orderBy: { month: 'desc' },
+        distinct: ['itemId'] 
+    });
+    
+    // Ordiniamo per valore decrescente
+    const topItemIds = lastValuations
+        .sort((a, b) => Number(b.value) - Number(a.value))
+        .slice(0, 10) // Top 10
+        .map(v => v.itemId);
+        
+    if (topItemIds.length === 0) return res.json([]);
+
+    const topAssets = await prisma.assetItem.findMany({
+      where: { 
+          id: { in: topItemIds },
+      },
       include: {
-        items: {
+        group: true, // Changed from category to group
+        valuations: {
           where: {
-            parentItemId: null // Solo root items
+            month: { gte: start, lte: end }
           },
-          include: {
-            valuations: {
-              where: {
-                month: { gte: start, lte: end }
-              },
-              orderBy: { month: 'asc' }
-            }
-          }
+          orderBy: { month: 'asc' }
         }
       }
     });
-    
-    // Calcola il valore medio di ogni asset
-    const assetValues = assetGroups.flatMap(group =>
-      group.items.map(item => {
-        const valuations = item.valuations;
-        const avgValue = valuations.length > 0
-          ? valuations.reduce((sum, v) => sum + Number(v.value), 0) / valuations.length
-          : 0;
+
+    // Costruiamo il result set per la tabella
+    const result = topAssets.map(asset => {
+        // Valori ordinati per mese
+        const vals = asset.valuations;
+        if (vals.length === 0) return null;
+
+        const firstVal = Number(vals[0].value);
+        const lastVal = Number(vals[vals.length - 1].value);
         
+        let percentChange = 0;
+        if (firstVal > 0) {
+            percentChange = ((lastVal - firstVal) / firstVal) * 100;
+        }
+
         return {
-          name: item.name,
-          avgValue,
-          valuations
+            name: asset.name,
+            category: asset.group?.name || 'Uncategorized', // Use group name
+            value: lastVal,
+            change: percentChange
         };
-      })
-    );
-    
-    // Ordina per valore medio e prendi i top N
-    const topAssets = assetValues
-      .sort((a, b) => b.avgValue - a.avgValue)
-      .slice(0, limit);
-    
-    // Raccogli tutti i mesi
-    const monthsSet = new Set<string>();
-    topAssets.forEach(asset => {
-      asset.valuations.forEach(v => {
-        monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
-      });
-    });
-    const months = Array.from(monthsSet).sort();
-    
-    // Crea serie per ogni asset
-    const series = topAssets.map(asset => {
-      const data = months.map(monthStr => {
-        const val = asset.valuations.find(v =>
-          v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
-        );
-        return val ? Number(val.value) : 0;
-      });
+    }).filter(x => x !== null)
+      .sort((a, b) => (b?.value || 0) - (a?.value || 0));
       
-      return {
-        name: asset.name,
-        data
-      };
-    });
-
-    // Filtra i mesi in cui TUTTI gli asset hanno valore 0
-    const validMonthIndices = months
-      .map((_, index) => {
-        const hasValue = series.some(s => s.data[index] > 0);
-        return hasValue ? index : -1;
-      })
-      .filter(i => i !== -1);
-
-    const filteredMonths = validMonthIndices.map(i => months[i]);
-    const filteredSeries = series.map(s => ({
-      name: s.name,
-      data: validMonthIndices.map(i => s.data[i])
-    }));
-    
-    return res.json({ months: filteredMonths, series: filteredSeries });
+    return res.json(result);
   } catch (error) {
     console.error('Error in top-assets-evolution:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -688,5 +790,234 @@ reportsRouter.get("/asset-allocation-changes", requireAuth, async (req: AuthRequ
   } catch (error) {
     console.error('Error in asset-allocation-changes:', error);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+reportsRouter.get("/monthly-category-trends", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { start, end } = parseRange(req.query);
+
+    const rows = await prisma.$queryRaw<any[]>`
+      SELECT 
+        EXTRACT(YEAR FROM t.date) as year,
+        EXTRACT(MONTH FROM t.date) as month,
+        c.id as "categoryId",
+        c.name as "categoryName",
+        c.type as "categoryType",
+        SUM(t.amount) as total
+      FROM "Transaction" t
+      JOIN "Category" c ON c.id = t."categoryId"
+      WHERE t."userId"=${userId}
+        AND t.date >= ${start}
+        AND t.date <= ${end}
+      GROUP BY EXTRACT(YEAR FROM t.date), EXTRACT(MONTH FROM t.date), c.id, c.name, c.type
+      ORDER BY year DESC, month DESC, total DESC
+    `;
+
+    const result = rows.map(r => ({
+      year: Number(r.year),
+      month: Number(r.month),
+      categoryId: Number(r.categoryId),
+      categoryName: r.categoryName,
+      categoryType: r.categoryType,
+      total: Number(r.total || 0),
+      period: `${r.year}-${String(r.month).padStart(2, '0')}`
+    }));
+
+    return res.json(result);
+  } catch (error) {
+    console.error('Error in monthly-category-trends:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+reportsRouter.get("/portfolio-analytics", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { start, end } = parseRange(req.query);
+
+    // 1. Treemap Data: AssetGroup -> AssetItem (with nested children) -> Final Current Value
+    const groups = await prisma.assetGroup.findMany({
+      where: { userId },
+      include: {
+        items: {
+          include: {
+            children: { include: { valuations: { orderBy: { month: 'desc' }, take: 1 } } },
+            valuations: { orderBy: { month: 'desc' }, take: 1 }
+          }
+        }
+      }
+    });
+
+    const treemapData = groups.map(group => {
+      const topLevelItems = group.items.filter(i => !i.parentItemId);
+      let groupValue = 0;
+      
+      const children = topLevelItems.map(item => {
+        const itemVal = item.valuations.length > 0 ? Number(item.valuations[0].value) : 0;
+        
+        let childrenVal = 0;
+        const mappedChildren = item.children.map(child => {
+          const cVal = child.valuations.length > 0 ? Number(child.valuations[0].value) : 0;
+          childrenVal += cVal;
+          return { name: child.name, value: cVal };
+        });
+
+        const totalVal = itemVal + childrenVal;
+        groupValue += totalVal;
+
+        return {
+          name: item.name,
+          value: totalVal,
+          children: mappedChildren.length > 0 ? mappedChildren : undefined
+        };
+      });
+
+      return {
+        name: group.name,
+        value: groupValue,
+        children
+      };
+    });
+
+    // 2. Contribution vs Market Growth
+    const txns = await prisma.transaction.findMany({
+      where: {
+        userId,
+        assetItemId: { not: null },
+        ...(start && { date: { gte: start } }),
+        ...(end && { date: { lte: end } })
+      }
+    });
+    
+    const valuations = await prisma.assetValuation.findMany({
+      where: {
+        item: {
+          OR: [
+            { group: { userId } },
+            { parentItem: { group: { userId } } }
+          ]
+        },
+        ...(start && { month: { gte: start } }),
+        ...(end && { month: { lte: end } })
+      },
+      include: { item: true }
+    });
+
+    // Group by month
+    const sortedMonths = Array.from(new Set([
+      ...txns.map(t => dayjs(t.date).format('YYYY-MM')),
+      ...valuations.map(v => dayjs(v.month).format('YYYY-MM'))
+    ])).sort();
+
+    const txnsPre = await prisma.transaction.aggregate({
+      where: {
+        userId,
+        assetItemId: { not: null },
+        ...(start && { date: { lt: start } })
+      },
+      _sum: { amount: true }
+    });
+    let cumulativeContrib = Number(txnsPre._sum.amount || 0);
+
+    const contributionGrowth: any[] = [];
+    let lastValuation = 0;
+    
+    for (const monthStr of sortedMonths) {
+      const monthTxns = txns.filter(t => dayjs(t.date).format('YYYY-MM') === monthStr);
+      for (const t of monthTxns) {
+         cumulativeContrib += Number(t.amount);
+      }
+
+      const monthVals = valuations.filter(v => dayjs(v.month).format('YYYY-MM') === monthStr);
+      let monthValuation = 0;
+      if (monthVals.length > 0) {
+        monthValuation = monthVals.reduce((sum, v) => sum + Number(v.value), 0);
+        lastValuation = monthValuation;
+      } else {
+        monthValuation = lastValuation;
+      }
+
+      contributionGrowth.push({
+        month: monthStr,
+        contribution: cumulativeContrib,
+        valuation: monthValuation
+      });
+    }
+
+    // 3. CAGR and Total Return
+    const finalValuation = contributionGrowth.length > 0 ? contributionGrowth[contributionGrowth.length - 1].valuation : 0;
+    const finalContribution = cumulativeContrib;
+
+    const totalReturn = finalContribution > 0 ? ((finalValuation - finalContribution) / finalContribution) * 100 : 0;
+    
+    let cagr = 0;
+    if (start && end && finalContribution > 0) {
+       const years = dayjs(end).diff(dayjs(start), 'year', true);
+       if (years > 0) {
+          cagr = (Math.pow(finalValuation / finalContribution, 1 / years) - 1) * 100;
+       }
+    }
+
+    // 4. MoM Correlation Matrix
+    const correlationMatrix: Record<string, Record<string, number>> = {};
+    const groupsNames = groups.map(g => g.name);
+    
+    const groupMoMs: Record<string, number[]> = {};
+    
+    for (const group of groups) {
+      const gVals = valuations.filter(v => 
+        group.items.some(i => i.id === v.item.id || i.children.some(c => c.id === v.item.id))
+      );
+      const moVals: Record<string, number> = {};
+      for (const v of gVals) {
+        const m = dayjs(v.month).format('YYYY-MM');
+        moVals[m] = (moVals[m] || 0) + Number(v.value);
+      }
+      const moms: number[] = [];
+      for (let i = 1; i < sortedMonths.length; i++) {
+         const m1 = sortedMonths[i-1];
+         const m2 = sortedMonths[i];
+         const v1 = moVals[m1] || 0;
+         const v2 = moVals[m2] || 0;
+         const ret = v1 > 0 ? (v2 - v1) / v1 : 0;
+         moms.push(ret);
+      }
+      groupMoMs[group.name] = moms;
+    }
+
+    const pearsonCorrelation = (xs: number[], ys: number[]) => {
+      if (xs.length !== ys.length || xs.length === 0) return 0;
+      const mx = xs.reduce((a,b) => a+b, 0) / xs.length;
+      const my = ys.reduce((a,b) => a+b, 0) / ys.length;
+      let sx = 0, sy = 0, sxy = 0;
+      for (let i = 0; i < xs.length; i++) {
+        const rx = xs[i] - mx;
+        const ry = ys[i] - my;
+        sx += rx * rx;
+        sy += ry * ry;
+        sxy += rx * ry;
+      }
+      if (sx === 0 || sy === 0) return 0;
+      return sxy / Math.sqrt(sx * sy);
+    };
+
+    for (const g1 of groupsNames) {
+      correlationMatrix[g1] = {};
+      for (const g2 of groupsNames) {
+        correlationMatrix[g1][g2] = g1 === g2 ? 1.0 : pearsonCorrelation(groupMoMs[g1], groupMoMs[g2]);
+      }
+    }
+
+    return res.json({
+      treemapData,
+      contributionGrowth,
+      metrics: { totalReturn, cagr },
+      correlationMatrix
+    });
+  } catch (error) {
+     console.error('Error in portfolio-analytics:', error);
+     return res.status(500).json({ error: 'Internal server error' });
   }
 });

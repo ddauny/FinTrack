@@ -2,30 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── CSS Custom Properties ──────────────────────────────── */
+:root {
+  /* Light mode */
+  --bg-app:       #f8fafc;
+  --bg-surface:   #ffffff;
+  --bg-elevated:  #f1f5f9;
+  --border:       #e2e8f0;
+  --border-muted: #cbd5e1;
+  --text-primary: #141414;
+  --text-secondary: #64748b;
+  --text-muted:   #94a3b8;
+  --accent:       #2563eb;
+  --accent-bg:    rgba(37,99,235,0.08);
+}
+
+.dark {
+  /* Dark mode – near-black, no blue tint */
+  --bg-app:       #090909;
+  --bg-surface:   #111111;
+  --bg-elevated:  #181818;
+  --border:       #1f1f1f;
+  --border-muted: #282828;
+  --text-primary: #f0f0f0;
+  --text-secondary: #888888;
+  --text-muted:   #555555;
+  --accent:       #3b82f6;
+  --accent-bg:    rgba(59,130,246,0.08);
+}
+
+/* ── Base ───────────────────────────────────────────────── */
 html, body, #root {
   height: 100%;
 }
 
-/* Hide number input spinners (Chrome, Safari, Edge, Opera) */
-input[type=number]::-webkit-outer-spin-button,
-input[type=number]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-/* Hide number input spinners (Firefox) */
-input[type=number] {
-  -moz-appearance: textfield;
+body {
+  font-family: 'Arial', 'Helvetica', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* GLOBAL SCROLLBAR SETTINGS - HIDE VERTICAL SCROLLBARS */
+/* ── Dark mode app background ──────────────────────────── */
+.dark body, .dark #root {
+  background-color: #090909;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 0px; /* Hide vertical scrollbar */
+  width: 0px;
   background: transparent;
 }
 
-/* Keep horizontal scrollbars visible and styled */
 ::-webkit-scrollbar:horizontal {
-  height: 6px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track:horizontal {
@@ -33,64 +62,169 @@ input[type=number] {
 }
 
 ::-webkit-scrollbar-thumb:horizontal {
-  background: rgba(156, 163, 175, 0.5);
+  background: rgba(148, 163, 184, 0.3);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:horizontal:hover {
-  background: rgba(107, 114, 128, 0.7);
+  background: rgba(148, 163, 184, 0.5);
 }
 
-/* Utility to hide scrollbars completely (both axis) */
 .hide-scrollbar {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
 
-.hide-scrollbar::-webkit-scrollbar {
-  display: none; /* WebKit */
-}
-
-/* Legacy custom-scrollbar class - now mapped to hidden to ensure compliance with user request */
 .custom-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+.custom-scrollbar::-webkit-scrollbar { display: none; }
 
-.custom-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-/* Assets table scrollbar - Horizontal only */
-.assets-scrollbar {
-  /* Do NOT use scrollbar-width here as it overrides ::-webkit-scrollbar in modern browsers */
-  /* and prevents hiding just one axis */
-}
-
+/* ── Assets table scrollbar ─────────────────────────────── */
 .assets-scrollbar::-webkit-scrollbar {
-  width: 0px;   /* Hide vertical */
-  height: 8px;  /* Show horizontal */
+  width: 0px;
+  height: 5px;
   background: transparent;
 }
-
-.assets-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+.assets-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .assets-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.5);
-  border-radius: 4px;
+  background-color: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
 }
-
 .assets-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(107, 114, 128, 0.7);
-}
-
-.assets-scrollbar::-webkit-scrollbar-thumb {
   background-color: rgba(148, 163, 184, 0.5);
-  border-radius: 4px;
 }
 
-.assets-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(100, 116, 139, 0.8);
+/* ── Focus ring ──────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ── Number formatting ────────────────────────────────────── */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.font-mono-nums {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Animations ──────────────────────────────────────────── */
+@keyframes toast-slide-in {
+  from { opacity: 0; transform: translateY(1rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-toast-in { animation: toast-slide-in 0.3s ease-out forwards; }
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter { animation: fade-in 0.25s ease-out forwards; }
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(59,130,246,0.2); }
+  50%       { box-shadow: 0 0 20px rgba(59,130,246,0.4); }
+}
+
+/* ── Skeleton loader ──────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, transparent 25%, rgba(0,0,0,0.04) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+.dark .skeleton {
+  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.04) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── Selection ──────────────────────────────────────────── */
+::selection {
+  background: rgba(59,130,246,0.2);
+  color: inherit;
+}
+
+/* ── Input spinners ─────────────────────────────────────── */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] { -moz-appearance: textfield; }
+
+/* ── Card / Panel shared styles ─────────────────────────── */
+.card {
+  @apply bg-white dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-lg;
+}
+
+/* ── Input field shared styles ──────────────────────────── */
+.input-field {
+  @apply block w-full rounded-lg border border-slate-300 dark:border-[#282828]
+    px-4 py-2.5 text-sm
+    bg-white dark:bg-[#181818]
+    text-slate-900 dark:text-[#f0f0f0]
+    placeholder-slate-400 dark:placeholder-[#555]
+    hover:border-slate-400 dark:hover:border-[#3a3a3a]
+    focus:border-blue-500 dark:focus:border-blue-500/60
+    focus:ring-2 focus:ring-blue-500/10
+    focus:outline-none
+    transition-colors;
+}
+
+/* ── Dark mode hover for all inputs/selects/textareas ─────── */
+.dark input:hover:not(:focus),
+.dark textarea:hover:not(:focus),
+.dark select:hover:not(:focus) {
+  border-color: #3a3a3a;
+  background-color: #1e1e1e;
+}
+
+/* ── Accent glow for focused interactive elements (dark) ── */
+.dark input:focus, .dark textarea:focus, .dark select:focus {
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+}
+
+/* ── Button: primary ────────────────────────────────────── */
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2
+    px-4 py-2.5 rounded-xl
+    text-sm font-semibold text-white
+    bg-blue-600 hover:bg-blue-500 active:bg-blue-700
+    shadow-sm
+    transition-all duration-200;
+}
+.btn-primary:hover {
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.35);
+}
+
+/* ── Table ──────────────────────────────────────────────── */
+.dark table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* ── Stat card accent border top ─────────────────────────── */
+.stat-card-accent {
+  position: relative;
+  overflow: hidden;
+}
+.stat-card-accent::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  border-radius: 2px 2px 0 0;
 }

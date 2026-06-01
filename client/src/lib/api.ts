@@ -18,9 +18,24 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+export async function secureFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const res = await fetch(input, init)
+  if (res.status === 401) {
+    localStorage.removeItem('token')
+    window.location.href = '/login'
+    throw new Error('Unauthorized')
+  }
+  return res
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const url = path.includes('?') ? `${path}&_t=${Date.now()}` : `${path}?_t=${Date.now()}`
   const res = await fetch(base + url, { headers: { ...authHeaders() }, cache: 'no-store' as RequestCache })
+  if (res.status === 401) {
+    localStorage.removeItem('token')
+    window.location.href = '/login'
+    throw new Error('Unauthorized')
+  }
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }
@@ -31,6 +46,28 @@ export async function apiJson<T>(path: string, method: string, body?: any): Prom
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: body ? JSON.stringify(body) : undefined,
   })
+  if (res.status === 401) {
+    localStorage.removeItem('token')
+    window.location.href = '/login'
+    throw new Error('Unauthorized')
+  }
+  if (!res.ok) throw new Error(await res.text())
+  if (res.status === 204) return undefined as unknown as T
+  const text = await res.text()
+  return (text ? JSON.parse(text) : undefined) as T
+}
+
+export async function apiMultipart<T>(path: string, method: string, body: FormData): Promise<T> {
+  const res = await fetch(base + path, {
+    method,
+    headers: { ...authHeaders() },
+    body,
+  })
+  if (res.status === 401) {
+    localStorage.removeItem('token')
+    window.location.href = '/login'
+    throw new Error('Unauthorized')
+  }
   if (!res.ok) throw new Error(await res.text())
   if (res.status === 204) return undefined as unknown as T
   const text = await res.text()
@@ -43,17 +80,26 @@ export const api = {
   dashboardSummary: () => apiGet<DashboardSummary>('/api/dashboard/summary'),
   transactions: {
     list: (q: string) => apiGet<Transaction[]>(`/api/transactions${q}`),
-    create: (data: Partial<Transaction>) => apiJson<Transaction>('/api/transactions', 'POST', data),
-    update: (id: number, data: Partial<Transaction>) => apiJson<Transaction>(`/api/transactions/${id}`, 'PUT', data),
+    create: (data: Partial<Transaction> & { assetItemId?: number | null }) => apiJson<Transaction>('/api/transactions', 'POST', data),
+    update: (id: number, data: Partial<Transaction> & { assetItemId?: number | null }) => apiJson<Transaction>(`/api/transactions/${id}`, 'PUT', data),
     remove: (id: number) => apiJson<void>(`/api/transactions/${id}`, 'DELETE'),
     bulkDelete: (ids: number[]) => apiJson<{ deleted: number }>('/api/transactions/bulk-delete', 'POST', { ids }),
     bulkUpdateCategory: (ids: number[], categoryId: number) => apiJson<{ updated: number }>('/api/transactions/bulk-update-category', 'PATCH', { ids, categoryId }),
     importCsv: (file: File) => {
       const form = new FormData()
       form.append('file', file)
-      return fetch('/api/transactions/import', { method: 'POST', headers: { ...authHeaders() }, body: form }).then(r=>r.json())
+      return fetch('/api/transactions/import', { method: 'POST', headers: { ...authHeaders() }, body: form }).then(async r => {
+        if (r.status === 401) {
+          localStorage.removeItem('token')
+          window.location.href = '/login'
+          throw new Error('Unauthorized')
+        }
+        if (!r.ok) throw new Error(await r.text())
+        return r.json()
+      })
     },
     getNotes: (query: string) => apiGet(`/api/transactions/notes?q=${encodeURIComponent(query)}`),
+    getTags: (query: string) => apiGet<string[]>(`/api/transactions/tags?q=${encodeURIComponent(query)}`),
   },
   accounts: {
     list: () => apiGet<Account[]>('/api/accounts'),
@@ -74,19 +120,30 @@ export const api = {
     remove: (id: number) => apiJson<void>(`/api/budgets/${id}`, 'DELETE'),
   },
     reports: {
+      portfolioAnalytics: (start?: string, end?: string) => apiGet<any>(`/api/reports/portfolio-analytics?start=${start||''}&end=${end||''}`),
+      periodTotals: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/period-totals?start=${start||''}&end=${end||''}`),
       cashflow: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/cashflow?start=${start||''}&end=${end||''}`),
       spendingByCategory: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/spending-by-category?start=${start||''}&end=${end||''}`),
       trends: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/trends?start=${start||''}&end=${end||''}`),
       test: () => apiGet(`/api/reports/test`),
       monthlyExpenses: (start?: string, end?: string) => apiGet(`/api/reports/monthly-expenses?start=${start||''}&end=${end||''}`),
       categoryAnalysis: (start?: string, end?: string) => apiGet(`/api/reports/category-analysis?start=${start||''}&end=${end||''}`),
+      tagAnalysis: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/tag-analysis?start=${start||''}&end=${end||''}`),
       netWorthTrend: (start?: string, end?: string) => apiGet(`/api/reports/net-worth-trend?start=${start||''}&end=${end||''}`),
       assetGrowthTrend: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-growth-trend?start=${start||''}&end=${end||''}`),
       assetDistribution: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-distribution?start=${start||''}&end=${end||''}`),
       assetGroupComparison: (start?: string, end?: string) => apiGet<any>(`/api/reports/asset-group-comparison?start=${start||''}&end=${end||''}`),
       topAssetsEvolution: (start?: string, end?: string, limit?: number) => apiGet<any>(`/api/reports/top-assets-evolution?start=${start||''}&end=${end||''}&limit=${limit||5}`),
       assetAllocationChanges: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-allocation-changes?start=${start||''}&end=${end||''}`),
-      exportCsv: (path: string) => fetch(path + (path.includes('?')? '&':'?') + 'format=csv', { headers: { ...authHeaders() } }).then(r=>r.text()),
+      monthlyCategoryTrends: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/monthly-category-trends?start=${start||''}&end=${end||''}`),
+      exportCsv: (path: string) => fetch(path + (path.includes('?')? '&':'?') + 'format=csv', { headers: { ...authHeaders() } }).then(async r => {
+        if (r.status === 401) {
+          localStorage.removeItem('token')
+          window.location.href = '/login'
+          throw new Error('Unauthorized')
+        }
+        return r.text()
+      }),
     },
   assets: {
     portfolios: {

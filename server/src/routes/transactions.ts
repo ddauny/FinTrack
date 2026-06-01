@@ -6,21 +6,238 @@ import { z } from "zod";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 export const transactionsRouter = Router();
 
 // Enable strict format-based parsing like DD/MM/YYYY
 dayjs.extend(customParseFormat);
 
+// Configure Multer for secure file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = 'uploads/receipts/';
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)){
+        fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // Secure filename: timestamp-random-originalName (sanitized)
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const sanitizedOriginalName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+    cb(null, uniqueSuffix + '-' + sanitizedOriginalName);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images and PDFs are allowed'));
+    }
+  }
+});
+
 const createSchema = z.object({
   accountId: z.number().int(),
-  categoryId: z.number().int(),
+  categoryId: z.number().int().optional(),
   date: z.string(),
   amount: z.number(),
   notes: z.string().optional(),
   recurringTransactionId: z.number().int().optional(),
+  assetItemId: z.number().int().optional().nullable(),
+  tags: z.array(z.string()).optional(),
+  splits: z.array(z.object({
+    categoryId: z.number().int(),
+    amount: z.number(),
+    notes: z.string().optional(),
+  })).optional()
 });
 
+/*
+// ============================================================================
+// SECURITY: IP RESTRICTION MIDDLEWARE
+// ============================================================================
+// Permette solo richieste da localhost (IPv4/IPv6) e reti private (10.x, 192.168.x, 172.16.x)
+const requireLocalNetwork = (req: any, res: any, next: any) => {
+  let ip = req.ip || req.connection.remoteAddress || "";
+  
+  // Gestione header proxy (se sei dietro Nginx/Cloudflare/Docker)
+  // Assicurati che il tuo server sia configurato per trustare il proxy se usi questo header
+  if (req.headers['x-forwarded-for']) {
+    const forwarded = req.headers['x-forwarded-for'];
+    ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
+  }
+
+  // Normalizza IPv6 mappato a IPv4 (es. ::ffff:192.168.1.1)
+  if (ip.startsWith('::ffff:')) {
+    ip = ip.substring(7);
+  }
+
+  const isLocal = 
+    ip === '127.0.0.1' || 
+    ip === '::1' || 
+    ip.startsWith('10.') || 
+    ip.startsWith('192.168.') || 
+    (ip.startsWith('172.') && parseInt(ip.split('.')[1], 10) >= 16 && parseInt(ip.split('.')[1], 10) <= 31);
+
+  console.log(`[Security] IP Check: ${ip} -> ${isLocal ? 'ALLOWED' : 'BLOCKED'}`);
+
+  if (!isLocal) {
+    return res.status(403).json({ error: "Access denied: Restricted to local network." });
+  }
+  
+  next();
+};
+
+// ============================================================================
+// SCHEMA VALIDAZIONE PER JSON REMOTO
+// ============================================================================
+const remoteJsonSchema = z.object({
+  transactions: z.array(z.object({
+    Date: z.string(), // Es: "10.12.2025"
+    AmountIn: z.number(),
+    AmountOut: z.number(),
+    Note: z.string().optional(),
+  }))
+});
+
+// ============================================================================
+// ENDPOINT: RECEIVE TRANSACTIONS JSON
+// ============================================================================
+transactionsRouter.post(
+  "/receiveTransactionsJson",
+  requireAuth,         // 1. Verifica il Token Bearer (identifica l'utente)
+  requireLocalNetwork, // 2. Verifica che l'IP sia sicuro/locale
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.userId!;
+      
+      // 1. Validazione Payload
+      const parse = remoteJsonSchema.safeParse(req.body);
+      if (!parse.success) {
+        console.error("Validation failed:", parse.error);
+        return res.status(400).json({ error: "Invalid JSON structure", details: parse.error });
+      }
+      
+      const incomingTxns = parse.data.transactions;
+      console.log(`[Import JSON] Received ${incomingTxns.length} transactions for user ${userId}`);
+
+      // 2. Setup Account e Categoria Default
+      // Trova o crea account principale
+      let defaultAccount = await prisma.account.findFirst({ where: { userId }, orderBy: { id: "asc" } });
+      if (!defaultAccount) {
+        defaultAccount = await prisma.account.create({ 
+          data: { userId, name: "Primary Bank", type: "Checking", initialBalance: 0 } 
+        });
+      }
+
+      // Trova o crea categoria "Imported" (o Bank Import)
+      const importCategoryName = "Bank Import";
+      let defaultCategory = await prisma.category.findFirst({
+        where: { userId, name: importCategoryName }
+      });
+
+      // Se non esiste, la creiamo (Default Expense, ma useremo il tipo corretto per ogni txn)
+      if (!defaultCategory) {
+        defaultCategory = await prisma.category.create({
+          data: { userId, name: importCategoryName, type: "Expense" }
+        });
+      }
+
+      // 3. Elaborazione e Inserimento
+      let addedCount = 0;
+      let skippedCount = 0;
+
+      for (const t of incomingTxns) {
+        // A. Parsing Data (DD.MM.YYYY)
+        // Nota: dayjs richiede il formato esatto. Le date nel JSON sono separate da punti.
+        const parsedDate = dayjs(t.Date, "DD.MM.YYYY", true);
+        
+        if (!parsedDate.isValid()) {
+          console.warn(`Skipping invalid date: ${t.Date}`);
+          continue;
+        }
+        
+        const dateObj = parsedDate.toDate();
+
+        // B. Determina Tipo e Importo
+        let type: "Expense" | "Income" = "Expense";
+        let finalAmount = 0;
+
+        // Logica: Se AmountIn > 0 è Income, altrimenti se AmountOut > 0 è Expense
+        if (t.AmountIn > 0) {
+          type = "Income";
+          finalAmount = t.AmountIn;
+        } else if (t.AmountOut > 0) {
+          type = "Expense";
+          finalAmount = t.AmountOut;
+        } else {
+          // Se entrambi sono 0, saltiamo
+          skippedCount++;
+          continue;
+        }
+
+        const notes = t.Note ? t.Note.trim() : "";
+
+        // C. Controllo Duplicati (Anti-Deduplication)
+        // Cerchiamo una transazione esistente dello stesso utente, stessa data, importo e note (approx)
+        // Usiamo un range di data (inizio e fine giorno) per sicurezza
+        const startOfDay = dayjs(dateObj).startOf('day').toDate();
+        const endOfDay = dayjs(dateObj).endOf('day').toDate();
+
+        const duplicate = await prisma.transaction.findFirst({
+          where: {
+            userId: userId,
+            date: { gte: startOfDay, lte: endOfDay },
+            amount: finalAmount,
+            type: type,
+            notes: notes // Match esatto sulle note
+          }
+        });
+
+        if (duplicate) {
+          skippedCount++;
+          continue; // Salta inserimento
+        }
+
+        // D. Inserimento
+        await prisma.transaction.create({
+          data: {
+            userId: userId,
+            accountId: defaultAccount.id,
+            categoryId: defaultCategory.id,
+            date: dateObj,
+            amount: finalAmount,
+            type: type,
+            notes: notes
+          }
+        });
+        addedCount++;
+      }
+
+      console.log(`[Import JSON] Complete. Added: ${addedCount}, Skipped: ${skippedCount}`);
+      
+      return res.json({ 
+        success: true, 
+        rows_processed: incomingTxns.length, 
+        added: addedCount, 
+        skipped: skippedCount 
+      });
+
+    } catch (error) {
+      console.error("[Import JSON] Error:", error);
+      return res.status(500).json({ error: "Internal server error processing import" });
+    }
+  }
+);
+*/
 transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
   const { page, limit, skip } = parsePagination(req.query as any);
   const sortBy = String((req.query as any).sortBy ?? "date");
@@ -31,6 +248,8 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
   const endDate = (req.query as any).endDate;
   const searchQuery = (req.query as any).search;
   const txnType = (req.query as any).type;
+  const minAmountRaw = (req.query as any).minAmount;
+  const maxAmountRaw = (req.query as any).maxAmount;
   
   const where: any = { userId: req.userId! };
   if (filterByCategory) where.categoryId = filterByCategory;
@@ -69,35 +288,217 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
     console.log('Filtering by type:', txnType);
   }
 
-  // Handle search query - search in category name, amount, and notes
+  // Handle amount range filtering
+  const minAmount = minAmountRaw !== undefined && minAmountRaw !== '' ? Number(minAmountRaw) : undefined;
+  const maxAmount = maxAmountRaw !== undefined && maxAmountRaw !== '' ? Number(maxAmountRaw) : undefined;
+  if (Number.isFinite(minAmount) || Number.isFinite(maxAmount)) {
+    where.amount = {
+      ...(Number.isFinite(minAmount) ? { gte: minAmount } : {}),
+      ...(Number.isFinite(maxAmount) ? { lte: maxAmount } : {})
+    };
+    console.log('Filtering by amount range:', { minAmount, maxAmount });
+  }
+
+  // Handle search query - supports structured tokens with AND/OR and parentheses
   if (searchQuery && searchQuery.trim()) {
-    const searchTerm = searchQuery.trim();
-    console.log('Searching for:', searchTerm);
-    
-    where.OR = [
-      // Search in category name
-      {
-        category: {
-          name: {
-            contains: searchTerm,
-            mode: 'insensitive'
+    const fullSearch = searchQuery.trim();
+    console.log('Searching for:', fullSearch);
+
+    type Token = { type: 'term' | 'and' | 'or' | 'lparen' | 'rparen'; value?: string };
+    type Node = { type: 'term'; value: string } | { type: 'and' | 'or'; children: Node[] };
+
+    const tokenize = (input: string): Token[] => {
+      const tokens: Token[] = [];
+      let i = 0;
+      while (i < input.length) {
+        const ch = input[i];
+        if (/\s/.test(ch)) { i += 1; continue; }
+        if (ch === '(') { tokens.push({ type: 'lparen' }); i += 1; continue; }
+        if (ch === ')') { tokens.push({ type: 'rparen' }); i += 1; continue; }
+        if (input.slice(i, i + 2) === '&&') { tokens.push({ type: 'and' }); i += 2; continue; }
+        if (input.slice(i, i + 2) === '||') { tokens.push({ type: 'or' }); i += 2; continue; }
+
+        // Term token (supports key:"multi word")
+        let buf = '';
+        while (i < input.length) {
+          if (input.slice(i, i + 2) === '&&' || input.slice(i, i + 2) === '||') break;
+          const c = input[i];
+          if (c === '(' || c === ')') break;
+          if (/\s/.test(c)) break;
+          buf += c;
+          i += 1;
+          if (buf.endsWith(':') && input[i] === '"') {
+            i += 1;
+            let quoted = '';
+            while (i < input.length && input[i] !== '"') {
+              quoted += input[i];
+              i += 1;
+            }
+            if (input[i] === '"') i += 1;
+            buf += `"${quoted}"`;
           }
         }
-      },
-      // Search in notes
-      {
-        notes: {
-          contains: searchTerm,
-          mode: 'insensitive'
-        }
-      },
-      // Search in amount (convert to string for partial matching)
-      {
-        amount: {
-          equals: parseFloat(searchTerm) || undefined
+        if (buf) {
+          tokens.push({ type: 'term', value: buf });
+        } else {
+          i += 1;
         }
       }
-    ];
+      return tokens;
+    };
+
+    const tokens = tokenize(fullSearch);
+    let pos = 0;
+    const peek = () => tokens[pos];
+    const consume = () => tokens[pos++];
+
+    const parsePrimary = (): Node | null => {
+      const tok = peek();
+      if (!tok) return null;
+      if (tok.type === 'lparen') {
+        consume();
+        const expr = parseOr();
+        if (peek()?.type === 'rparen') consume();
+        return expr;
+      }
+      if (tok.type === 'term') {
+        consume();
+        return { type: 'term', value: tok.value || '' };
+      }
+      return null;
+    };
+
+    const parseAnd = (): Node | null => {
+      let left = parsePrimary();
+      if (!left) return null;
+      const children: Node[] = [left];
+      while (true) {
+        const tok = peek();
+        if (tok?.type === 'and') {
+          consume();
+          const right = parsePrimary();
+          if (right) children.push(right);
+          continue;
+        }
+        // Implicit AND between consecutive primaries
+        if (tok?.type === 'term' || tok?.type === 'lparen') {
+          const right = parsePrimary();
+          if (right) children.push(right);
+          continue;
+        }
+        break;
+      }
+      return children.length === 1 ? children[0] : { type: 'and', children };
+    };
+
+    const parseOr = (): Node | null => {
+      let left = parseAnd();
+      if (!left) return null;
+      const children: Node[] = [left];
+      while (peek()?.type === 'or') {
+        consume();
+        const right = parseAnd();
+        if (right) children.push(right);
+      }
+      return children.length === 1 ? children[0] : { type: 'or', children };
+    };
+
+    const ast = parseOr();
+
+    const buildTermCondition = (raw: string) => {
+      let term = raw.trim();
+      if (!term) return null;
+      if (term.startsWith('"') && term.endsWith('"')) {
+        term = term.slice(1, -1).trim();
+      }
+      if (!term) return null;
+
+      if (term.startsWith('#')) {
+        const tagName = term.slice(1);
+        if (!tagName) return null;
+        return {
+          tags: {
+            some: {
+              name: {
+                equals: tagName,
+                mode: 'insensitive'
+              }
+            }
+          }
+        };
+      }
+
+      const colonIdx = term.indexOf(':');
+      if (colonIdx > 0) {
+        const key = term.slice(0, colonIdx).toLowerCase();
+        let value = term.slice(colonIdx + 1).trim();
+        if (value.startsWith('"') && value.endsWith('"')) {
+          value = value.slice(1, -1).trim();
+        }
+        if (!value) return null;
+
+        if (key === 'category' || key === 'cat') {
+          return {
+            category: {
+              name: {
+                contains: value,
+                mode: 'insensitive'
+              }
+            }
+          };
+        }
+        if (key === 'notes' || key === 'note') {
+          return {
+            notes: {
+              contains: value,
+              mode: 'insensitive'
+            }
+          };
+        }
+        if (key === 'amount' || key === 'amt') {
+          const parsed = parseFloat(value);
+          if (!Number.isNaN(parsed)) return { amount: { equals: parsed } };
+          return null;
+        }
+        if (key === 'tag' || key === 'tags') {
+          return {
+            tags: {
+              some: {
+                name: {
+                  equals: value.startsWith('#') ? value.slice(1) : value,
+                  mode: 'insensitive'
+                }
+              }
+            }
+          };
+        }
+      }
+
+      return {
+        notes: {
+          contains: term,
+          mode: 'insensitive'
+        }
+      };
+    };
+
+    const buildCondition = (node: Node | null): any => {
+      if (!node) return null;
+      if (node.type === 'term') return buildTermCondition(node.value);
+      const childConds = node.children.map(buildCondition).filter(Boolean) as any[];
+      if (childConds.length === 0) return null;
+      if (childConds.length === 1) return childConds[0];
+      return node.type === 'and' ? { AND: childConds } : { OR: childConds };
+    };
+
+    const searchCondition = buildCondition(ast);
+    if (searchCondition) {
+      if (where.AND) {
+        where.AND.push(searchCondition);
+      } else {
+        where.AND = [searchCondition];
+      }
+    }
   }
 
   // Handle category sorting by joining with category table
@@ -139,11 +540,15 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
         userId: true,
         type: true,
         recurringTransactionId: true,
+        attachmentPath: true,
+        splitGroupId: true,
+        tags: true,
         category: {
           select: {
             id: true,
             name: true,
-            type: true
+            type: true,
+            color: true
           }
         }
       },
@@ -153,7 +558,35 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
     prisma.transaction.count({ where }),
   ]);
 
-  res.json({ page, limit, total, items });
+  // Compute monthly net from the full filtered set (not paginated)
+  // so month separators in UI stay consistent with dashboard-style totals.
+  const monthlyNetSource = await prisma.transaction.findMany({
+    where,
+    select: {
+      date: true,
+      amount: true,
+      type: true,
+      category: {
+        select: {
+          type: true,
+        }
+      }
+    }
+  });
+
+  const monthlyNetByMonth: Record<string, number> = {};
+  for (const txn of monthlyNetSource) {
+    const d = dayjs(txn.date);
+    const monthKey = d.format('YYYY-MM');
+    const resolvedType = txn.category?.type || txn.type;
+    const amt = Number(txn.amount) || 0;
+
+    if (!(monthKey in monthlyNetByMonth)) monthlyNetByMonth[monthKey] = 0;
+    if (resolvedType === 'Expense') monthlyNetByMonth[monthKey] -= amt;
+    if (resolvedType === 'Income') monthlyNetByMonth[monthKey] += amt;
+  }
+
+  res.json({ page, limit, total, items, monthlyNetByMonth });
 });
 
 // Get existing notes for autocomplete - MUST be before /:id route
@@ -161,7 +594,7 @@ transactionsRouter.get("/notes", requireAuth, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const query = String(req.query.q || '').toLowerCase();
   
-  const notes = await prisma.transaction.findMany({
+  const notesWithCategory = await prisma.transaction.findMany({
     where: { 
       userId,
       notes: { 
@@ -170,17 +603,57 @@ transactionsRouter.get("/notes", requireAuth, async (req: AuthRequest, res) => {
         mode: 'insensitive'
       }
     },
-    select: { notes: true },
-    distinct: ['notes'],
+    select: { 
+      notes: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          color: true
+        }
+      }
+    },
+    orderBy: { date: 'desc' },
+    take: 50 // Get recent 50 matching transactions
+  });
+  
+  // Deduplicate notes, keeping the most recent one (first in array due to desc sort)
+  const seenNotes = new Set<string>();
+  const suggestions = [];
+
+  for (const t of notesWithCategory) {
+    if (t.notes && !seenNotes.has(t.notes)) {
+      seenNotes.add(t.notes);
+      suggestions.push({
+        note: t.notes,
+        category: t.category
+      });
+      if (suggestions.length >= 8) break;
+    }
+  }
+  
+  res.json(suggestions);
+});
+
+// Get existing tags for autocomplete
+transactionsRouter.get("/tags", requireAuth, async (req: AuthRequest, res) => {
+  const userId = req.userId!;
+  const query = String(req.query.q || '').toLowerCase();
+  
+  const tags = await prisma.tag.findMany({
+    where: {
+      userId,
+      name: {
+        contains: query,
+        mode: 'insensitive'
+      }
+    },
+    select: { name: true },
     take: 10
   });
   
-  const suggestions = notes
-    .map(t => t.notes)
-    .filter(Boolean)
-    .filter((note, index, arr) => arr.indexOf(note) === index) // Remove duplicates
-    .slice(0, 8); // Limit to 8 suggestions
-  
+  const suggestions = tags.map(t => t.name);
   res.json(suggestions);
 });
 
@@ -191,35 +664,118 @@ transactionsRouter.get("/:id", requireAuth, async (req: AuthRequest, res) => {
   res.json(item);
 });
 
-transactionsRouter.get("/:id", requireAuth, async (req: AuthRequest, res) => {
+transactionsRouter.get("/:id/attachment", requireAuth, async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   const item = await prisma.transaction.findFirst({ where: { id, userId: req.userId! } });
-  if (!item) return res.status(404).json({ error: "Not found" });
-  res.json(item);
+  
+  if (!item || !item.attachmentPath) {
+    return res.status(404).json({ error: "Attachment not found" });
+  }
+  
+  const filePath = path.resolve(item.attachmentPath);
+  // Security check
+  if (!filePath.startsWith(path.resolve('uploads'))) {
+     return res.status(403).json({ error: "Access denied" });
+  }
+  
+  if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found on server" });
+  }
+
+  res.sendFile(filePath);
 });
 
-transactionsRouter.post("/", requireAuth, async (req: AuthRequest, res) => {
-  const parse = createSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
+transactionsRouter.post("/", requireAuth, upload.single('receipt'), async (req: AuthRequest, res) => {
+  // Convert numeric fields from string if coming from multipart form
+  const rawBody = { ...req.body };
+  // If file is present, fields might be strings
+  if (req.file || req.headers['content-type']?.includes('multipart/form-data')) {
+    if (rawBody.accountId) rawBody.accountId = Number(rawBody.accountId);
+    if (rawBody.categoryId) rawBody.categoryId = Number(rawBody.categoryId);
+    if (rawBody.amount) rawBody.amount = Number(rawBody.amount);
+    if (rawBody.recurringTransactionId) rawBody.recurringTransactionId = Number(rawBody.recurringTransactionId);
+    if (rawBody.assetItemId) rawBody.assetItemId = Number(rawBody.assetItemId);
+    if (rawBody.tags && typeof rawBody.tags === 'string') {
+        try {
+            rawBody.tags = JSON.parse(rawBody.tags);
+        } catch (e) {
+            rawBody.tags = [rawBody.tags];
+        }
+    }
+    if (rawBody.splits && typeof rawBody.splits === 'string') {
+        try { rawBody.splits = JSON.parse(rawBody.splits); } catch (e) {}
+    }
+  }
+
+  const parse = createSchema.safeParse(rawBody);
+  if (!parse.success) {
+    if (req.file) fs.unlinkSync(req.file.path); // Cleanup
+    console.error(parse.error); return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  }
   const data = parse.data;
-  // Infer type from category
-  const category = await prisma.category.findUnique({ where: { id: data.categoryId } });
-  const type = category?.type || "Expense";
-  const item = await prisma.transaction.create({
-    data: {
-      userId: req.userId!,
-      accountId: data.accountId,
-      categoryId: data.categoryId,
-      date: dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm:ss.SSSZ" as any], true).isValid()
-        ? dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm:ss.SSSZ" as any], true).toDate()
-        : new Date(data.date),
-      amount: data.amount,
-      type,
-      notes: data.notes,
-      recurringTransactionId: data.recurringTransactionId,
-    },
-  });
-  res.status(201).json(item);
+const baseDate = dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm:ss.SSSZ" as any], true).isValid()
+    ? dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm:ss.SSSZ" as any], true).toDate()
+    : new Date(data.date);
+
+  if (data.splits && data.splits.length > 0) {
+    const splitGroupId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const createdItems = [];
+    for (const split of data.splits) {
+      const splitCat = await prisma.category.findUnique({ where: { id: split.categoryId } });
+      const splitType = splitCat?.type || "Expense";
+      const item = await prisma.transaction.create({
+        data: {
+          userId: req.userId!,
+          accountId: data.accountId,
+          categoryId: split.categoryId,
+          date: baseDate,
+          amount: split.amount,
+          type: splitType,
+          notes: split.notes || '',
+          splitGroupId: splitGroupId,
+          assetItemId: data.assetItemId,
+          attachmentPath: req.file ? req.file.path : undefined,
+          tags: data.tags ? {
+            connectOrCreate: data.tags.map((tag: string) => ({
+                where: { userId_name: { userId: req.userId!, name: tag } },
+                create: { userId: req.userId!, name: tag }
+            }))
+          } : undefined
+        },
+        include: { tags: true }
+      });
+      createdItems.push(item);
+    }
+    return res.status(201).json({ id: createdItems[0].id, splits: createdItems, splitGroupId });
+  } else {
+    if (!data.categoryId) {
+        return res.status(400).json({ error: "Category is required if no splits are provided" });
+    }
+    const category = await prisma.category.findUnique({ where: { id: data.categoryId } });
+    const type = category?.type || "Expense";
+    const item = await prisma.transaction.create({
+      data: {
+        userId: req.userId!,
+        accountId: data.accountId,
+        categoryId: data.categoryId,
+        date: baseDate,
+        amount: data.amount,
+        type,
+        notes: data.notes,
+        recurringTransactionId: data.recurringTransactionId,
+        assetItemId: data.assetItemId,
+        attachmentPath: req.file ? req.file.path : undefined,
+        tags: data.tags ? {
+          connectOrCreate: data.tags.map((tag: string) => ({
+              where: { userId_name: { userId: req.userId!, name: tag } },
+              create: { userId: req.userId!, name: tag }
+          }))
+        } : undefined
+      },
+      include: { tags: true }
+    });
+    return res.status(201).json(item);
+  }
 });
 
 // 1. Definisci il nuovo schema di validazione (più semplice)
@@ -473,28 +1029,90 @@ transactionsRouter.post(
   }
 );
 
-transactionsRouter.put("/:id", requireAuth, async (req: AuthRequest, res) => {
+transactionsRouter.put("/:id", requireAuth, upload.single('receipt'), async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
-  const parse = createSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
+  
+  // Convert numeric fields from string if coming from multipart form
+  const rawBody = { ...req.body };
+  if (req.file || req.headers['content-type']?.includes('multipart/form-data')) {
+    if (rawBody.accountId) rawBody.accountId = Number(rawBody.accountId);
+    if (rawBody.categoryId) rawBody.categoryId = Number(rawBody.categoryId);
+    if (rawBody.amount) rawBody.amount = Number(rawBody.amount);
+    if (rawBody.recurringTransactionId) rawBody.recurringTransactionId = Number(rawBody.recurringTransactionId);
+    if (rawBody.assetItemId) rawBody.assetItemId = Number(rawBody.assetItemId);
+    if (rawBody.tags && typeof rawBody.tags === 'string') {
+        try {
+            rawBody.tags = JSON.parse(rawBody.tags);
+        } catch (e) {
+            rawBody.tags = [rawBody.tags];
+        }
+    }
+    if (rawBody.splits && typeof rawBody.splits === 'string') {
+        try { rawBody.splits = JSON.parse(rawBody.splits); } catch (e) {}
+    }
+  }
+
+  const parse = createSchema.safeParse(rawBody);
+  if (!parse.success) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    console.error(parse.error); return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  }
   const data = parse.data;
   const category = await prisma.category.findUnique({ where: { id: data.categoryId } });
   const type = category?.type || "Expense";
-  const updated = await prisma.transaction.updateMany({
-    where: { id, userId: req.userId! },
-    data: {
-      accountId: data.accountId,
-      categoryId: data.categoryId,
-      date: dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm:ss.SSSZ" as any], true).isValid()
-        ? dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm:ss.SSSZ" as any], true).toDate()
-        : new Date(data.date),
-      amount: data.amount,
-      type,
-      notes: data.notes,
-    },
+  
+  // Handle file replacement or deletion
+  let attachmentPath = undefined;
+  const shouldDeleteAttachment = req.body.deleteAttachment === 'true' || req.body.deleteAttachment === true;
+
+  if (req.file || shouldDeleteAttachment) {
+    if (req.file) {
+        attachmentPath = req.file.path;
+    }
+    
+    // Try to delete old file if we are replacing it OR explicitly deleting it
+    const oldItem = await prisma.transaction.findFirst({ where: { id, userId: req.userId! } });
+    if (oldItem?.attachmentPath && fs.existsSync(oldItem.attachmentPath)) {
+      try { fs.unlinkSync(oldItem.attachmentPath); } catch(e) { console.error(e); }
+    }
+  }
+
+  const updateData: any = {
+    accountId: data.accountId,
+    categoryId: data.categoryId,
+    date: dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm:ss.SSSZ" as any], true).isValid()
+      ? dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm:ss.SSSZ" as any], true).toDate()
+      : new Date(data.date),
+    amount: data.amount,
+    type,
+    notes: data.notes,
+    assetItemId: data.assetItemId,
+  };
+  
+  if (attachmentPath) {
+      updateData.attachmentPath = attachmentPath;
+  } else if (shouldDeleteAttachment) {
+      updateData.attachmentPath = null;
+  }
+
+  if (data.tags) {
+      updateData.tags = {
+        set: [],
+        connectOrCreate: data.tags.map(tag => ({
+            where: { userId_name: { userId: req.userId!, name: tag } },
+            create: { userId: req.userId!, name: tag }
+        }))
+      };
+  }
+
+  const existing = await prisma.transaction.findFirst({ where: { id, userId: req.userId! } });
+  if (!existing) return res.status(404).json({ error: "Not found" });
+
+  const item = await prisma.transaction.update({
+    where: { id },
+    data: updateData,
+    include: { tags: true, category: true }
   });
-  if (updated.count === 0) return res.status(404).json({ error: "Not found" });
-  const item = await prisma.transaction.findUnique({ where: { id } });
   res.json(item);
 });
 
@@ -512,9 +1130,9 @@ transactionsRouter.delete("/", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // CSV import (multipart/form-data)
-const upload = multer({ storage: multer.memoryStorage() });
+const uploadCsv = multer({ storage: multer.memoryStorage() });
 
-transactionsRouter.post("/import", requireAuth, upload.single("file"), async (req: AuthRequest & { file?: Express.Multer.File }, res) => {
+transactionsRouter.post("/import", requireAuth, uploadCsv.single("file"), async (req: AuthRequest & { file?: Express.Multer.File }, res) => {
   if (!req.file) return res.status(400).json({ error: "File required" });
   const content = req.file.buffer.toString("utf8").replace(/^\uFEFF/, "");
   // CSV parser supports either categoryId or category name (case-insensitive)
@@ -596,12 +1214,49 @@ transactionsRouter.post("/import", requireAuth, upload.single("file"), async (re
     return isNaN(n) ? 0 : n;
   }
 
+  // Helper for date parsing to ensure consistency
+  function parseDate(raw: string): Date {
+    raw = String(raw || "").trim();
+    if (dayjs(raw, "DD/MM/YYYY", true).isValid()) return dayjs(raw, "DD/MM/YYYY", true).toDate();
+    if (dayjs(raw, "YYYY-MM-DDTHH:mm:ss.SSSZ" as any, true).isValid()) return dayjs(raw).toDate();
+    if (dayjs(raw, "YYYY-MM-DD", true).isValid()) return dayjs(raw, "YYYY-MM-DD", true).toDate();
+    return new Date(raw);
+  }
+
+  // Fetch existing transactions to prevent duplicates
+  // We build a frequency map of existing transactions (Date + Amount + Notes)
+  const existingTxns = await prisma.transaction.findMany({
+    where: { userId: req.userId! },
+    select: { date: true, amount: true, notes: true }
+  });
+  
+  const existingMap = new Map<string, number>();
+  for (const t of existingTxns) {
+    // Signature: YYYY-MM-DD_Amount_Notes
+    const sig = `${dayjs(t.date).format('YYYY-MM-DD')}_${Number(t.amount).toFixed(2)}_${(t.notes || '').trim()}`;
+    existingMap.set(sig, (existingMap.get(sig) || 0) + 1);
+  }
+
   for (const row of rows) {
     rowNum += 1;
     const rowDelim = detectDelimiter(row);
     const cells = splitLine(row, rowDelim).map((c) => c.trim());
     if (!cells.length) continue;
     try {
+      // Check for duplicates
+      const rawDate = String(cells[idx["date"]] || "").trim();
+      const dateObj = parseDate(rawDate);
+      const amountVal = parseAmountLocale(String(cells[idx["amount"]] ?? "0"));
+      const notesVal = idx["notes"] !== undefined ? (cells[idx["notes"]] || "").trim() : "";
+      
+      const sig = `${dayjs(dateObj).format('YYYY-MM-DD')}_${amountVal.toFixed(2)}_${notesVal}`;
+      
+      if ((existingMap.get(sig) || 0) > 0) {
+        existingMap.set(sig, existingMap.get(sig)! - 1);
+        // Skip duplicate
+        continue;
+      }
+
       let catId: number | null = null;
       let cat = null as any;
       if (idx["category"] !== undefined) {
@@ -623,7 +1278,15 @@ transactionsRouter.post("/import", requireAuth, upload.single("file"), async (re
               },
             });
             if (!cat) {
-              cat = await prisma.category.create({ data: { userId: req.userId!, name, type: "Expense" } });
+              // If category name is "Income" (case-insensitive), force type to "Income"
+              const isIncome = name.toLowerCase() === 'income';
+              cat = await prisma.category.create({ 
+                data: { 
+                  userId: req.userId!, 
+                  name, 
+                  type: isIncome ? "Income" : "Expense" 
+                } 
+              });
             }
             catId = cat.id;
           }
@@ -643,21 +1306,12 @@ transactionsRouter.post("/import", requireAuth, upload.single("file"), async (re
       const item = await prisma.transaction.create({
         data: {
           userId: req.userId!,
-          date: (()=>{
-            const raw = String(cells[idx["date"]] || "").trim()
-            // Strict parse DD/MM/YYYY first
-            if (dayjs(raw, "DD/MM/YYYY", true).isValid()) return dayjs(raw, "DD/MM/YYYY", true).toDate()
-            // Then ISO-like and YYYY-MM-DD
-            if (dayjs(raw, "YYYY-MM-DDTHH:mm:ss.SSSZ" as any, true).isValid()) return dayjs(raw).toDate()
-            if (dayjs(raw, "YYYY-MM-DD", true).isValid()) return dayjs(raw, "YYYY-MM-DD", true).toDate()
-            // Fallback: try native Date, but this may be locale-dependent
-            return new Date(raw)
-          })(),
-          amount: parseAmountLocale(String(cells[idx["amount"]] ?? "0")),
+          date: dateObj,
+          amount: amountVal,
           type: inferredType,
           accountId,
           categoryId: catId,
-          notes: idx["notes"] !== undefined ? (cells[idx["notes"]] || undefined) : undefined,
+          notes: notesVal || undefined,
         },
       });
       created.push(item.id);

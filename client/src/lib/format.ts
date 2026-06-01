@@ -16,6 +16,22 @@ export function formatDateDMY(value: string | number | Date): string {
   return `${dd}/${mm}/${yyyy}`
 }
 
+export function formatDateWithDay(value: string | number | Date): string {
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return ''
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'long' })
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `${weekday} ${dd}/${mm}/${yyyy}`
+}
+
+export function formatWeekday(value: string | number | Date): string {
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-US', { weekday: 'long' })
+}
+
 export function formatDateMonthYear(value: string | number | Date): string {
   const d = new Date(value)
   if (isNaN(d.getTime())) return ''

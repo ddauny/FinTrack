@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { secureFetch } from '../lib/api'
 import { formatEUR, formatDateDMY, formatDateMonthYear } from '../lib/format'
 import { Parser } from 'expr-eval'
 import NotePopover from '../components/NotePopover' // Assicurati che questo percorso sia corretto
 import { PrivacyNumber } from '@/components/PrivacyNumber'
+import { useToast } from '../contexts/ToastContext'
+import { useAlert } from '../contexts/AlertContext'
+import { usePrivacy } from '../contexts/PrivacyContext'
 
 // --- Icone per la UI ---
 const IconEye = () => (
@@ -22,6 +26,9 @@ type Group = { id:number; name:string; items: Item[] }
 type Item = { id:number; name:string; description?:string; parentItemId?:number|null; hidden?: boolean; depreciationAmount?: number; valuations?: { month:string; value:number; formula?: string | null; note?: string | null }[] }
 
 export function AssetsPage() {
+  const { showToast } = useToast()
+  const { showAlert } = useAlert()
+  const { hideNumbers } = usePrivacy()
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
   const [groups, setGroups] = useState<Group[]>([])
   const [months, setMonths] = useState<string[]>([])
@@ -37,10 +44,11 @@ export function AssetsPage() {
   const [isMobileView, setIsMobileView] = useState(false)
   const [mobileMonthIdx, setMobileMonthIdx] = useState(0)
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set())
-  const [isFullScreen, setIsFullScreen] = useState(false)
+  const [isFullScreen, setIsFullScreen] = useState(true)
+  const [showPercentageChanges, setShowPercentageChanges] = useState(true)
 
   async function refresh() {
-    const res = await fetch('/api/asset-groups', { headers: tokenHeader() })
+    const res = await secureFetch('/api/asset-groups', { headers: tokenHeader() })
     const data = await res.json()
     setGroups(data)
     const set = new Set<string>()
@@ -116,9 +124,25 @@ export function AssetsPage() {
     return !(group.items||[]).some(it=> it.parentItemId===item.id)
   }
 
+  function calculatePercentageChange(item: Item|undefined, currentMonth: string, months: string[]): { percentage: number; prevValue: number; currentValue: number } | null {
+    if (!item || !currentMonth) return null
+    
+    const currentIdx = months.indexOf(currentMonth)
+    if (currentIdx === -1 || currentIdx >= months.length - 1) return null // No previous month
+    
+    const prevMonth = months[currentIdx + 1]
+    const currentValue = valueFor(item, currentMonth, false)
+    const prevValue = valueFor(item, prevMonth, false)
+    
+    if (prevValue === 0) return null // Can't calculate percentage from 0
+    
+    const percentage = ((currentValue - prevValue) / prevValue) * 100
+    return { percentage, prevValue, currentValue }
+  }
+
   async function toggleHidden(item: Item) {
     try {
-      await fetch(`/api/asset-items/${item.id}`, { 
+      await secureFetch(`/api/asset-items/${item.id}`, { 
         method:'PUT', 
         headers:{ 'Content-Type':'application/json', ...tokenHeader() }, 
         body: JSON.stringify({ hidden: !item.hidden }) 
@@ -149,12 +173,12 @@ export function AssetsPage() {
   }
 
   async function collapseItem(item: Item) {
-    await fetch(`/api/asset-items/${item.id}/collapse`, { method:'POST', headers: { ...tokenHeader() } })
+    await secureFetch(`/api/asset-items/${item.id}/collapse`, { method:'POST', headers: { ...tokenHeader() } })
     await refresh()
   }
 
   async function expandItem(item: Item) {
-    await fetch(`/api/asset-items/${item.id}/expand`, { method:'POST', headers: { ...tokenHeader() } })
+    await secureFetch(`/api/asset-items/${item.id}/expand`, { method:'POST', headers: { ...tokenHeader() } })
     await refresh()
   }
 
@@ -233,7 +257,7 @@ export function AssetsPage() {
     if (existingVal && existingVal.note) payload.note = existingVal.note
     
     try {
-      await fetch(`/api/asset-items/${itemId}/valuations`, { 
+      await secureFetch(`/api/asset-items/${itemId}/valuations`, { 
         method:'POST', 
         headers:{ 'Content-Type':'application/json', ...tokenHeader() }, 
         body: JSON.stringify(payload) 
@@ -278,7 +302,7 @@ export function AssetsPage() {
     const existingVal = item?.valuations?.find(v=> new Date(v.month).toISOString().slice(0,10) === month)
     if (existingVal && existingVal.note) payload.note = existingVal.note
     try {
-      await fetch(`/api/asset-items/${itemId}/valuations`, { method:'POST', headers:{ 'Content-Type':'application/json', ...tokenHeader() }, body: JSON.stringify(payload) })
+      await secureFetch(`/api/asset-items/${itemId}/valuations`, { method:'POST', headers:{ 'Content-Type':'application/json', ...tokenHeader() }, body: JSON.stringify(payload) })
       await refresh()
     } catch (err) {
       console.error('Error saving valuation:', err)
@@ -400,11 +424,11 @@ export function AssetsPage() {
   console.log('payload:', payload)
 
     if (!payload.value || !payload.month) {
-  alert("Value or month is missing");
+  showToast("Value or month is missing", "warning");
   return;
 }
     try {
-      const res = await fetch(`/api/asset-items/${itemId}/valuations`, { 
+      const res = await secureFetch(`/api/asset-items/${itemId}/valuations`, { 
         method:'POST', 
         headers:{ 'Content-Type':'application/json', ...tokenHeader() }, 
         body: JSON.stringify(payload) 
@@ -413,7 +437,7 @@ export function AssetsPage() {
       if (!res.ok) {
         // Gestisce errori 500 o 400 dal backend
         console.error("Error saving note:", res.status, res.statusText)
-        alert("Failed to save note. Check console for details.") // Feedback per l'utente
+        showToast("Failed to save note. Check console for details.", "error") // Feedback per l'utente
         return; // Non chiudere il popover se il salvataggio fallisce
       }
 
@@ -423,7 +447,7 @@ export function AssetsPage() {
       setNoteValue('')
     } catch (err) {
       console.error("Fetch error saving note:", err)
-      alert("Failed to save note. Check console for details.")
+      showToast("Failed to save note. Check console for details.", "error")
     }
   }
   // --- FINE MODIFICA ---
@@ -436,7 +460,7 @@ export function AssetsPage() {
     const g = groups.find(x=> x.id===groupId)
     if (!g) return
     try {
-      await fetch(`/api/asset-groups/${groupId}/hide-all`, { 
+      await secureFetch(`/api/asset-groups/${groupId}/hide-all`, { 
         method:'POST', 
         headers: { ...tokenHeader() } 
       })
@@ -448,7 +472,7 @@ export function AssetsPage() {
 
   async function showAllHidden() {
     try {
-      await fetch(`/api/asset-items/show-all`, { 
+      await secureFetch(`/api/asset-items/show-all`, { 
         method:'POST', 
         headers: { ...tokenHeader() } 
       })
@@ -488,7 +512,7 @@ export function AssetsPage() {
     const mk = monthKey(nxt)
     if (!months.includes(mk)) {
       try {
-        await fetch('/api/asset-valuations/apply-depreciation', {
+        await secureFetch('/api/asset-valuations/apply-depreciation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...tokenHeader() },
           body: JSON.stringify({ month: mk })
@@ -604,18 +628,18 @@ export function AssetsPage() {
                }
             }}
             className={`
-              flex items-center justify-between py-3 px-4 border-b border-gray-50 dark:border-gray-800/50 last:border-0
-              ${depth > 0 ? 'bg-gray-50/50 dark:bg-gray-900/50' : ''}
-              active:bg-gray-100 dark:active:bg-gray-800 transition-colors cursor-pointer
+              flex items-center justify-between py-3 px-4 border-b border-slate-50 dark:border-[#1f1f1f] last:border-0
+              ${depth > 0 ? 'bg-slate-50/50 dark:bg-[#101010]/50' : ''}
+              active:bg-slate-100 dark:active:bg-slate-800 transition-colors cursor-pointer
             `}
             style={{ paddingLeft: `${depth * 1 + 1}rem` }}
           >
             <div className="flex items-center gap-2 overflow-hidden">
               {hasChildren && (
-                <span className="text-gray-400 text-xs w-4 text-center">{expanded ? '▼' : '▶'}</span>
+                <span className="text-slate-300 text-xs w-4 text-center">{expanded ? '▼' : '▶'}</span>
               )}
               {!hasChildren && depth > 0 && <span className="w-4"></span>}
-              <span className={`truncate ${depth === 0 ? 'font-medium text-gray-900 dark:text-gray-200' : 'text-gray-600 dark:text-gray-400 text-sm'}`}>
+              <span className={`truncate ${depth === 0 ? 'font-medium text-slate-900 dark:text-[#d8d8d8]' : 'text-slate-600 dark:text-[#bbb] text-sm'}`}>
                 {item.name}
               </span>
             </div>
@@ -623,11 +647,11 @@ export function AssetsPage() {
                {item.valuations?.find(v => monthKey(new Date(v.month)) === currentMonth)?.note && (
                  <div className="w-1.5 h-1.5 bg-amber-400 rounded-full"></div>
                )}
-               <span className={`font-medium ${!value ? 'text-gray-300 dark:text-gray-700' : 'text-gray-900 dark:text-white'}`}>
+               <span className={`font-medium ${!value ? 'text-slate-300 dark:text-slate-700' : 'text-slate-900 dark:text-[#f0f0f0]'}`}>
                  {value ? <PrivacyNumber value={value}>{formatEUR(value)}</PrivacyNumber> : '—'}
                </span>
                {!hasChildren && (
-                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-300 dark:text-gray-600">
+                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-slate-300 dark:text-slate-600">
                    <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
                  </svg>
                )}
@@ -641,14 +665,14 @@ export function AssetsPage() {
     }
 
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20">
         {/* Sticky Header: Month Navigation */}
-        <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
+        <div className="sticky top-0 z-30 bg-white dark:bg-[#101010] border-b border-slate-200 dark:border-[#1f1f1f] shadow-sm">
           <div className="flex items-center justify-between px-4 py-3">
             <button 
               onClick={() => setMobileMonthIdx(prev => Math.min(prev + 1, months.length - 1))}
               disabled={mobileMonthIdx >= months.length - 1}
-              className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white disabled:opacity-30"
+              className="p-2 text-slate-500 hover:text-slate-900 dark:text-[#bbb] dark:hover:text-white disabled:opacity-30"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
@@ -656,7 +680,7 @@ export function AssetsPage() {
             </button>
             
             <div className="text-center">
-              <div className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
+              <div className="text-sm font-semibold text-slate-900 dark:text-[#f0f0f0] uppercase tracking-wide">
                 {currentMonth ? formatDateMonthYear(new Date(currentMonth)) : 'No Data'}
               </div>
             </div>
@@ -664,7 +688,7 @@ export function AssetsPage() {
             <button 
               onClick={() => setMobileMonthIdx(prev => Math.max(prev - 1, 0))}
               disabled={mobileMonthIdx <= 0}
-              className="p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white disabled:opacity-30"
+              className="p-2 text-slate-500 hover:text-slate-900 dark:text-[#bbb] dark:hover:text-white disabled:opacity-30"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -674,10 +698,10 @@ export function AssetsPage() {
         </div>
 
         {/* Summary Card */}
-        <div className="px-4 py-6 bg-white dark:bg-gray-900 mb-4 border-b border-gray-200 dark:border-gray-800">
+        <div className="px-4 py-6 bg-white dark:bg-[#101010] mb-4 border-b border-slate-200 dark:border-[#1f1f1f]">
           <div className="text-center">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Net Worth</p>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            <p className="text-xs font-medium text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1">Total Net Worth</p>
+            <h2 className="text-3xl font-bold text-slate-900 dark:text-[#f0f0f0] mb-2">
               <PrivacyNumber value={totalNetWorth}>{formatEUR(totalNetWorth)}</PrivacyNumber>
             </h2>
             {prevMonth && (
@@ -695,26 +719,26 @@ export function AssetsPage() {
             const groupTotal = (group.items || []).filter(it => !it.parentItemId).reduce((sum, it) => sum + valueFor(it, currentMonth, true), 0)
             
             return (
-              <div key={group.id} className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
+              <div key={group.id} className="bg-white dark:bg-[#101010] rounded-xl shadow-sm border border-slate-200 dark:border-[#1f1f1f] overflow-hidden">
                 <div 
                   onClick={() => toggleGroup(group.id)}
-                  className="flex items-center justify-between p-4 cursor-pointer active:bg-gray-50 dark:active:bg-gray-800 transition-colors"
+                  className="flex items-center justify-between p-4 cursor-pointer active:bg-slate-50 dark:active:bg-slate-800 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isExpanded ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
+                    <div className={`p-2 rounded-lg ${isExpanded ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'bg-slate-100 text-slate-500 dark:bg-[#111111] dark:text-[#bbb]'}`}>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-5 h-5 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
                         <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
                       </svg>
                     </div>
-                    <span className="font-semibold text-gray-900 dark:text-white">{group.name}</span>
+                    <span className="font-semibold text-slate-900 dark:text-[#f0f0f0]">{group.name}</span>
                   </div>
-                  <div className="font-bold text-gray-900 dark:text-white">
+                  <div className="font-bold text-slate-900 dark:text-[#f0f0f0]">
                     <PrivacyNumber value={groupTotal}>{formatEUR(groupTotal)}</PrivacyNumber>
                   </div>
                 </div>
 
                 {isExpanded && (
-                  <div className="border-t border-gray-100 dark:border-gray-800">
+                  <div className="border-t border-slate-100 dark:border-[#1f1f1f]">
                     {(group.items || []).filter(it => !it.parentItemId && !it.hidden).map(item => (
                       <MobileItemRow key={item.id} item={item} depth={0} groupItems={group.items || []} />
                     ))}
@@ -728,10 +752,10 @@ export function AssetsPage() {
         {/* Edit Modal */}
         {editing && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
-                <h3 className="font-bold text-lg text-gray-900 dark:text-white">Update Value</h3>
-                <button onClick={() => { setEditing(null); setEditValue(''); }} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500">
+            <div className="w-full max-w-sm bg-white dark:bg-[#101010] rounded-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10">
+              <div className="p-4 border-b border-slate-100 dark:border-[#1f1f1f] flex justify-between items-center">
+                <h3 className="font-bold text-lg text-slate-900 dark:text-[#f0f0f0]">Update Value</h3>
+                <button onClick={() => { setEditing(null); setEditValue(''); }} className="p-2 bg-slate-100 dark:bg-[#111111] rounded-full text-slate-500">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -739,21 +763,21 @@ export function AssetsPage() {
               </div>
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Asset</label>
-                  <div className="text-lg font-medium text-gray-900 dark:text-white">
+                  <label className="block text-xs font-medium text-slate-500 dark:text-[#bbb] uppercase mb-1">Asset</label>
+                  <div className="text-lg font-medium text-slate-900 dark:text-[#f0f0f0]">
                     {groups.flatMap(g => g.items || []).find(i => i.id === editing.itemId)?.name}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Value ({formatDateMonthYear(new Date(editing.month))})</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-[#bbb] uppercase mb-1">Value ({formatDateMonthYear(new Date(editing.month))})</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">€</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300">€</span>
                     <input 
                       type="number" 
                       step="0.01"
                       value={editValue}
                       onChange={e => setEditValue(e.target.value)}
-                      className="w-full pl-8 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xl font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      className="w-full pl-8 pr-4 py-3 bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-xl font-bold text-slate-900 dark:text-[#f0f0f0] focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                       placeholder="0.00"
                       autoFocus
                     />
@@ -761,7 +785,7 @@ export function AssetsPage() {
                 </div>
                 <button 
                   onClick={saveEdit}
-                  className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98]"
+                  className="w-full py-3.5 bg-blue-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all active:scale-[0.98]"
                 >
                   Save Update
                 </button>
@@ -776,7 +800,7 @@ export function AssetsPage() {
   // If mobile view, show cards instead of table
   if (isMobileView) {
     return (
-      <div className="bg-white dark:bg-gray-800 shadow-none">
+      <div className="bg-white dark:bg-[#111111] shadow-none">
         <MobileView />
       </div>
     )
@@ -786,8 +810,8 @@ export function AssetsPage() {
     <div 
       ref={wrapperRef} 
       className={isFullScreen 
-        ? "bg-gray-50 dark:bg-gray-950 fixed top-16 bottom-0 left-0 right-0 z-50" 
-        : "relative w-full h-[calc(100vh-8rem)] bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden"
+        ? "bg-slate-50 dark:bg-slate-950 fixed top-14 bottom-0 left-0 right-0 z-50" 
+        : "relative w-full h-[calc(100vh-8rem)] bg-white dark:bg-[#101010] rounded-xl shadow-sm border border-slate-200 dark:border-[#1f1f1f] overflow-hidden"
       }
     >
       <div 
@@ -795,9 +819,9 @@ export function AssetsPage() {
         className="overflow-auto assets-scrollbar w-full h-full" 
       >
         <table className="min-w-full border-collapse text-sm">
-          <thead className="sticky top-0 z-50 shadow-md">
-            <tr className="bg-slate-900 text-white">
-              <th className="px-6 py-4 sticky top-0 left-0 text-left bg-slate-900 z-50 font-bold uppercase tracking-wider text-xs border-b border-slate-700 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]" style={{ minWidth: '240px', width: '20%' }}>
+          <thead className="sticky top-0 z-[9998] shadow-md">
+            <tr className="bg-[#181818] text-slate-100">
+              <th className="px-6 py-4 sticky top-0 left-0 text-left bg-[#181818] z-[9999] font-bold uppercase tracking-wider text-xs border-b border-[#2b2b2b] shadow-[4px_0_8px_-2px_rgba(0,0,0,0.35)]" style={{ minWidth: '240px', width: '20%' }}>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setIsFullScreen(!isFullScreen)}
@@ -826,6 +850,20 @@ export function AssetsPage() {
                     </button>
                   )}
                   <button
+                    onClick={() => setShowPercentageChanges(!showPercentageChanges)}
+                    title={showPercentageChanges ? "Hide percentage changes" : "Show percentage changes"}
+                    className={`flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full transition-colors ${
+                      showPercentageChanges 
+                        ? 'bg-emerald-600 text-white' 
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v13.5m0 0v3m0-3l3-3m-3 3l-3-3M3 9h13.5M9 3v3m0 0l3-3m-3 3l-3-3" />
+                    </svg>
+                    %
+                  </button>
+                  <button
                     onClick={() => setIsMobileView(true)}
                     title="Switch to card view"
                     className="ml-auto md:hidden text-slate-400 hover:text-white"
@@ -835,7 +873,7 @@ export function AssetsPage() {
                 </div>
               </th>
               {months.map((m, i)=> (
-                <th key={m} className="px-4 py-4 whitespace-nowrap text-center font-medium text-xs uppercase tracking-wider border-b border-slate-700 bg-slate-900 text-slate-300 group relative" style={{ minWidth: '140px', width: 'auto' }}>
+                <th key={m} className="px-4 py-4 whitespace-nowrap text-center font-medium text-xs uppercase tracking-wider border-b border-[#2b2b2b] bg-[#181818] text-slate-300 group relative" style={{ minWidth: '140px', width: 'auto' }}>
                   <div className="relative flex items-center justify-center gap-2 group/inner">
                     {i===0 && (
                       <button onClick={addNextMonth} className="opacity-0 group-hover/inner:opacity-100 transition-opacity absolute -left-2 p-1 hover:text-white">‹</button>
@@ -848,14 +886,20 @@ export function AssetsPage() {
                   <button 
                     onClick={async (e) => {
                       e.stopPropagation();
-                      if(confirm(`Delete all valuations for ${new Date(m).toLocaleDateString(undefined,{ month:'long', year:'numeric' })}?`)){ 
-                        await fetch(`/api/asset-valuations?month=${encodeURIComponent(m)}`, { method:'DELETE', headers: { ...tokenHeader() } })
-                        setManualMonths(prev => {
-                          const newSet = new Set(prev)
-                          newSet.delete(m)
-                          return newSet
-                        })
-                      }
+                      showAlert({
+                        title: 'Delete Valuations',
+                        message: `Delete all valuations for ${new Date(m).toLocaleDateString(undefined,{ month:'long', year:'numeric' })}?`,
+                        confirmText: 'Delete',
+                        type: 'danger',
+                        onConfirm: async () => {
+                          await secureFetch(`/api/asset-valuations?month=${encodeURIComponent(m)}`, { method:'DELETE', headers: { ...tokenHeader() } })
+                          setManualMonths(prev => {
+                            const newSet = new Set(prev)
+                            newSet.delete(m)
+                            return newSet
+                          })
+                        }
+                      });
                     }}
                     className="absolute top-1 right-1 p-1 text-slate-500 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
                     title="Delete month"
@@ -868,7 +912,7 @@ export function AssetsPage() {
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
+          <tbody className="bg-white dark:bg-[#101010] divide-y divide-slate-100 dark:divide-slate-800">
             {rows.map((row, idx)=> {
               // Check if this is a new group (not the first row)
               const isNewGroup = row.isGroup && idx > 0
@@ -879,19 +923,19 @@ export function AssetsPage() {
                   className={`
                     transition-colors duration-75
                     ${row.isGroup 
-                      ? 'bg-gray-50 dark:bg-gray-800/50' 
-                      : 'hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+                      ? 'bg-slate-50 dark:bg-[#111111]' 
+                      : 'hover:bg-sky-50/50 dark:hover:bg-sky-900/10'
                     }
-                    ${isNewGroup ? 'border-t-2 border-gray-100 dark:border-gray-800' : ''}
+                    ${isNewGroup ? 'border-t-2 border-slate-100 dark:border-[#1f1f1f]' : ''}
                   `}
               >
                 <td className={`
-                    sticky left-0 z-40 border-r border-gray-100 dark:border-gray-800
+                    sticky left-0 z-50 border-r border-slate-100 dark:border-[#1f1f1f]
                     ${row.isGroup 
-                      ? 'py-3 px-6 font-bold text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800/90' 
-                      : 'py-2 px-6 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-900'
+                      ? 'py-3 px-6 font-bold text-slate-900 dark:text-[#f0f0f0] bg-slate-50 dark:bg-[#111111]' 
+                      : 'py-2 px-6 text-slate-700 dark:text-[#d8d8d8] bg-white dark:bg-[#101010]'
                     }
-                    shadow-[4px_0_8px_-2px_rgba(0,0,0,0.05)]
+                    shadow-[4px_0_8px_-2px_rgba(0,0,0,0.1)]
                   `} 
                   style={{ 
                     paddingLeft: row.isGroup ? '1.5rem' : `${row.depth * 1.5 + 0.5}rem`,
@@ -903,7 +947,7 @@ export function AssetsPage() {
                       <button 
                         title="Hide group" 
                         onClick={()=> row.groupId && hideGroup(row.groupId)} 
-                        className={`ml-2 text-gray-300 hover:text-red-500 transition-colors ${hoveredRowIdx===idx ? 'opacity-100' : 'opacity-0'}`}
+                        className={`ml-2 text-slate-300 hover:text-red-500 transition-colors ${hoveredRowIdx===idx ? 'opacity-100' : 'opacity-0'}`}
                       >
                         <IconEyeSlash />
                       </button>
@@ -916,7 +960,7 @@ export function AssetsPage() {
                             const it = row.item!
                             if (hasVisibleChildren(it)) collapseItem(it); else expandItem(it)
                           }}
-                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                          className="text-slate-300 hover:text-slate-600 dark:hover:text-slate-200"
                         >
                           {hasVisibleChildren(row.item) ? '▾' : '▸'}
                         </button>
@@ -925,7 +969,7 @@ export function AssetsPage() {
                       <button 
                         title="Hide row" 
                         onClick={()=> toggleHidden(row.item!)} 
-                        className={`ml-auto text-gray-300 hover:text-red-500 transition-colors ${hoveredRowIdx===idx ? 'opacity-100' : 'opacity-0'}`}
+                        className={`ml-auto text-slate-300 hover:text-red-500 transition-colors ${hoveredRowIdx===idx ? 'opacity-100' : 'opacity-0'}`}
                       >
                         <IconEyeSlash />
                       </button>
@@ -938,8 +982,38 @@ export function AssetsPage() {
                     const group = groups.find(g=> g.id===row.groupId)
                     const items = (group?.items||[]).filter(it=> !it.parentItemId)
                     const v = items.reduce((sum, it)=> sum + valueFor(it, m, true), 0)
-                    return <td key={m} className="px-4 py-3 text-center font-bold text-gray-800 dark:text-gray-100 text-xs tabular-nums bg-gray-50 dark:bg-gray-800/50">
-                      <div className="truncate">{v ? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber> : ''}</div>
+                    
+                    // Calculate percentage change for group
+                    const currentIdx = months.indexOf(m)
+                    const prevMonth = currentIdx >= 0 && currentIdx < months.length - 1 ? months[currentIdx + 1] : null
+                    const prevV = prevMonth ? items.reduce((sum, it)=> sum + valueFor(it, prevMonth, true), 0) : 0
+                    const groupPercentageChange = prevMonth && prevV !== 0 ? ((v - prevV) / prevV) * 100 : null
+                    
+                    return <td key={m} className="px-4 py-3 text-center font-bold text-slate-800 dark:text-[#f0f0f0] text-xs tabular-nums bg-slate-50 dark:bg-[#111111]">
+                      <div className="flex items-center justify-center gap-1">
+                        <div className="truncate">{v ? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber> : ''}</div>
+                        
+                        {showPercentageChanges && groupPercentageChange !== null && groupPercentageChange !== -100 && (
+                          <div className="group/indicator">
+                            {(() => {
+                              const isPositive = groupPercentageChange > 0
+                              const colors = isPositive 
+                                ? 'text-emerald-500 dark:text-emerald-400' 
+                                : 'text-rose-500 dark:text-rose-400'
+                              return (
+                                <div className="relative flex items-center justify-center">
+                                  <span className={`text-[10px] font-bold ${colors}`}>
+                                    {isPositive ? '↑' : '↓'}
+                                  </span>
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover/indicator:opacity-100 transition-opacity whitespace-nowrap z-[100] pointer-events-none dark:bg-[#111111]">
+                                    {hideNumbers ? '••••••' : `${isPositive ? '+' : ''}${groupPercentageChange.toFixed(2)}%`}
+                                  </div>
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   }
                   const item = row.item!
@@ -953,7 +1027,7 @@ export function AssetsPage() {
                       onMouseEnter={()=>{ if(!isEditing) setHoveredCell({ itemId: item.id, month: m }) }}
                       onMouseLeave={()=>setHoveredCell(null)}
                       className={`
-                        px-4 py-2 text-center text-xs tabular-nums cursor-pointer border-l border-transparent hover:border-gray-200 dark:hover:border-gray-700
+                        px-4 py-2 text-center text-xs tabular-nums cursor-pointer border-l-0 border-r-0 hover:border-l hover:border-r hover:border-slate-200 dark:hover:border-slate-700
                         ${isEditing ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-inset ring-blue-500' : ''}
                       `}
                     >
@@ -976,24 +1050,52 @@ export function AssetsPage() {
                                 e.stopPropagation();
                                 await acceptAndSaveSuggestion();
                               }}
-                              className="absolute left-1/2 -translate-x-1/2 top-full mt-2 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 shadow-xl z-50 min-w-[120px]"
+                              className="absolute left-1/2 -translate-x-1/2 top-full mt-2 bg-white dark:bg-[#111111] border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 shadow-xl z-50 min-w-[120px]"
                             >
-                              <div className="text-[10px] text-gray-400 mb-1 text-center">Suggestion</div>
+                              <div className="text-[10px] text-slate-300 mb-1 text-center">Suggestion</div>
                               <div className="font-bold text-blue-600 dark:text-blue-400 text-center">{formatEUR(suggestion)}</div>
                             </div>
                           )}
                         </div>
                       ) : (
                         <div className="relative group/cell">
-                          <span className={`
-                            ${!val ? 'text-gray-300 dark:text-gray-700' : 'text-gray-700 dark:text-gray-300 font-medium'}
-                          `}>
-                            {val ? <PrivacyNumber value={val}>{formatEUR(val)}</PrivacyNumber> : '—'}
-                          </span>
+                          <div className="flex items-center justify-center gap-1">
+                            <span className={`
+                              ${!val ? 'text-slate-300 dark:text-slate-700' : 'text-slate-700 dark:text-[#bbb] font-medium'}
+                            `}>
+                              {val ? <PrivacyNumber value={val}>{formatEUR(val)}</PrivacyNumber> : '—'}
+                            </span>
+                            
+                            {showPercentageChanges && isLeaf(item) && calculatePercentageChange(item, m, months) && (
+                              <div className="group/indicator">
+                                {(() => {
+                                  const change = calculatePercentageChange(item, m, months)
+                                  if (!change || change.percentage === -100) return null
+                                  const isPositive = change.percentage > 0
+                                  const colors = isPositive 
+                                    ? 'text-emerald-500 dark:text-emerald-400' 
+                                    : 'text-rose-500 dark:text-rose-400'
+                                  return (
+                                    <div className="relative flex items-center justify-center">
+                                      <span className={`text-[10px] font-bold ${colors}`}>
+                                        {isPositive ? '↑' : '↓'}
+                                      </span>
+                                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover/indicator:opacity-100 transition-opacity whitespace-nowrap z-[100] pointer-events-none dark:bg-[#111111]">
+                                        {hideNumbers ? '••••••' : `${isPositive ? '+' : ''}${change.percentage.toFixed(2)}%`}
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
+                              </div>
+                            )}
+                          </div>
                           
                           {valObj && valObj.note && (
-                            <div className="absolute top-0 right-0">
-                              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full shadow-sm"></div>
+                            <div className="absolute top-0 right-0 group/note">
+                              <div className="h-2.5 w-2.5 rounded-full border border-amber-200/80 bg-amber-400 shadow-[0_0_0_2px_rgba(0,0,0,0.35)]"></div>
+                              <div className="absolute right-0 bottom-full mb-2 w-64 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-left text-xs leading-5 text-slate-100 opacity-0 shadow-2xl shadow-black/60 transition-opacity pointer-events-none group-hover/note:opacity-100 whitespace-pre-wrap break-words z-[120] dark:border-slate-500 dark:bg-black">
+                                {valObj.note}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1005,9 +1107,9 @@ export function AssetsPage() {
               )
             })}
           </tbody>
-          <tfoot className="sticky bottom-0 z-[60] bg-slate-900 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
-            <tr className="bg-slate-900 text-white">
-              <td className="p-4 sticky left-0 bg-slate-900 z-50 font-bold text-sm uppercase tracking-wider shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]">
+          <tfoot className="sticky bottom-0 z-[60] bg-[#181818] shadow-[0_-4px_12px_rgba(0,0,0,0.12)]">
+            <tr className="bg-[#181818] text-slate-100">
+              <td className="p-4 sticky left-0 bg-[#181818] z-50 font-bold text-sm uppercase tracking-wider shadow-[4px_0_8px_-2px_rgba(0,0,0,0.35)]">
                 Total Net Worth
               </td>
               {months.map(m=>{
@@ -1016,13 +1118,13 @@ export function AssetsPage() {
                   const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
                   return sum + s
                 }, 0)
-                return <td key={m} className="p-4 text-center font-bold text-sm tabular-nums bg-slate-900 text-white shadow-[inset_1px_0_0_0_#1e293b]">
+                return <td key={m} className="p-4 text-center font-bold text-sm tabular-nums bg-[#181818] text-slate-100 shadow-[inset_1px_0_0_0_#2b2b2b]">
                   {v? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber>: ''}
                 </td>
               })}
             </tr>
-            <tr className="bg-slate-800 text-slate-300">
-              <td className="p-3 sticky left-0 bg-slate-800 z-50 font-medium text-xs uppercase tracking-wide shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]">
+            <tr className="bg-[#202020] text-slate-300">
+              <td className="p-3 sticky left-0 bg-[#202020] z-50 font-medium text-xs uppercase tracking-wide shadow-[4px_0_8px_-2px_rgba(0,0,0,0.35)]">
                 Growth (Amount)
               </td>
               {months.map((m, i)=>{
@@ -1039,13 +1141,13 @@ export function AssetsPage() {
                 }, 0) : 0
                 const diff = prevKey ? (curr - prev) : 0
                 const isPos = diff > 0
-                return <td key={m} className={`p-3 text-center font-medium text-xs tabular-nums bg-slate-800 shadow-[inset_1px_0_0_0_#334155] ${isPos ? 'text-emerald-400' : (diff < 0 ? 'text-rose-400' : '')}`}>
+                return <td key={m} className={`p-3 text-center font-medium text-xs tabular-nums bg-[#202020] shadow-[inset_1px_0_0_0_#323232] ${isPos ? 'text-emerald-400' : (diff < 0 ? 'text-rose-400' : '')}`}>
                   {prevKey? <PrivacyNumber value={diff}>{diff > 0 ? '+' : ''}{formatEUR(diff)}</PrivacyNumber>: ''}
                 </td>
               })}
             </tr>
-            <tr className="bg-slate-800 text-slate-300">
-              <td className="p-3 sticky left-0 bg-slate-800 z-50 font-medium text-xs uppercase tracking-wide shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3),inset_0_1px_0_0_#334155]">
+            <tr className="bg-[#202020] text-slate-300">
+              <td className="p-3 sticky left-0 bg-[#202020] z-50 font-medium text-xs uppercase tracking-wide shadow-[4px_0_8px_-2px_rgba(0,0,0,0.35),inset_0_1px_0_0_#323232]">
                 Growth (%)
               </td>
               {months.map((m, i)=>{
@@ -1069,8 +1171,10 @@ export function AssetsPage() {
                   else if (pct < 0) textColor = 'text-rose-400';
                 }
 
-                return <td key={m} className={`p-3 text-center font-medium text-xs tabular-nums bg-slate-800 shadow-[inset_1px_1px_0_0_#334155] ${textColor}`}>
-                  {prevKey && prev!==0? `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%` : ''}
+                return <td key={m} className={`p-3 text-center font-medium text-xs tabular-nums bg-[#202020] shadow-[inset_1px_1px_0_0_#323232] ${textColor}`}>
+                  {prevKey && prev!==0 ? (
+                    <PrivacyNumber value={pct}>{pct > 0 ? '+' : ''}{pct.toFixed(2)}%</PrivacyNumber>
+                  ) : ''}
                 </td>
               })}
             </tr>

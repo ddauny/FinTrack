@@ -20,6 +20,9 @@ function calculateNextDate(currentDate: Date, frequency: string): Date {
     case 'QUARTERLY':
       next.setMonth(next.getMonth() + 3)
       break
+    case 'SEMIANNUAL':
+      next.setMonth(next.getMonth() + 6)
+      break
     case 'YEARLY':
       next.setFullYear(next.getFullYear() + 1)
       break

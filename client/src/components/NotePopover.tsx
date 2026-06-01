@@ -75,12 +75,12 @@ export default function NotePopover({ visible, initial, onClose, onSave }: NoteP
 
       {/* Modal Content */}
       <div 
-        className="relative bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden border border-gray-100 dark:border-gray-800 transform transition-all"
+        className="relative bg-white dark:bg-[#101010] rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden border border-slate-100 dark:border-[#1f1f1f] transform transition-all"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-[#1f1f1f] flex items-center justify-between bg-slate-50/50 dark:bg-[#111111]">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-[#f0f0f0] flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-blue-500">
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
             </svg>
@@ -88,7 +88,7 @@ export default function NotePopover({ visible, initial, onClose, onSave }: NoteP
           </h3>
           <button 
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="text-slate-300 hover:text-slate-500 dark:hover:text-slate-300 transition-colors rounded-full p-1 hover:bg-slate-100 dark:hover:bg-[#242424] dark:bg-[#1a1a1a]"
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -101,13 +101,13 @@ export default function NotePopover({ visible, initial, onClose, onSave }: NoteP
           <div className="relative">
             <textarea
               ref={textareaRef}
-              className="w-full p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all resize-none min-h-[140px] text-sm leading-relaxed shadow-sm placeholder:text-gray-400"
+              className="w-full p-4 rounded-lg border border-slate-200 dark:border-[#1f1f1f] bg-white dark:bg-slate-950 text-slate-900 dark:text-[#f0f0f0] focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all resize-none min-h-[140px] text-sm leading-relaxed shadow-sm placeholder:text-slate-300"
               maxLength={250}
               value={value}
               onChange={e => setValue(e.target.value)}
               placeholder="Enter your note here..."
             />
-            <div className="absolute bottom-3 right-3 text-xs text-gray-400 pointer-events-none bg-white/80 dark:bg-gray-950/80 px-1 rounded">
+            <div className="absolute bottom-3 right-3 text-xs text-slate-300 pointer-events-none bg-white/80 dark:bg-slate-950/80 px-1 rounded">
               {value.length}/250
             </div>
           </div>

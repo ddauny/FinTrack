@@ -8,7 +8,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')
-    }
+    },
+    // Prefer TypeScript sources over stale compiled JS files in src/
+    extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.json']
   },
   server: {
     host: true,

@@ -27,6 +27,7 @@ export interface Transaction {
   amount: number;
   date: string;
   notes?: string;
+  attachmentPath?: string;
   category?: {
     name: string;
     type: string;
@@ -66,6 +67,7 @@ export interface Category {
   id: number;
   name: string;
   type: string;
+  color?: string;
 }
 
 export interface Portfolio {
@@ -98,7 +100,7 @@ export interface PrivacyNumberProps {
   children?: React.ReactNode;
 }
 
-// API Error Types
+// Api Error Types
 export interface ApiError {
   error: string;
 }
@@ -136,6 +138,7 @@ export interface AccountForm {
 export interface CategoryForm {
   name: string;
   type: string;
+  color?: string;
 }
 
 // Chart Types

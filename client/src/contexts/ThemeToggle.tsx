@@ -18,11 +18,11 @@ const ThemeToggle: React.FC = () => {
   // Choose visual mode for icon/colors based on resolved theme
   const isDark = resolved === 'dark'
 
-  const baseBtn = 'inline-flex items-center justify-center w-9 h-9 rounded transition-colors'
+  const baseBtn = 'inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150'
 
   const btnClass = isDark
-    ? `${baseBtn} bg-gray-700 text-white hover:bg-gray-600`
-    : `${baseBtn} bg-white text-gray-800 hover:bg-gray-50 shadow-sm`
+    ? `${baseBtn} text-slate-400 hover:text-slate-200 hover:bg-slate-800/60`
+    : `${baseBtn} text-slate-500 hover:text-slate-700 hover:bg-slate-100`
 
   return (
     <button
