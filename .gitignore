@@ -14,6 +14,10 @@ server/.env
 client/.env
 .env
 .env.dev
+.env.prod
+.env.development
+.env.production
+.env.local
 
 # Logs
 npm-debug.log*
