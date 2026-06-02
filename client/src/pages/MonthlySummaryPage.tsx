@@ -155,31 +155,85 @@ function SummaryCards({ monthlyData }: { monthlyData: any }) {
 function BreakdownCard({ title, data, totalAmount, chartOption, colors, isMobile, onChartClick }: {
   title: string; data: any[]; totalAmount: number; chartOption: any; colors: string[]; isMobile: boolean; onChartClick: (params: any) => void
 }) {
+  const isIncome = title.includes('Income')
+  const sortedData = data ? [...data].sort((a, b) => b.amount - a.amount) : []
+  const topThree = sortedData.slice(0, 3)
+  const others = sortedData.slice(3)
+  
   return (
-    <div className={`bg-white dark:bg-stone-800 p-4 rounded-2xl shadow-sm border border-stone-200 dark:border-stone-700 flex flex-col ${isMobile ? '' : 'h-full overflow-hidden'}`}>
-      <h3 className="text-base font-bold text-stone-900 dark:text-white mb-3 shrink-0">{title}</h3>
-      <div className="h-[200px] shrink-0">
-        <ReactECharts option={chartOption} style={{ height: '100%', width: '100%' }} onEvents={{ click: onChartClick }} />
+    <div className={`bg-gradient-to-br ${isIncome ? 'from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border-emerald-200 dark:border-emerald-900/40' : 'from-rose-50 to-orange-50 dark:from-rose-950/20 dark:to-orange-950/20 border-rose-200 dark:border-rose-900/40'} p-4 rounded-2xl shadow-sm border flex flex-col`}>
+      {/* Header con titolo e totale */}
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h3 className={`text-sm font-semibold uppercase tracking-wider ${isIncome ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>{title}</h3>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">Total: <span className="font-bold text-stone-900 dark:text-white"><PrivacyNumber value={totalAmount}>{formatEUR(totalAmount)}</PrivacyNumber></span></p>
+        </div>
       </div>
-      <div className={`space-y-2 mt-3 ${isMobile ? '' : 'overflow-y-auto hide-scrollbar flex-1 pr-1'}`}>
-        {data && data.length > 0 ? (
-          data.map((item: any, index: number) => (
-            <div key={item.name || index} className="flex justify-between items-center p-2 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700/50 transition-colors cursor-pointer"
-              onClick={() => onChartClick({ data: { name: item.name } })}
-              onKeyDown={(e) => { if (e.key === 'Enter') onChartClick({ data: { name: item.name } }) }}
-              role="button" tabIndex={0}>
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-6 rounded-full" style={{ backgroundColor: colors[index % colors.length] }}></div>
-                <span className="text-sm font-medium text-stone-700 dark:text-stone-200">{item.name}</span>
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-bold text-stone-900 dark:text-white">
-                  <PrivacyNumber value={item.amount}>{formatEUR(item.amount)}</PrivacyNumber>
+
+      {/* Lista compatta con separatore visuale */}
+      <div className="space-y-1">
+        {sortedData && sortedData.length > 0 ? (
+          <>
+            {/* Top 3 evidenziati */}
+            {topThree.map((item: any, index: number) => {
+              const percentage = ((item.amount / totalAmount) * 100).toFixed(1)
+              return (
+                <div 
+                  key={item.name || index} 
+                  className={`flex items-center gap-2 p-2.5 rounded-lg transition-colors cursor-pointer ${
+                    index === 0 ? 'bg-white/60 dark:bg-white/5 border border-stone-200 dark:border-stone-700/50' : 'hover:bg-white/40 dark:hover:bg-white/5'
+                  }`}
+                  onClick={() => onChartClick({ data: { name: item.name } })}
+                  onKeyDown={(e) => { if (e.key === 'Enter') onChartClick({ data: { name: item.name } }) }}
+                  role="button" tabIndex={0}>
+                  {/* Barra colorata sinistra */}
+                  <div className="w-1 h-8 rounded-full" style={{ backgroundColor: colors[index % colors.length] }}></div>
+                  {/* Nome categoria */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${index === 0 ? 'font-bold' : 'font-medium'} text-stone-900 dark:text-white truncate`}>{item.name}</p>
+                  </div>
+                  {/* Importo e percentuale */}
+                  <div className="text-right shrink-0">
+                    <p className={`${index === 0 ? 'text-sm font-bold' : 'text-xs font-semibold'} ${isIncome ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
+                      <PrivacyNumber value={item.amount}>{formatEUR(item.amount)}</PrivacyNumber>
+                    </p>
+                    <p className="text-xs text-stone-500 dark:text-stone-400">{percentage}%</p>
+                  </div>
                 </div>
-                <div className="text-xs text-stone-500 dark:text-stone-400">{((item.amount / totalAmount) * 100).toFixed(1)}%</div>
-              </div>
-            </div>
-          ))
+              )
+            })}
+
+            {/* Altre categorie collassate */}
+            {others.length > 0 && (
+              <details className="cursor-pointer group">
+                <summary className="flex items-center gap-2 p-2.5 rounded-lg text-sm font-medium text-stone-600 dark:text-stone-400 hover:bg-white/40 dark:hover:bg-white/5 transition-colors select-none list-none">
+                  <span className="text-lg group-open:hidden">▶</span>
+                  <span className="text-lg hidden group-open:inline">▼</span>
+                  <span>+{others.length} more</span>
+                </summary>
+                <div className="space-y-1 mt-2">
+                  {others.map((item: any, index: number) => {
+                    const percentage = ((item.amount / totalAmount) * 100).toFixed(1)
+                    return (
+                      <div 
+                        key={item.name || index} 
+                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/40 dark:hover:bg-white/5 transition-colors cursor-pointer text-xs"
+                        onClick={() => onChartClick({ data: { name: item.name } })}
+                        onKeyDown={(e) => { if (e.key === 'Enter') onChartClick({ data: { name: item.name } }) }}
+                        role="button" tabIndex={0}>
+                        <div className="w-1 h-6 rounded-full" style={{ backgroundColor: colors[(topThree.length + index) % colors.length] }}></div>
+                        <span className="font-medium text-stone-700 dark:text-stone-300 flex-1 truncate">{item.name}</span>
+                        <span className={`${isIncome ? 'text-emerald-600 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'} font-semibold`}>
+                          <PrivacyNumber value={item.amount}>{formatEUR(item.amount)}</PrivacyNumber>
+                        </span>
+                        <span className="text-stone-500 dark:text-stone-400 w-8 text-right">{percentage}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </details>
+            )}
+          </>
         ) : (
           <div className="text-sm text-stone-500 text-center py-8">No transactions</div>
         )}

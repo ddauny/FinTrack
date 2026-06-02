@@ -247,23 +247,18 @@ forecastRouter.get("/monthly-forecast", requireAuth, async (req: AuthRequest, re
             let error = source.lastFetchError;
             let lastUpdated = source.lastFetchedAt;
 
-            if (isPastMonth) {
-                value = 0;
-                error = null;
-            } else {
-                const canUseCache = isCurrentMonth && cacheStillValid;
+            const canUseCache = isCurrentMonth && cacheStillValid;
 
-                if (canUseCache) {
-                    value = source.lastFetchedValue != null ? Number(source.lastFetchedValue) : 0;
+            if (canUseCache) {
+                value = source.lastFetchedValue != null ? Number(source.lastFetchedValue) : 0;
+            } else {
+                const fetchResult = await fetchExternalValue(source, targetMonthKey, { persist: isCurrentMonth });
+                lastUpdated = fetchResult.fetchedAt;
+                if (fetchResult.ok && fetchResult.value !== null) {
+                    value = fetchResult.value;
+                    error = null;
                 } else {
-                    const fetchResult = await fetchExternalValue(source, targetMonthKey, { persist: isCurrentMonth });
-                    lastUpdated = fetchResult.fetchedAt;
-                    if (fetchResult.ok && fetchResult.value !== null) {
-                        value = fetchResult.value;
-                        error = null;
-                    } else {
-                        error = fetchResult.error ?? "External API fetch failed";
-                    }
+                    error = fetchResult.error ?? "External API fetch failed";
                 }
             }
 
