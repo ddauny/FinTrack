@@ -1,12 +1,36 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { secureFetch } from '../lib/api'
+import { secureFetch, authHeaders } from '../lib/api'
 import { formatEUR, formatDateDMY, formatDateMonthYear } from '../lib/format'
 import { Parser } from 'expr-eval'
 import NotePopover from '../components/NotePopover' // Assicurati che questo percorso sia corretto
-import { PrivacyNumber } from '@/components/PrivacyNumber'
+import { PrivacyNumber } from '../components/PrivacyNumber'
 import { useToast } from '../contexts/ToastContext'
 import { useAlert } from '../contexts/AlertContext'
 import { usePrivacy } from '../contexts/PrivacyContext'
+
+// --- HELPER PER DATE SICURE ---
+function safeISODate(d: any) {
+  try {
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return '';
+    return date.toISOString().slice(0, 10);
+  } catch (e) {
+    return '';
+  }
+}
+
+function safeMonthKey(d: any) {
+  try {
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return '';
+    const yyyy = date.getUTCFullYear();
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    return `${yyyy}-${mm}-01`;
+  } catch (e) {
+    return '';
+  }
+}
+
 
 // --- Icone per la UI ---
 const IconEye = () => (
@@ -47,20 +71,48 @@ export function AssetsPage() {
   const [isFullScreen, setIsFullScreen] = useState(true)
   const [showPercentageChanges, setShowPercentageChanges] = useState(true)
 
+  const [loading, setLoading] = useState(true)
+
   async function refresh() {
-    const res = await secureFetch('/api/asset-groups', { headers: tokenHeader() })
-    const data = await res.json()
-    setGroups(data)
-    const set = new Set<string>()
-    const nowKey = monthKey(new Date())
-    set.add(nowKey)
-    data.forEach((g:Group)=> g.items?.forEach((it:Item)=> it.valuations?.forEach(v=> set.add(monthKey(new Date(v.month))))))
-    
-    manualMonths.forEach(month => set.add(month))
-    
-    const sorted = Array.from(set).sort((a,b)=> new Date(b).getTime() - new Date(a).getTime())
-    setMonths(sorted)
+    setLoading(true)
+    try {
+      const res = await secureFetch('/api/asset-groups', { headers: tokenHeader() })
+      if (!res.ok) {
+        console.error('Failed to fetch asset groups', res.status)
+        return
+      }
+      const data = await res.json()
+      if (!Array.isArray(data)) {
+        console.error('Asset groups data is not an array', data)
+        return
+      }
+      setGroups(data)
+      const set = new Set<string>()
+      const nowKey = monthKey(new Date())
+      set.add(nowKey)
+      data.forEach((g: Group) => {
+        if (!g.items) return
+        g.items.forEach((it: Item) => {
+          if (!it.valuations) return
+          it.valuations.forEach(v => {
+            if (v.month) {
+              set.add(safeMonthKey(v.month))
+            }
+          })
+        })
+      })
+      
+      manualMonths.forEach(month => set.add(month))
+      
+      const sorted = Array.from(set).sort((a,b)=> new Date(b).getTime() - new Date(a).getTime())
+      setMonths(sorted)
+    } catch (err) {
+      console.error('Error in refresh:', err)
+    } finally {
+      setLoading(false)
+    }
   }
+
   useEffect(() => {
     refresh()
   }, [manualMonths])
@@ -76,29 +128,51 @@ export function AssetsPage() {
   }, [])
 
   const rows = useMemo(()=>{
-    const r: { depth:number; isGroup:boolean; groupId?:number; item?:Item; name:string }[] = []
+    const r: { depth:number; isGroup:boolean; groupId?:number; item?:Item; name:string; isHiddenIndicator?:boolean; hiddenItems?:Item[] }[] = []
+    if (!Array.isArray(groups)) return r
     for (const g of groups) {
       r.push({ depth:0, isGroup:true, groupId:g.id, name:g.name })
-      const items = (g.items||[])
-      const roots = items.filter(it=> !it.parentItemId)
-      const childrenOf = (id:number)=> items.filter(it=> it.parentItemId===id)
+      const items = (g.items||[]).filter(Boolean)
+      const roots = items.filter(it=> it && !it.parentItemId)
+      const childrenOf = (id:number)=> items.filter(it=> it && it.parentItemId===id)
+      
+      // Use a visited set to prevent infinite recursion in case of cycles
+      const visited = new Set<number>()
+      
       const emitSiblings = (list: Item[], depth: number)=>{
+        let hiddenRun: Item[] = []
+        
+        const flushHidden = () => {
+           if (hiddenRun.length > 0) {
+               r.push({ depth, isGroup: false, isHiddenIndicator: true, hiddenItems: [...hiddenRun], name: 'hidden_indicator' })
+               hiddenRun = []
+           }
+        }
+
         for (const it of list) {
-          if (it.hidden) continue
+          if (!it) continue
+          if (it.hidden) {
+              hiddenRun.push(it)
+              continue
+          }
+          if (visited.has(it.id)) continue
+          
+          flushHidden()
+          
+          visited.add(it.id)
+          
           r.push({ depth, isGroup:false, groupId:g.id, item:it, name:it.name })
           const children = childrenOf(it.id)
-          if (children.length) emitSiblings(children, depth+1)
+          if (children && children.length && depth < 10) emitSiblings(children, depth+1)
         }
+        flushHidden()
       }
       emitSiblings(roots, 1)
     }
     return r
   }, [groups])
 
-  function tokenHeader(): Record<string, string> {
-    const token = localStorage.getItem('token')
-    return token ? { Authorization: `Bearer ${token}` } : {}
-  }
+  const tokenHeader = authHeaders;
 
   function monthKey(d: Date) {
     const yyyy = d.getUTCFullYear()
@@ -106,26 +180,32 @@ export function AssetsPage() {
     return `${yyyy}-${mm}-01`
   }
 
-  function valueFor(item: Item|undefined, month: string, includeHidden: boolean = false): number {
-    if (!item) return 0
-    const direct = item.valuations?.find(v=> monthKey(new Date(v.month))===month)?.value
+  function valueFor(item: Item|undefined, month: string, includeHidden: boolean = false, depth: number = 0, visited: Set<number> = new Set()): number {
+    if (!item || depth > 10 || visited.has(item.id)) return 0
+    visited.add(item.id)
+    
+    const direct = item.valuations?.find(v=> v.month && safeMonthKey(v.month)===month)?.value
     if (direct !== undefined) return Number(direct)
+    
+    if (!Array.isArray(groups)) return 0
     const group = groups.find(g=> g.items?.some(i=> i.id===item.id))
     if (!group) return 0
+    
     const children = (group.items||[]).filter(it=> it.parentItemId===item.id && (includeHidden || !it.hidden))
     if (children.length===0) return 0
-    return children.reduce((sum, ch)=> sum + valueFor(ch, month, includeHidden), 0)
+    
+    return children.reduce((sum, ch)=> sum + valueFor(ch, month, includeHidden, depth + 1, new Set(visited)), 0)
   }
 
   function isLeaf(item: Item|undefined): boolean {
-    if (!item) return false
+    if (!item || !Array.isArray(groups)) return false
     const group = groups.find(g=> g.items?.some(i=> i.id===item.id))
     if (!group) return true
     return !(group.items||[]).some(it=> it.parentItemId===item.id)
   }
 
   function calculatePercentageChange(item: Item|undefined, currentMonth: string, months: string[]): { percentage: number; prevValue: number; currentValue: number } | null {
-    if (!item || !currentMonth) return null
+    if (!item || !currentMonth || !Array.isArray(groups)) return null
     
     const currentIdx = months.indexOf(currentMonth)
     if (currentIdx === -1 || currentIdx >= months.length - 1) return null // No previous month
@@ -153,6 +233,21 @@ export function AssetsPage() {
     }
   }
 
+  async function unhideMultiple(itemsToUnhide: Item[]) {
+    try {
+      await Promise.all(itemsToUnhide.map(item => 
+        secureFetch(`/api/asset-items/${item.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...tokenHeader() },
+          body: JSON.stringify({ hidden: false }) 
+        })
+      ));
+      await refresh();
+    } catch (e) {
+      console.error("Failed to unhide multiple items:", e);
+    }
+  }
+
   function groupOfItem(item: Item | undefined) {
     if (!item) return undefined
     return groups.find(g=> g.items?.some(i=> i.id===item.id))
@@ -161,7 +256,7 @@ export function AssetsPage() {
   function childrenOfItem(item: Item | undefined): Item[] {
     const g = groupOfItem(item)
     if (!g || !item) return []
-    return (g.items||[]).filter(it=> it.parentItemId===item.id)
+    return (g.items||[]).filter(it => it && it.parentItemId===item.id)
   }
 
   function hasChildren(item: Item | undefined): boolean {
@@ -186,21 +281,13 @@ export function AssetsPage() {
     if (!item) return
     if (!isLeaf(item)) return
     
-    const valuation = item.valuations?.find(v=> new Date(v.month).toISOString().slice(0,10) === month)
+    const valuation = item.valuations?.find(v=> safeISODate(v.month) === month)
     const raw = valuation && valuation.formula ? String(valuation.formula) : String(valueFor(item, month) || '')
     
     // Calculate suggestion if cell is empty and item has depreciation
     let suggestedValue: number | null = null
     const currentValue = valueFor(item, month)
     
-    console.log('Cell click debug:', {
-      itemName: item.name,
-      month,
-      hasValuation: !!valuation,
-      currentValue,
-      hasDepreciation: !!item.depreciationAmount,
-      depreciationAmount: item.depreciationAmount
-    })
     
     // Show suggestion if cell is empty (no value or value is 0) and item has depreciation
     if (item.depreciationAmount && currentValue === 0) {
@@ -211,17 +298,9 @@ export function AssetsPage() {
       const prevMonthKey = monthKey(prevMonthDate)
       
       // Get direct valuation value, not aggregated from children
-      const prevValuation = item.valuations?.find(v=> monthKey(new Date(v.month)) === prevMonthKey)
+      const prevValuation = item.valuations?.find(v=> safeMonthKey(v.month) === prevMonthKey)
       const prevValue = prevValuation ? Number(prevValuation.value) : 0
       
-      console.log('Depreciation calculation:', {
-        item: item.name,
-        currentMonth: month,
-        prevMonth: prevMonthKey,
-        prevValuation: prevValuation ? Number(prevValuation.value) : 'not found',
-        depreciation: item.depreciationAmount,
-        suggested: prevValue - Number(item.depreciationAmount)
-      })
       
       if (prevValue > 0) {
         suggestedValue = Math.max(0, prevValue - Number(item.depreciationAmount))
@@ -252,8 +331,9 @@ export function AssetsPage() {
       formula: null
     }
     
+    if (!Array.isArray(groups)) return null;
     const item = groups.flatMap(g=> g.items||[]).find(it=> it.id===itemId)
-    const existingVal = item?.valuations?.find(v=> new Date(v.month).toISOString().slice(0,10) === month)
+    const existingVal = item?.valuations?.find(v=> safeISODate(v.month) === month)
     if (existingVal && existingVal.note) payload.note = existingVal.note
     
     try {
@@ -282,6 +362,9 @@ export function AssetsPage() {
     setSuggestion(null)
     if (trimmed.startsWith('=')) {
       try {
+        if (trimmed.length > 201) {
+          throw new Error('Formula too long (max 200 characters)');
+        }
         const parser = new Parser()
         const expr = trimmed.slice(1)
         const result = parser.evaluate(expr)
@@ -298,8 +381,9 @@ export function AssetsPage() {
       payload.value = Number.isFinite(numeric) ? numeric : 0
       payload.formula = null
     }
+    if (!Array.isArray(groups)) return null;
     const item = groups.flatMap(g=> g.items||[]).find(it=> it.id===itemId)
-    const existingVal = item?.valuations?.find(v=> new Date(v.month).toISOString().slice(0,10) === month)
+    const existingVal = item?.valuations?.find(v=> safeISODate(v.month) === month)
     if (existingVal && existingVal.note) payload.note = existingVal.note
     try {
       await secureFetch(`/api/asset-items/${itemId}/valuations`, { method:'POST', headers:{ 'Content-Type':'application/json', ...tokenHeader() }, body: JSON.stringify(payload) })
@@ -369,22 +453,23 @@ export function AssetsPage() {
   // --- MODIFICA: Corretto il gestore del tasto 'N' per l'highlight ---
   useEffect(()=>{
     const onKey = (e: KeyboardEvent)=>{
-      // Non fare nulla se l'utente sta già scrivendo in un input o se il modal è già aperto
-      if (editing || showNoteFor) return; 
-      
+      // Do nothing if the user is already typing in an input or if the modal is already open
+      if (editing || showNoteFor) return;
+
       // Avoid triggering if typing in an input (though editing check covers most, explicit check is safer)
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
 
       if (e.key.toLowerCase() === 'n'){
-        // Usa hoveredCell invece di selectedCell
+        // Use hoveredCell instead of selectedCell
         if (hoveredCell) {
           e.preventDefault();
           e.stopPropagation();
 
           const { itemId, month } = hoveredCell
-          const item = groups.flatMap(g=> g.items||[]).find(it=> it.id===itemId)
-          const v = item?.valuations?.find(v=> new Date(v.month).toISOString().slice(0,10) === month)
+          if (!Array.isArray(groups)) return null;
+    const item = groups.flatMap(g=> g.items||[]).find(it=> it.id===itemId)
+          const v = item?.valuations?.find(v=> safeISODate(v.month) === month)
           setNoteValue(v?.note || '')
           setShowNoteFor(hoveredCell)
         }
@@ -394,34 +479,29 @@ export function AssetsPage() {
         e.preventDefault();
         setIsFullScreen(prev => !prev);
       }
-    }
-    window.addEventListener('keydown', onKey)
-    return ()=> window.removeEventListener('keydown', onKey)
-  }, [hoveredCell, groups, editing, showNoteFor])
-  // --- FINE MODIFICA ---
+      }
+      window.addEventListener('keydown', onKey)
+      return ()=> window.removeEventListener('keydown', onKey)
+      }, [hoveredCell, groups, editing, showNoteFor])
+      // --- END OF CHANGE ---
 
-  // --- MODIFICA: Corretta la funzione 'saveNote' per l'errore 500 ---
-  async function saveNote(itemId: number, month: string, note: string) {
+      // --- CHANGE: Fixed 'saveNote' function for 500 error ---
+      async function saveNote(itemId: number, month: string, note: string) {
+      if (!Array.isArray(groups)) return null;
     const item = groups.flatMap(g=> g.items||[]).find(it=> it.id===itemId)
-    const v = item?.valuations?.find(v=> new Date(v.month).toISOString().slice(0,10) === month)
-    const payload: any = { month }
-    
-    if (v) {
+      const v = item?.valuations?.find(v=> safeISODate(v.month) === month)
+      const payload: any = { month }
+
+      if (v) {
       payload.value = Number(v.value || 0)
       payload.formula = v.formula ?? null // Preserve existing formula
-    } else {
-      // FIX: Invia sempre i campi 'value' e 'formula' per evitare errori 500
+      } else {
+      // FIX: Always send 'value' and 'formula' fields to avoid 500 errors
       payload.value = 0
-      payload.formula = null // <-- ECCO LA CORREZIONE
-    }
-    payload.note = note && note.trim() !== '' ? note : null;  
+      payload.formula = null // <-- HERE IS THE FIX
+      }
+      payload.note = note && note.trim() !== '' ? note : null;
 
-  // LOG AGGIUNTI
-  console.log('== SAVE NOTE DEBUG ==')
-  console.log('itemId:', itemId)
-  console.log('month:', month)
-  console.log('note:', note)
-  console.log('payload:', payload)
 
     if (!payload.value || !payload.month) {
   showToast("Value or month is missing", "warning");
@@ -582,10 +662,26 @@ export function AssetsPage() {
     fixedScrollRef.current.style.width = '100%'
   }, [showFixedScrollbar, scrollContentWidth])
 
+  if (loading && (!Array.isArray(groups) || groups.length === 0)) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] gap-6 animate-in fade-in duration-500">
+        <div className="w-48 h-1 bg-slate-100 dark:bg-[#1a1a1a] rounded-full overflow-hidden relative">
+          <div className="absolute inset-0 bg-blue-600 w-1/3 animate-[shimmer_1.5s_infinite] rounded-full" style={{ animationTimingFunction: 'ease-in-out' }}></div>
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600">Reconstructing Assets</p>
+          <p className="text-[9px] font-medium text-slate-300 dark:text-slate-700">Calibrating valuation matrix...</p>
+        </div>
+      </div>
+    )
+  }
+
   // Mobile Card View Component
   const MobileView = () => {
     const currentMonth = months[mobileMonthIdx]
     const prevMonth = months[mobileMonthIdx + 1]
+
+    if (!Array.isArray(groups)) return null;
 
     // Calculate totals
     const totalNetWorth = groups.reduce((sum, g) => {
@@ -610,10 +706,45 @@ export function AssetsPage() {
       })
     }
 
+    const renderMobileChildren = (list: Item[], depth: number, groupItems: Item[]) => {
+       let hiddenRun: Item[] = []
+       const elements: React.ReactNode[] = []
+       
+       const flush = () => {
+         if (hiddenRun.length > 0) {
+           const itemsToUnhide = [...hiddenRun]
+           elements.push(
+              <div 
+                key={`hidden-${itemsToUnhide[0].id}`} 
+                className="relative h-[2px] w-full bg-blue-500/20 my-[1px] group/hidden flex items-center cursor-pointer hover:bg-blue-500/40 transition-colors z-[60]" 
+                onClick={() => unhideMultiple(itemsToUnhide)}
+                title={`Show ${itemsToUnhide.length} hidden row${itemsToUnhide.length > 1 ? 's' : ''}`}
+              >
+                 <div className="ml-6 text-blue-500/70 dark:text-blue-500/60 absolute opacity-70 group-hover/hidden:opacity-100 transition-opacity z-[70]">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                 </div>
+              </div>
+           )
+           hiddenRun = []
+         }
+       }
+
+       for (const it of list) {
+          if (it.hidden) {
+             hiddenRun.push(it)
+             continue
+          }
+          flush()
+          elements.push(<MobileItemRow key={it.id} item={it} depth={depth} groupItems={groupItems} />)
+       }
+       flush()
+       return elements
+    }
+
     // Recursive item row component
     const MobileItemRow = ({ item, depth, groupItems }: { item: Item, depth: number, groupItems: Item[] }) => {
       const value = valueFor(item, currentMonth, false)
-      const children = groupItems.filter(it => it.parentItemId === item.id && !it.hidden)
+      const children = groupItems.filter(it => it.parentItemId === item.id)
       const hasChildren = children.length > 0
       const [expanded, setExpanded] = useState(true)
 
@@ -644,7 +775,7 @@ export function AssetsPage() {
               </span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-               {item.valuations?.find(v => monthKey(new Date(v.month)) === currentMonth)?.note && (
+               {item.valuations?.find(v => safeMonthKey(v.month) === currentMonth)?.note && (
                  <div className="w-1.5 h-1.5 bg-amber-400 rounded-full"></div>
                )}
                <span className={`font-medium ${!value ? 'text-slate-300 dark:text-slate-700' : 'text-slate-900 dark:text-[#f0f0f0]'}`}>
@@ -657,9 +788,7 @@ export function AssetsPage() {
                )}
             </div>
           </div>
-          {hasChildren && expanded && children.map(child => (
-            <MobileItemRow key={child.id} item={child} depth={depth + 1} groupItems={groupItems} />
-          ))}
+          {hasChildren && expanded && renderMobileChildren(children, depth + 1, groupItems)}
         </div>
       )
     }
@@ -739,9 +868,7 @@ export function AssetsPage() {
 
                 {isExpanded && (
                   <div className="border-t border-slate-100 dark:border-[#1f1f1f]">
-                    {(group.items || []).filter(it => !it.parentItemId && !it.hidden).map(item => (
-                      <MobileItemRow key={item.id} item={item} depth={0} groupItems={group.items || []} />
-                    ))}
+                    {renderMobileChildren((group.items || []).filter(it => !it.parentItemId), 0, group.items || [])}
                   </div>
                 )}
               </div>
@@ -809,10 +936,9 @@ export function AssetsPage() {
   return (
     <div 
       ref={wrapperRef} 
-      className={isFullScreen 
+      className={(isFullScreen 
         ? "bg-slate-50 dark:bg-slate-950 fixed top-14 bottom-0 left-0 right-0 z-50" 
-        : "relative w-full h-[calc(100vh-8rem)] bg-white dark:bg-[#101010] rounded-xl shadow-sm border border-slate-200 dark:border-[#1f1f1f] overflow-hidden"
-      }
+        : "relative w-full h-[calc(100vh-8rem)] bg-white dark:bg-[#101010] rounded-xl shadow-sm border border-slate-200 dark:border-[#1f1f1f] overflow-hidden") + " animate-in fade-in slide-in-from-bottom duration-700"}
     >
       <div 
         ref={scrollRef} 
@@ -914,6 +1040,23 @@ export function AssetsPage() {
           </thead>
           <tbody className="bg-white dark:bg-[#101010] divide-y divide-slate-100 dark:divide-slate-800">
             {rows.map((row, idx)=> {
+              if (row.isHiddenIndicator && row.hiddenItems) {
+                return (
+                  <tr key={`hidden-indicator-${idx}`} className="group/hidden-row relative z-[60]">
+                    <td colSpan={months.length + 1} className="p-0 m-0 border-0 relative h-0 z-[60]">
+                       <div 
+                         className="absolute left-0 w-full h-[2px] bg-blue-500/20 hover:bg-blue-500/40 cursor-pointer flex items-center -translate-y-[2px] z-[60] transition-colors group/indicator" 
+                         onClick={() => unhideMultiple(row.hiddenItems!)} 
+                         title={`Show ${row.hiddenItems.length} hidden row${row.hiddenItems.length > 1 ? 's' : ''}`}
+                       >
+                          <div className="ml-10 text-blue-500/70 dark:text-blue-500/60 opacity-70 group-hover/indicator:opacity-100 transition-opacity relative z-[70]">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                          </div>
+                       </div>
+                    </td>
+                  </tr>
+                )
+              }
               // Check if this is a new group (not the first row)
               const isNewGroup = row.isGroup && idx > 0
               return (
@@ -979,8 +1122,8 @@ export function AssetsPage() {
                 
                 {months.map(m=> {
                   if (row.isGroup) {
-                    const group = groups.find(g=> g.id===row.groupId)
-                    const items = (group?.items||[]).filter(it=> !it.parentItemId)
+                    const group = Array.isArray(groups) ? groups.find(g=> g.id===row.groupId) : null
+                    const items = (group?.items||[]).filter(it=> it && !it.parentItemId)
                     const v = items.reduce((sum, it)=> sum + valueFor(it, m, true), 0)
                     
                     // Calculate percentage change for group
@@ -1005,7 +1148,7 @@ export function AssetsPage() {
                                   <span className={`text-[10px] font-bold ${colors}`}>
                                     {isPositive ? '↑' : '↓'}
                                   </span>
-                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover/indicator:opacity-100 transition-opacity whitespace-nowrap z-[100] pointer-events-none dark:bg-[#111111]">
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover/indicator:opacity-100 transition-opacity whitespace-nowrap z-[10000] pointer-events-none dark:bg-[#111111]">
                                     {hideNumbers ? '••••••' : `${isPositive ? '+' : ''}${groupPercentageChange.toFixed(2)}%`}
                                   </div>
                                 </div>
@@ -1019,7 +1162,7 @@ export function AssetsPage() {
                   const item = row.item!
                   const val = valueFor(item, m, true)
                   const isEditing = editing && editing.itemId===item.id && editing.month===m
-                  const valObj = item.valuations?.find(v=> monthKey(new Date(v.month))===m)
+                  const valObj = item.valuations?.find(v=> safeMonthKey(v.month)===m)
                   return (
                     <td
                       key={m}
@@ -1041,7 +1184,7 @@ export function AssetsPage() {
                             onChange={e=>setEditValue(e.target.value)}
                             onBlur={()=>{ saveEdit(); setSuggestion(null); }}
                             onKeyDown={handleKeyDown}
-                            className="w-full text-center bg-transparent outline-none font-medium text-blue-700 dark:text-blue-300 p-0 m-0"
+                            className="w-full text-center bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 font-medium text-blue-700 dark:text-blue-300 p-0 m-0"
                           />
                           {suggestion !== null && !editValue.trim() && (
                             <div 
@@ -1080,7 +1223,7 @@ export function AssetsPage() {
                                       <span className={`text-[10px] font-bold ${colors}`}>
                                         {isPositive ? '↑' : '↓'}
                                       </span>
-                                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover/indicator:opacity-100 transition-opacity whitespace-nowrap z-[100] pointer-events-none dark:bg-[#111111]">
+                                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-900 text-white text-[10px] rounded opacity-0 group-hover/indicator:opacity-100 transition-opacity whitespace-nowrap z-[10000] pointer-events-none dark:bg-[#111111]">
                                         {hideNumbers ? '••••••' : `${isPositive ? '+' : ''}${change.percentage.toFixed(2)}%`}
                                       </div>
                                     </div>
@@ -1093,7 +1236,7 @@ export function AssetsPage() {
                           {valObj && valObj.note && (
                             <div className="absolute top-0 right-0 group/note">
                               <div className="h-2.5 w-2.5 rounded-full border border-amber-200/80 bg-amber-400 shadow-[0_0_0_2px_rgba(0,0,0,0.35)]"></div>
-                              <div className="absolute right-0 bottom-full mb-2 w-64 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-left text-xs leading-5 text-slate-100 opacity-0 shadow-2xl shadow-black/60 transition-opacity pointer-events-none group-hover/note:opacity-100 whitespace-pre-wrap break-words z-[120] dark:border-slate-500 dark:bg-black">
+                              <div className="absolute right-0 bottom-full mb-2 w-64 rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-left text-xs leading-5 text-slate-100 opacity-0 shadow-2xl shadow-black/60 transition-opacity pointer-events-none group-hover/note:opacity-100 whitespace-pre-wrap break-words z-[10000] dark:border-slate-500 dark:bg-black">
                                 {valObj.note}
                               </div>
                             </div>
@@ -1113,11 +1256,11 @@ export function AssetsPage() {
                 Total Net Worth
               </td>
               {months.map(m=>{
-                const v = groups.reduce((sum, g)=>{
+                const v = Array.isArray(groups) ? groups.reduce((sum, g)=>{
                   const roots = (g.items||[]).filter(it=> !it.parentItemId)
                   const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
                   return sum + s
-                }, 0)
+                }, 0) : 0
                 return <td key={m} className="p-4 text-center font-bold text-sm tabular-nums bg-[#181818] text-slate-100 shadow-[inset_1px_0_0_0_#2b2b2b]">
                   {v? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber>: ''}
                 </td>
@@ -1128,13 +1271,13 @@ export function AssetsPage() {
                 Growth (Amount)
               </td>
               {months.map((m, i)=>{
-                const curr = groups.reduce((sum, g)=>{
+                const curr = Array.isArray(groups) ? groups.reduce((sum, g)=>{
                   const roots = (g.items||[]).filter(it=> !it.parentItemId)
                   const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
                   return sum + s
-                }, 0)
+                }, 0) : 0
                 const prevKey = months[i+1]
-                const prev = prevKey ? groups.reduce((sum, g)=>{
+                const prev = prevKey && Array.isArray(groups) ? groups.reduce((sum, g)=>{
                   const roots = (g.items||[]).filter(it=> !it.parentItemId)
                   const s = roots.reduce((acc, it)=> acc + valueFor(it, prevKey, true), 0)
                   return sum + s
@@ -1151,13 +1294,13 @@ export function AssetsPage() {
                 Growth (%)
               </td>
               {months.map((m, i)=>{
-                const curr = groups.reduce((sum, g)=>{
+                const curr = Array.isArray(groups) ? groups.reduce((sum, g)=>{
                   const roots = (g.items||[]).filter(it=> !it.parentItemId)
                   const s = roots.reduce((acc, it)=> acc + valueFor(it, m, true), 0)
                   return sum + s
-                }, 0)
+                }, 0) : 0
                 const prevKey = months[i+1]
-                const prev = prevKey ? groups.reduce((sum, g)=>{
+                const prev = prevKey && Array.isArray(groups) ? groups.reduce((sum, g)=>{
                   const roots = (g.items||[]).filter(it=> !it.parentItemId)
                   const s = roots.reduce((acc, it)=> acc + valueFor(it, prevKey, true), 0)
                   return sum + s

@@ -1,12 +1,12 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../db/prisma.js'
-import { requireAuth } from '../middleware/auth.js'
+import { requireAuth, AuthRequest } from '../middleware/auth.js'
 
 const router = Router()
 
 // Get all recurring transactions for user
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, async (req: AuthRequest, res) => {
   try {
     const recurring = await prisma.recurringTransaction.findMany({
       where: { userId: req.userId! },
@@ -36,7 +36,7 @@ const createSchema = z.object({
   endDate: z.string().optional() // ISO date string
 })
 
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, async (req: AuthRequest, res) => {
   try {
     const data = createSchema.parse(req.body)
     const startDate = new Date(data.startDate)
@@ -70,7 +70,7 @@ router.post('/', requireAuth, async (req, res) => {
 })
 
 // Update recurring transaction (mainly for deactivating)
-router.patch('/:id', requireAuth, async (req, res) => {
+router.patch('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id)
     const { isActive, endDate, categoryId } = req.body
@@ -117,7 +117,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
 })
 
 // Delete recurring transaction
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id)
     

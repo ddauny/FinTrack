@@ -104,6 +104,7 @@ export function TrendsPage() {
           textStyle: { color: isDark ? '#fff' : '#000', fontSize: 16 }
       },
       tooltip: {
+      transitionDuration: 0,
         trigger: 'axis',
         backgroundColor: isDark ? '#141414' : '#ffffff',
         borderColor: isDark ? '#141414' : '#e5e7eb',
@@ -148,6 +149,7 @@ export function TrendsPage() {
             textStyle: { color: isDark ? '#fff' : '#000', fontSize: 16 }
         },
         tooltip: {
+      transitionDuration: 0,
             trigger: 'axis',
             axisPointer: { type: 'shadow' },
             backgroundColor: isDark ? '#141414' : '#ffffff',
@@ -217,7 +219,7 @@ export function TrendsPage() {
   )
 
   return (
-    <div className="p-6 w-full space-y-8">
+    <div className="h-full overflow-y-auto custom-scrollbar p-6 w-full space-y-8 pb-24">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-[#f0f0f0] tracking-tight">
             Financial Trends

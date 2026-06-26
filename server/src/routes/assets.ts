@@ -25,7 +25,7 @@ assetsRouter.put("/portfolios/:id", requireAuth, async (req: AuthRequest, res) =
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const updated = await prisma.portfolio.updateMany({ where: { id, userId: req.userId! }, data: { name: parse.data.name } });
   if (updated.count === 0) return res.status(404).json({ error: "Not found" });
-  const item = await prisma.portfolio.findUnique({ where: { id } });
+  const item = await prisma.portfolio.findFirst({ where: { id, userId: req.userId! } });
   res.json(item);
 });
 assetsRouter.delete("/portfolios/:id", requireAuth, async (req: AuthRequest, res) => {
@@ -44,11 +44,17 @@ const holdingSchema = z.object({
 });
 assetsRouter.get("/portfolios/:portfolioId/holdings", requireAuth, async (req: AuthRequest, res) => {
   const portfolioId = Number(req.params.portfolioId);
+  // Verify the portfolio belongs to the authenticated user
+  const portfolio = await prisma.portfolio.findFirst({ where: { id: portfolioId, userId: req.userId! } });
+  if (!portfolio) return res.status(403).json({ error: "Not found or forbidden" });
   const items = await prisma.holding.findMany({ where: { portfolioId } });
   res.json(items);
 });
 assetsRouter.post("/portfolios/:portfolioId/holdings", requireAuth, async (req: AuthRequest, res) => {
   const portfolioId = Number(req.params.portfolioId);
+  // Verify the portfolio belongs to the authenticated user
+  const portfolio = await prisma.portfolio.findFirst({ where: { id: portfolioId, userId: req.userId! } });
+  if (!portfolio) return res.status(403).json({ error: "Not found or forbidden" });
   const parse = holdingSchema.safeParse({ ...req.body, portfolioId });
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const item = await prisma.holding.create({ data: parse.data });
@@ -58,11 +64,21 @@ assetsRouter.put("/holdings/:holdingId", requireAuth, async (req: AuthRequest, r
   const holdingId = Number(req.params.holdingId);
   const parse = holdingSchema.partial({ portfolioId: true }).safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
+  // Verify ownership via portfolio
+  const holding = await prisma.holding.findFirst({
+    where: { id: holdingId, portfolio: { userId: req.userId! } }
+  });
+  if (!holding) return res.status(403).json({ error: "Not found or forbidden" });
   const item = await prisma.holding.update({ where: { id: holdingId }, data: parse.data });
   res.json(item);
 });
 assetsRouter.delete("/holdings/:holdingId", requireAuth, async (req: AuthRequest, res) => {
   const holdingId = Number(req.params.holdingId);
+  // Verify ownership via portfolio
+  const holding = await prisma.holding.findFirst({
+    where: { id: holdingId, portfolio: { userId: req.userId! } }
+  });
+  if (!holding) return res.status(403).json({ error: "Not found or forbidden" });
   await prisma.holding.delete({ where: { id: holdingId } });
   res.status(204).end();
 });
@@ -90,7 +106,7 @@ assetsRouter.put("/manual-assets/:id", requireAuth, async (req: AuthRequest, res
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const updated = await prisma.manualAsset.updateMany({ where: { id, userId: req.userId! }, data: parse.data });
   if (updated.count === 0) return res.status(404).json({ error: "Not found" });
-  const item = await prisma.manualAsset.findUnique({ where: { id } });
+  const item = await prisma.manualAsset.findFirst({ where: { id, userId: req.userId! } });
   res.json(item);
 });
 assetsRouter.delete("/manual-assets/:id", requireAuth, async (req: AuthRequest, res) => {
@@ -106,28 +122,65 @@ assetsRouter.get("/market-data", requireAuth, async (_req: AuthRequest, res) => 
 });
 
 // Asset Groups & Items & Valuations
-const groupSchema = z.object({ name: z.string().min(1) });
+const groupSchema = z.object({ 
+  name: z.string().min(1).optional(), 
+  isInvestment: z.boolean().optional() 
+});
 assetsRouter.get("/asset-groups", requireAuth, async (req: AuthRequest, res) => {
   const groups = await prisma.assetGroup.findMany({ 
     where: { userId: req.userId! }, 
     include: { items: { include: { valuations: true }, orderBy: { order: 'asc' } } },
     orderBy: { order: 'asc' }
   });
-  res.json(groups);
+  
+  // Find oldest transaction date for all asset items of the user
+  const oldestTxns = await prisma.transaction.groupBy({
+    by: ['assetItemId'],
+    where: {
+      userId: req.userId!,
+      assetItemId: { not: null }
+    },
+    _min: {
+      date: true
+    }
+  });
+
+  const firstTxMap = new Map<number, Date>();
+  for (const t of oldestTxns) {
+    if (t.assetItemId && t._min.date) {
+      firstTxMap.set(t.assetItemId, t._min.date);
+    }
+  }
+
+  const result = groups.map(g => ({
+    ...g,
+    items: g.items.map(item => ({
+      ...item,
+      firstTransactionDate: firstTxMap.get(item.id) || null
+    }))
+  }));
+
+  res.json(result);
 });
 assetsRouter.post("/asset-groups", requireAuth, async (req: AuthRequest, res) => {
   const parse = groupSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
-  const g = await prisma.assetGroup.create({ data: { userId: req.userId!, name: parse.data.name } });
+  if (!parse.success || !parse.data.name) return res.status(400).json({ error: "Invalid payload or name missing" });
+  const g = await prisma.assetGroup.create({ data: { userId: req.userId!, name: parse.data.name, isInvestment: parse.data.isInvestment ?? true } });
   res.status(201).json(g);
 });
 assetsRouter.put("/asset-groups/:id", requireAuth, async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   const parse = groupSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
-  const u = await prisma.assetGroup.updateMany({ where: { id, userId: req.userId! }, data: { name: parse.data.name } });
+  const u = await prisma.assetGroup.updateMany({ 
+    where: { id, userId: req.userId! }, 
+    data: {
+      ...(parse.data.name && { name: parse.data.name }),
+      ...(parse.data.isInvestment !== undefined && { isInvestment: parse.data.isInvestment })
+    }
+  });
   if (u.count === 0) return res.status(404).json({ error: "Not Found" });
-  const g = await prisma.assetGroup.findUnique({ where: { id }, include: { items: { include: { valuations: true } } } });
+  const g = await prisma.assetGroup.findFirst({ where: { id, userId: req.userId! }, include: { items: { include: { valuations: true } } } });
   res.json(g);
 });
 assetsRouter.delete("/asset-groups/:id", requireAuth, async (req: AuthRequest, res) => {
@@ -142,7 +195,9 @@ const itemCreateSchema = z.object({
   name: z.string().min(1), 
   description: z.string().optional(), 
   hidden: z.boolean().optional(),
-  depreciationAmount: z.number().optional()
+  depreciationAmount: z.number().nullable().optional(),
+  initialContribution: z.number().nullable().optional(),
+  initialContributionDate: z.string().nullable().optional()
 });
 // Lo schema di aggiornamento ha tutti i campi opzionali
 const itemUpdateSchema = itemCreateSchema.partial();
@@ -150,7 +205,9 @@ const itemUpdateSchema = itemCreateSchema.partial();
 
 assetsRouter.post("/asset-groups/:groupId/items", requireAuth, async (req: AuthRequest, res) => {
   const groupId = Number(req.params.groupId);
-  // Usa lo schema di CREAZIONE
+  // Verify group belongs to the authenticated user
+  const group = await prisma.assetGroup.findFirst({ where: { id: groupId, userId: req.userId! } });
+  if (!group) return res.status(403).json({ error: "Not found or forbidden" });
   const parse = itemCreateSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const item = await prisma.assetItem.create({ 
@@ -158,21 +215,19 @@ assetsRouter.post("/asset-groups/:groupId/items", requireAuth, async (req: AuthR
       groupId, 
       name: parse.data.name, 
       description: parse.data.description,
-      depreciationAmount: parse.data.depreciationAmount
+      depreciationAmount: parse.data.depreciationAmount,
+      initialContribution: parse.data.initialContribution,
+      initialContributionDate: parse.data.initialContributionDate ? new Date(parse.data.initialContributionDate) : null
     } 
   });
   res.status(201).json(item);
 });
 
-// --- MODIFICA CHIAVE: L'endpoint PUT ora usa il nuovo schema ---
 assetsRouter.put("/asset-items/:itemId", requireAuth, async (req: AuthRequest, res) => {
   const itemId = Number(req.params.itemId);
-  
-  // Usa lo schema di AGGIORNAMENTO
   const parse = itemUpdateSchema.safeParse(req.body);
   if (!parse.success) {
-    // Se la validazione fallisce, rispondi 400
-    return res.status(400).json({ error: "Invalid payload", details: parse.error });
+    return res.status(400).json({ error: "Invalid payload" });
   }
 
   // Controlla che l'utente sia proprietario di questo item
@@ -181,10 +236,15 @@ assetsRouter.put("/asset-items/:itemId", requireAuth, async (req: AuthRequest, r
   });
   if (!itemToUpdate) return res.status(404).json({ error: "Not found or forbidden" });
   
+  const updateData: any = { ...parse.data };
+  if (parse.data.initialContributionDate !== undefined) {
+    updateData.initialContributionDate = parse.data.initialContributionDate ? new Date(parse.data.initialContributionDate) : null;
+  }
+
   // Esegui l'aggiornamento
   const item = await prisma.assetItem.update({ 
     where: { id: itemId }, 
-    data: parse.data // parse.data contiene solo i campi inviati (es. { hidden: true })
+    data: updateData
   });
   res.json(item);
 });
@@ -219,12 +279,8 @@ async function getDescendantIds(rootId: number): Promise<number[]> {
 // Collapse: hide all descendants of an item (not the item itself)
 assetsRouter.post("/asset-items/:itemId/collapse", requireAuth, async (req: AuthRequest, res) => {
   const itemId = Number(req.params.itemId);
-  const root = await prisma.assetItem.findUnique({ where: { id: itemId }, include: { group: true } });
+  const root = await prisma.assetItem.findFirst({ where: { id: itemId, group: { userId: req.userId! } } });
   if (!root) return res.status(404).json({ error: "Not found" });
-  if (root.groupId) {
-    const g = await prisma.assetGroup.findUnique({ where: { id: root.groupId } });
-    if (!g || g.userId !== req.userId) return res.status(403).json({ error: "Forbidden" });
-  }
   const descendantIds = await getDescendantIds(itemId);
   if (descendantIds.length === 0) return res.json({ updated: 0 });
   const updated = await prisma.assetItem.updateMany({ where: { id: { in: descendantIds } }, data: { hidden: true } });
@@ -234,12 +290,8 @@ assetsRouter.post("/asset-items/:itemId/collapse", requireAuth, async (req: Auth
 // Expand: show all descendants of an item (not the item itself)
 assetsRouter.post("/asset-items/:itemId/expand", requireAuth, async (req: AuthRequest, res) => {
   const itemId = Number(req.params.itemId);
-  const root = await prisma.assetItem.findUnique({ where: { id: itemId }, include: { group: true } });
+  const root = await prisma.assetItem.findFirst({ where: { id: itemId, group: { userId: req.userId! } } });
   if (!root) return res.status(404).json({ error: "Not found" });
-  if (root.groupId) {
-    const g = await prisma.assetGroup.findUnique({ where: { id: root.groupId } });
-    if (!g || g.userId !== req.userId) return res.status(403).json({ error: "Forbidden" });
-  }
   const descendantIds = await getDescendantIds(itemId);
   if (descendantIds.length === 0) return res.json({ updated: 0 });
   const updated = await prisma.assetItem.updateMany({ where: { id: { in: descendantIds } }, data: { hidden: false } });
@@ -251,8 +303,11 @@ assetsRouter.post("/asset-items/:itemId/children", requireAuth, async (req: Auth
   const itemId = Number(req.params.itemId);
   const parse = itemCreateSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
-  const parent = await prisma.assetItem.findUnique({ where: { id: itemId } });
-  if (!parent) return res.status(404).json({ error: "Parent not found" });
+  // Verify the parent item belongs to the authenticated user
+  const parent = await prisma.assetItem.findFirst({
+    where: { id: itemId, group: { userId: req.userId! } }
+  });
+  if (!parent) return res.status(403).json({ error: "Not found or forbidden" });
   if (!parent.groupId) return res.status(400).json({ error: "Parent missing group" });
   const child = await prisma.assetItem.create({ data: { groupId: parent.groupId, parentItemId: itemId, name: parse.data.name, description: parse.data.description } });
   res.status(201).json(child);
@@ -273,14 +328,17 @@ const valuationSchema = z.object({
 
 assetsRouter.post("/asset-items/:itemId/valuations", requireAuth, async (req: AuthRequest, res) => {
   const itemId = Number(req.params.itemId);
-  // DEBUG: log incoming payload
-  console.log("Received valuation payload:", req.body);
   const parse = valuationSchema.safeParse(req.body);
 
   if (!parse.success) {
-    console.error("Valuation validation error", parse.error);
-    return res.status(400).json({ error: "Invalid payload", details: parse.error });
+    return res.status(400).json({ error: "Invalid payload" });
   }
+
+  // Verify the item belongs to the authenticated user
+  const item = await prisma.assetItem.findFirst({
+    where: { id: itemId, group: { userId: req.userId! } }
+  });
+  if (!item) return res.status(403).json({ error: "Not found or forbidden" });
 
   const childCount = await prisma.assetItem.count({ where: { parentItemId: itemId } });
   if (childCount > 0) return res.status(400).json({ error: "Valuations are only allowed on leaf items" });

@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { api, secureFetch } from '../lib/api'
 import { useToast } from '../contexts/ToastContext'
 import { useAlert } from '../contexts/AlertContext'
 import { TagInput } from './TagInput'
 
-const CategorySelector = ({
+const CategorySelector = memo(({
     value,
     onChange,
     categories,
@@ -12,7 +13,7 @@ const CategorySelector = ({
     idPrefix
 }: {
     value: number | '';
-    onChange: (id: number) => void;
+    onChange: (id: number | '') => void;
     categories: any[];
     placeholder?: string;
     idPrefix: string;
@@ -29,7 +30,8 @@ const CategorySelector = ({
     }, [categories])
 
     const groups = useMemo(() => {
-        const filtered = (categories || []).filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
+        const q = query.toLowerCase();
+        const filtered = (categories || []).filter(c => c.name.toLowerCase().includes(q));
         const groups: Record<string, any[]> = { 'Expense': [], 'Income': [], 'Transfer': [] };
         if (filtered) {
             filtered.forEach(c => { if (groups[c.type]) groups[c.type].push(c); });
@@ -77,7 +79,7 @@ const CategorySelector = ({
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-slate-300"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" /></svg>
             </div>
-            <input id={`${idPrefix}-search-input`} placeholder={placeholder} value={query} onChange={e => {setQuery(e.target.value); setShowList(true)}} onKeyDown={handleKeyDown} onBlur={() => setTimeout(() => setShowList(false), 200)} onFocus={() => setShowList(true)} className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-base font-medium text-slate-900 dark:text-[#f0f0f0] focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all" autoComplete="off" />
+            <input id={`${idPrefix}-search-input`} placeholder={placeholder} value={query} onChange={e => {setQuery(e.target.value); setShowList(true)}} onKeyDown={handleKeyDown} onBlur={() => setTimeout(() => setShowList(false), 200)} onFocus={() => setShowList(true)} className="w-full pl-11 pr-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-base font-medium text-slate-900 dark:text-[#f0f0f0] focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all" autoComplete="off" />
             {(showList || (query.length > 0 && suggestions.length > 0)) && (
                 <div className="absolute z-20 w-full mt-1 max-h-60 overflow-y-auto hide-scrollbar border border-slate-100 dark:border-[#1f1f1f] rounded-xl bg-white dark:bg-[#101010] shadow-xl">
                     {(() => {
@@ -95,7 +97,7 @@ const CategorySelector = ({
                                         traverseIndex++;
                                         const isSelected = traverseIndex === selectedIndex;
                                         return (
-                                            <div key={c.id} ref={(el) => { if (isSelected && el) el.scrollIntoView({ block: 'nearest' }); }} onClick={() => { onChange(c.id); setQuery(''); }} className={`px-4 py-3 cursor-pointer border-b border-slate-50 dark:border-[#1f1f1f] last:border-0 flex items-center gap-3 transition-colors ${isSelected ? 'bg-slate-100 dark:bg-[#111111]' : 'hover:bg-slate-50 dark:hover:bg-[#242424] dark:bg-[#1a1a1a]'}`}>
+                                            <div key={c.id} ref={(el) => { if (isSelected && el) el.scrollIntoView({ block: 'nearest' }); }} onClick={() => { onChange(c.id); setQuery(''); }} className={`px-4 py-3 cursor-pointer border-b border-slate-50 dark:border-[#1f1f1f] last:border-0 flex items-center gap-3 transition-colors ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-slate-50 dark:hover:bg-[#1a1a1a]'}`}>
                                                 <div className={`w-1.5 h-1.5 rounded-full ${c.type === 'Income' ? 'bg-emerald-500' : c.type === 'Transfer' ? 'bg-blue-500' : 'bg-rose-500'}`}></div>
                                                 <span className="text-sm font-medium text-slate-700 dark:text-[#d8d8d8]">{c.name}</span>
                                             </div>
@@ -111,7 +113,7 @@ const CategorySelector = ({
             )}
         </div>
     );
-};
+});
 
 export const TransactionModal = memo(function TransactionModal({
     isOpen,
@@ -166,6 +168,7 @@ export const TransactionModal = memo(function TransactionModal({
     const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false)
     const [isHoveringReceipt, setIsHoveringReceipt] = useState(false)
     const [assetGroups, setAssetGroups] = useState<any[]>([])
+    const [showAdvanced, setShowAdvanced] = useState(false)
 
     useEffect(() => {
         if (isOpen && assetGroups.length === 0) {
@@ -211,6 +214,10 @@ export const TransactionModal = memo(function TransactionModal({
                    const cat = categories.find(c => c.id === initialData.categoryId)
                    if (cat) setCategoryQuery(cat.name)
                }
+               // Auto-open advanced options if they have tags or receipts
+               const hasTags = initialData.tags && initialData.tags.length > 0;
+               const hasReceipt = initialData.attachmentPath || initialData.receipt;
+               setShowAdvanced(!!(hasTags || hasReceipt));
             } else {
                // Reset for new transaction
                setForm({ 
@@ -230,6 +237,7 @@ export const TransactionModal = memo(function TransactionModal({
                })
                setCategoryQuery('')
                setIsSplit(false)
+               setShowAdvanced(false)
             }
             
             // Clear suggestions
@@ -285,9 +293,9 @@ export const TransactionModal = memo(function TransactionModal({
         if (value.length >= 2) {
           notesDebounceRef.current = setTimeout(async () => {
             try {
-              const suggestions = await api.transactions.getNotes(value)
-              setNotesSuggestions(suggestions as any[])
-              setShowNotesSuggestions((suggestions as any[]).length > 0)
+              const suggestions = (await api.transactions.getNotes(value)) as any[]
+              setNotesSuggestions(suggestions)
+              setShowNotesSuggestions(suggestions.length > 0)
               setSelectedSuggestionIndex(suggestions.length > 0 ? 0 : -1)
             } catch (error) {
               console.error('Error fetching notes suggestions:', error)
@@ -322,7 +330,7 @@ export const TransactionModal = memo(function TransactionModal({
     }
 
     function selectSuggestion(suggestion: any) {
-        setForm(prev => ({
+        setForm((prev: any) => ({
             ...prev, 
             notes: suggestion.note, 
             categoryId: suggestion.category?.id || prev.categoryId
@@ -360,7 +368,7 @@ export const TransactionModal = memo(function TransactionModal({
               const indexToUse = selectedCategoryIndex >= 0 ? selectedCategoryIndex : 0
               const category = categorySuggestions[indexToUse]
               if (category) {
-                  setForm(prev => ({...prev, categoryId: category.id}))
+                  setForm((prev: any) => ({...prev, categoryId: category.id}))
                   setCategoryQuery(category.name)
                   setShowCategorySuggestions(false)
                   setShowCategoryList(false)
@@ -447,7 +455,7 @@ export const TransactionModal = memo(function TransactionModal({
 
     if (!isOpen) return null
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-white dark:bg-[#090909] sm:bg-black/70 sm:dark:bg-black/80 sm:backdrop-blur-md p-0 sm:p-4">
           <div className="w-full h-full sm:h-auto sm:max-h-[88vh] sm:max-w-3xl bg-white dark:bg-[#111111] sm:rounded-lg shadow-none sm:shadow-2xl sm:border sm:border-slate-800/60 overflow-hidden flex flex-col animate-in slide-in-from-bottom-5 sm:slide-in-from-bottom-0 sm:zoom-in-95">
             
@@ -486,23 +494,12 @@ export const TransactionModal = memo(function TransactionModal({
             >
               
               
-              {/* Split Toggle */}
-              {!editingId && (
-                <div className="flex items-center justify-between mx-1 bg-slate-50 dark:bg-[#111111] p-3 rounded-xl border border-slate-100 dark:border-[#1f1f1f]">
-                    <div className="flex items-center space-x-2">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                         <span className="text-sm font-medium text-slate-700 dark:text-[#bbb]">Split Transaction</span>
-                    </div>
-                    <button type="button" onClick={() => setIsSplit(!isSplit)} className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isSplit ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
-                        <span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isSplit ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </button>
-                </div>
-              )}
 
-              {/* Amount and Date Input Group */}
+
+              {/* Main Inputs Group */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Amount Input */}
-                <div>
+                <div className={isSplit ? "" : "order-1 sm:order-1"}>
                   <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Amount</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 text-lg font-medium">€</span>
@@ -518,8 +515,168 @@ export const TransactionModal = memo(function TransactionModal({
                   </div>
                 </div>
 
+                {/* Notes Input */}
+                {!isSplit && (
+                  <div className="order-2 sm:order-3">
+                    <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Notes</label>
+                    <div className="relative">
+                      {showNotesSuggestions && notesSuggestions.length > 0 && (
+                        <div className="absolute bottom-full mb-1 z-10 w-full bg-white dark:bg-[#111111] border border-slate-100 dark:border-[#1f1f1f] rounded-xl shadow-xl max-h-40 overflow-y-auto hide-scrollbar">
+                          {notesSuggestions.map((suggestion, index) => (
+                            <div
+                              key={index}
+                              onClick={() => selectSuggestion(suggestion)}
+                              className={`px-4 py-2.5 cursor-pointer text-sm text-slate-700 dark:text-[#d8d8d8] ${
+                                index === selectedSuggestionIndex
+                                  ? 'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500'
+                                  : 'hover:bg-slate-50 dark:hover:bg-[#1a1a1a]'
+                              }`}
+                            >
+                              <span className="font-medium">{suggestion.note}</span>
+                              {suggestion.category && (
+                                 <span className="ml-2 text-xs text-slate-400 dark:text-[#666]">
+                                   ({suggestion.category.name})
+                                 </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <input 
+                        type="text"
+                        value={form.notes} 
+                        onChange={handleNotesChange}
+                        onKeyDown={handleNotesKeyDown}
+                        onBlur={() => setTimeout(() => setShowNotesSuggestions(false), 200)}
+                        onFocus={() => form.notes.length >= 2 && notesSuggestions.length > 0 && setShowNotesSuggestions(true)}
+                        placeholder="Add a note..." 
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-base font-medium text-slate-900 dark:text-[#f0f0f0] focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-slate-400" 
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Category Selection */}
+                {!isSplit && (
+                  <div className="order-3 sm:order-4">
+                    <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Category</label>
+                    
+                    {form.categoryId && categoryMap.current[form.categoryId] ? (
+                      <div 
+                        onClick={() => {
+                          setCategoryQuery('')
+                          setIsSplit(false);
+                          setForm({...form, categoryId: ''});
+                          // Focus the input in a little bit
+                          setTimeout(() => document.getElementById('category-search-input')?.focus(), 0);
+                        }}
+                        className={`flex items-center justify-between w-full px-4 py-3 rounded-xl cursor-pointer border-2 transition-all ${
+                          categoryMap.current[form.categoryId].type === 'Income' 
+                            ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/50' 
+                            : categoryMap.current[form.categoryId].type === 'Transfer'
+                            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/50'
+                            : 'bg-rose-50 dark:bg-rose-900/20 border-rose-100 dark:border-rose-900/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${
+                            categoryMap.current[form.categoryId].type === 'Income' ? 'bg-emerald-500' : 
+                            categoryMap.current[form.categoryId].type === 'Transfer' ? 'bg-blue-500' : 'bg-rose-500'
+                          }`}></div>
+                          <span className={`font-bold ${
+                            categoryMap.current[form.categoryId].type === 'Income' ? 'text-emerald-700 dark:text-emerald-400' : 
+                            categoryMap.current[form.categoryId].type === 'Transfer' ? 'text-blue-700 dark:text-blue-400' : 'text-rose-700 dark:text-rose-400'
+                          }`}>
+                            {categoryMap.current[form.categoryId].name}
+                          </span>
+                        </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-slate-300">
+                          <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="relative" ref={categoryInputRef}>
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-slate-300">
+                            <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <input
+                          id="category-search-input"
+                          placeholder="Search category..."
+                          value={categoryQuery}
+                          onChange={handleCategoryChange}
+                          onKeyDown={handleCategoryKeyDown}
+                          onBlur={() => setTimeout(() => { setShowCategorySuggestions(false); setShowCategoryList(false); }, 200)}
+                          onFocus={() => { setShowCategoryList(true); }}
+                          className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-base font-medium text-slate-900 dark:text-[#f0f0f0] focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                          autoComplete="off"
+                        />
+                        
+                        {(showCategoryList || (categoryQuery.length > 0 && categorySuggestions.length > 0)) && !form.categoryId && (
+                          <div 
+                            className="fixed z-[110] max-h-60 overflow-y-auto hide-scrollbar border border-slate-100 dark:border-[#1f1f1f] rounded-xl bg-white dark:bg-[#101010] shadow-xl"
+                            style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+                          >
+                            {(() => {
+                                const groups = groupedCategories
+                                const types = ['Expense', 'Income', 'Transfer']
+                                let renderedAny = false
+                                
+                                // Flattened list purely for index tracking if needed
+                                let traverseIndex = -1;
+
+                                const content = types.map(type => {
+                                    const group = groups[type];
+                                    if (!group || group.length === 0) return null;
+                                    renderedAny = true
+                                    return (
+                                      <div key={type}>
+                                        <div className="px-4 py-2 text-[10px] font-bold text-slate-300 dark:text-[#666] bg-slate-50 dark:bg-[#111111] uppercase tracking-wider sticky top-0 z-10 border-b border-slate-100 dark:border-[#1f1f1f]">
+                                          {type}
+                                        </div>
+                                        {group.map((c: any) => {
+                                          traverseIndex++;
+                                          const isSelected = traverseIndex === selectedCategoryIndex;
+                                          return (
+                                            <div
+                                              key={c.id}
+                                              ref={(el) => {
+                                                if (isSelected && el) {
+                                                    el.scrollIntoView({ block: 'nearest' });
+                                                }
+                                              }}
+                                              onClick={()=>{setForm({...form, categoryId: c.id}); setCategoryQuery(c.name)}}
+                                              className={`px-4 py-3 cursor-pointer border-b border-slate-50 dark:border-[#1f1f1f] last:border-0 flex items-center gap-3 transition-colors ${
+                                                isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-slate-50 dark:hover:bg-[#1a1a1a]'
+                                              }`}
+                                            >
+                                              <div className={`w-1.5 h-1.5 rounded-full ${
+                                                c.type==='Income' ? 'bg-emerald-500' : 
+                                                c.type==='Transfer' ? 'bg-blue-500' : 'bg-rose-500'
+                                              }`}></div>
+                                              <span className="text-sm font-medium text-slate-700 dark:text-[#d8d8d8]">{c.name}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                })
+                                
+                                if (!renderedAny && categoryQuery.length > 0) {
+                                    return <div className="p-4 text-center text-slate-500 text-sm">No categories found</div>
+                                }
+                                return content
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Date Input */}
-                <div>
+                <div className={isSplit ? "" : "order-4 sm:order-2"}>
                   <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Date</label>
                   <div className="relative">
                     <input 
@@ -535,11 +692,64 @@ export const TransactionModal = memo(function TransactionModal({
                     </div>
                   </div>
                 </div>
+              </div>              {/* Advanced Options Toggle */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-slate-600 dark:text-[#888] dark:hover:text-[#bbb] uppercase tracking-wider transition-colors focus:outline-none"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className={`w-4 h-4 transition-transform duration-200 ${showAdvanced ? 'rotate-90' : ''}`}
+                  >
+                    <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                  </svg>
+                  <span>Advanced Options (Split, Recurring, Tags, Receipt)</span>
+                </button>
               </div>
 
-              {/* Splits Editor */}
-              {isSplit && (
-                  <div className="space-y-3 p-4 bg-slate-50 dark:bg-[#111111] rounded-xl border border-slate-200 dark:border-[#1f1f1f]">
+              {/* Advanced Options Content */}
+              {showAdvanced && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
+                  {/* Split and Recurring Toggles */}
+                  {!editingId && (
+                    <div className="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Split Toggle */}
+                      {!form.isRecurring && (
+                        <div className="flex items-center justify-between bg-slate-50 dark:bg-[#111111] p-3 rounded-xl border border-slate-100 dark:border-[#1f1f1f]">
+                          <div className="flex items-center space-x-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                            <span className="text-sm font-medium text-slate-700 dark:text-[#bbb]">Split Transaction</span>
+                          </div>
+                          <button type="button" onClick={() => setIsSplit(!isSplit)} className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isSplit ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
+                            <span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isSplit ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Recurring Toggle */}
+                      {!isSplit && (
+                        <div className="flex items-center justify-between bg-slate-50 dark:bg-[#111111] p-3 rounded-xl border border-slate-100 dark:border-[#1f1f1f]">
+                          <div className="flex items-center space-x-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-blue-500">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                            </svg>
+                            <span className="text-sm font-medium text-slate-700 dark:text-[#bbb]">Recurring Transaction</span>
+                          </div>
+                          <button type="button" onClick={() => setForm({...form, isRecurring: !form.isRecurring})} className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${form.isRecurring ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'}`}>
+                            <span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.isRecurring ? 'translate-x-5' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Splits Editor */}
+                  {!editingId && isSplit && (
+                    <div className="col-span-1 sm:col-span-2 space-y-3 p-4 bg-slate-50 dark:bg-[#111111]/40 rounded-xl border border-slate-200 dark:border-[#1f1f1f]">
                       <div className="flex justify-between items-center mb-2">
                           <label className="text-sm font-semibold text-slate-700 dark:text-[#bbb]">Splits</label>
                           <span className="text-xs text-slate-500 dark:text-[#888]">
@@ -576,334 +786,18 @@ export const TransactionModal = memo(function TransactionModal({
                           className="w-full py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">
                           + Add Split
                       </button>
-                  </div>
-              )}
-
-              {!isSplit && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Notes Input */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Notes</label>
-                <div className="relative">
-                  {showNotesSuggestions && notesSuggestions.length > 0 && (
-                    <div className="absolute bottom-full mb-1 z-10 w-full bg-white dark:bg-[#111111] border border-slate-100 dark:border-[#1f1f1f] rounded-xl shadow-xl max-h-40 overflow-y-auto hide-scrollbar">
-                      {notesSuggestions.map((suggestion, index) => (
-                        <div
-                          key={index}
-                          onClick={() => selectSuggestion(suggestion)}
-                          className={`px-4 py-2.5 cursor-pointer text-sm text-slate-700 dark:text-[#d8d8d8] ${
-                            index === selectedSuggestionIndex
-                              ? 'bg-blue-50 dark:bg-blue-500/15 border-l-2 border-blue-500'
-                              : 'bg-[#1a1a1a] hover:bg-slate-200 dark:hover:bg-[#242424]'
-                          }`}
-                        >
-                          <span className="font-medium">{suggestion.note}</span>
-                          {suggestion.category && (
-                             <span className="ml-2 text-xs text-slate-400 dark:text-[#666]">
-                               ({suggestion.category.name})
-                             </span>
-                          )}
-                        </div>
-                      ))}
                     </div>
                   )}
-                  <input 
-                    type="text"
-                    value={form.notes} 
-                    onChange={handleNotesChange}
-                    onKeyDown={handleNotesKeyDown}
-                    onBlur={() => setTimeout(() => setShowNotesSuggestions(false), 200)}
-                    onFocus={() => form.notes.length >= 2 && notesSuggestions.length > 0 && setShowNotesSuggestions(true)}
-                    placeholder="Add a note..." 
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-base font-medium text-slate-900 dark:text-[#f0f0f0] focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder-slate-400" 
-                  />
-                </div>
-              </div>
 
-              {/* Category Selection */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Category</label>
-                
-                {form.categoryId && categoryMap.current[form.categoryId] ? (
-                  <div 
-                    onClick={() => {
-                      setCategoryQuery('')
-               setIsSplit(false);
-                      setForm({...form, categoryId: ''});
-                      // Focus the input in a little bit
-                      setTimeout(() => document.getElementById('category-search-input')?.focus(), 0);
-                    }}
-                    className={`flex items-center justify-between w-full px-4 py-3 rounded-xl cursor-pointer border-2 transition-all ${
-                      categoryMap.current[form.categoryId].type === 'Income' 
-                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/50' 
-                        : categoryMap.current[form.categoryId].type === 'Transfer'
-                        ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/50'
-                        : 'bg-rose-50 dark:bg-rose-900/20 border-rose-100 dark:border-rose-900/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${
-                        categoryMap.current[form.categoryId].type === 'Income' ? 'bg-emerald-500' : 
-                        categoryMap.current[form.categoryId].type === 'Transfer' ? 'bg-blue-500' : 'bg-rose-500'
-                      }`}></div>
-                      <span className={`font-bold ${
-                        categoryMap.current[form.categoryId].type === 'Income' ? 'text-emerald-700 dark:text-emerald-400' : 
-                        categoryMap.current[form.categoryId].type === 'Transfer' ? 'text-blue-700 dark:text-blue-400' : 'text-rose-700 dark:text-rose-400'
-                      }`}>
-                        {categoryMap.current[form.categoryId].name}
-                      </span>
-                    </div>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-slate-300">
-                      <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                    </svg>
-                  </div>
-                ) : (
-                  <div className="relative" ref={categoryInputRef}>
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-slate-300">
-                        <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <input
-                      id="category-search-input"
-                      placeholder="Search category..."
-                      value={categoryQuery}
-                      onChange={handleCategoryChange}
-                      onKeyDown={handleCategoryKeyDown}
-                      onBlur={() => setTimeout(() => { setShowCategorySuggestions(false); setShowCategoryList(false); }, 200)}
-                      onFocus={() => { setShowCategoryList(true); }}
-                      className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-base font-medium text-slate-900 dark:text-[#f0f0f0] focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                      autoComplete="off"
-                    />
-                    
-                    {(showCategoryList || (categoryQuery.length > 0 && categorySuggestions.length > 0)) && !form.categoryId && (
-                      <div 
-                        className="fixed z-[110] max-h-60 overflow-y-auto hide-scrollbar border border-slate-100 dark:border-[#1f1f1f] rounded-xl bg-white dark:bg-[#101010] shadow-xl"
-                        style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
-                      >
-                        {(() => {
-                            const groups = groupedCategories
-                            const types = ['Expense', 'Income', 'Transfer']
-                            let renderedAny = false
-                            
-                            // Flattened list purely for index tracking if needed
-                            let traverseIndex = -1;
-
-                            const content = types.map(type => {
-                                const group = groups[type];
-                                if (!group || group.length === 0) return null;
-                                renderedAny = true
-                                return (
-                                  <div key={type}>
-                                    <div className="px-4 py-2 text-[10px] font-bold text-slate-300 dark:text-[#666] bg-slate-50 dark:bg-[#111111] uppercase tracking-wider sticky top-0 z-10 border-b border-slate-100 dark:border-[#1f1f1f]">
-                                      {type}
-                                    </div>
-                                    {group.map((c: any) => {
-                                      traverseIndex++;
-                                      const isSelected = traverseIndex === selectedCategoryIndex;
-                                      return (
-                                        <div
-                                          key={c.id}
-                                          ref={(el) => {
-                                            if (isSelected && el) {
-                                                el.scrollIntoView({ block: 'nearest' });
-                                            }
-                                          }}
-                                          onClick={()=>{setForm({...form, categoryId: c.id}); setCategoryQuery(c.name)}}
-                                          className={`px-4 py-3 cursor-pointer border-b border-slate-50 dark:border-[#1f1f1f] last:border-0 flex items-center gap-3 transition-colors ${
-                                            isSelected ? 'bg-slate-100 dark:bg-[#111111]' : 'hover:bg-slate-50 dark:hover:bg-[#242424] dark:bg-[#1a1a1a]'
-                                          }`}
-                                        >
-                                          <div className={`w-1.5 h-1.5 rounded-full ${
-                                            c.type==='Income' ? 'bg-emerald-500' : 
-                                            c.type==='Transfer' ? 'bg-blue-500' : 'bg-rose-500'
-                                          }`}></div>
-                                          <span className="text-sm font-medium text-slate-700 dark:text-[#d8d8d8]">{c.name}</span>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                );
-                            })
-                            
-                            if (!renderedAny && categoryQuery.length > 0) {
-                                return <div className="p-4 text-center text-slate-500 text-sm">No categories found</div>
-                            }
-                            return content
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Tags Input */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Tags</label>
-                <TagInput
-                  tags={form.tags || []}
-                  onChange={(newTags) => setForm({ ...form, tags: newTags })}
-                />
-              </div>
-
-               {/* Receipt Attachment */}
-               <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Receipt</label>
-                <div 
-                  className={`relative transition-all ${isHoveringReceipt ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900 rounded-xl' : ''}`}
-                  onMouseEnter={() => setIsHoveringReceipt(true)}
-                  onMouseLeave={() => setIsHoveringReceipt(false)}
-                >
-                  <input 
-                    type="file" 
-                    id="receipt-upload"
-                    accept="image/*,application/pdf"
-                    onChange={e => {
-                      if (e.target.files && e.target.files[0]) {
-                        setForm({...form, receipt: e.target.files[0]});
-                      }
-                    }}
-                    className="hidden"
-                  />
-                  <label 
-                    htmlFor="receipt-upload"
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl flex items-center cursor-pointer hover:bg-slate-100 dark:hover:bg-[#242424] dark:bg-[#1a1a1a] transition-colors"
-                  >
-                    <span className="mr-4 py-2 px-4 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-sm font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
-                      Choose File
-                    </span>
-                    <span className="text-sm text-slate-500 dark:text-[#888] truncate flex-1">
-                      {form.receipt ? form.receipt.name : (form.attachmentPath ? "Existing Receipt Attached" : (isHoveringReceipt ? "Paste to upload..." : "No file chosen"))}
-                    </span>
-                    
-                    {/* Clear pending upload */}
-                    {form.receipt && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setForm({...form, receipt: null});
-                            }}
-                            className="ml-2 p-1 text-slate-500 hover:text-slate-700 dark:text-[#888] dark:hover:text-slate-200"
-                            title="Clear selection"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-                                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                            </svg>
-                        </button>
-                    )}
-
-                    {/* View/Delete existing attachment */}
-                    {form.attachmentPath && !form.receipt && (
-                        <div className="flex items-center gap-1">
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    secureFetch(`/api/transactions/${editingId}/attachment`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
-                                    .then(res => {
-                                        if (!res.ok) throw new Error('Failed to load');
-                                        return res.blob();
-                                    })
-                                    .then(blob => {
-                                      const url = window.URL.createObjectURL(blob);
-                                      window.open(url, '_blank');
-                                    })
-                                    .catch(() => showToast('Could not load receipt', 'error'));
-                                }}
-                                className="ml-2 p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                                title="View Receipt"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                                    <path fillRule="evenodd" d="M18.97 3.659a2.25 2.25 0 00-3.182 0l-10.94 10.94a3.75 3.75 0 105.304 5.303l7.693-7.693a.75.75 0 011.06 1.06l-7.693 7.693a5.25 5.25 0 11-7.424-7.424l10.939-10.94a3.75 3.75 0 115.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 015.91 15.66l7.81-7.81a.75.75 0 011.061 1.06l-7.81 7.81a.75.75 0 001.054 1.068L18.97 6.84a2.25 2.25 0 000-3.182z" clipRule="evenodd" />
-                                </svg>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    showAlert({
-                                      title: 'Remove Attachment',
-                                      message: 'Are you sure you want to remove this attachment?',
-                                      confirmText: 'Remove',
-                                      type: 'danger',
-                                      onConfirm: () => {
-                                        setForm({...form, attachmentPath: null, deleteAttachment: true});
-                                      }
-                                    });
-                                }}
-                                className="p-1 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                                title="Remove Receipt"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                                  <path fillRule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.07a3 3 0 01-2.991 2.77H8.084a3 3 0 01-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 013.369 0c1.603.051 2.815 1.387 2.815 2.951zm-6.136-1.452a51.196 51.196 0 013.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 00-6 0v-.113c0-.794.609-1.428 1.636-1.452zM12.9 8.11a.75.75 0 10-1.5 0v6.923a.75.75 0 001.5 0V8.11zm-4.05.75a.75.75 0 00-1.5 0v6.923a.75.75 0 001.5 0V8.86zm9.6 0a.75.75 0 00-1.5 0v6.923a.75.75 0 001.5 0V8.86z" clipRule="evenodd" />
-                                </svg>
-                            </button>
-                        </div>
-                    )}
-                  </label>
-                </div>
-              </div>
-              </div>
-              
-              {!isSplit && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Asset Item</label>
-                  <select
-                    value={form.assetItemId || ''}
-                    onChange={e => setForm({...form, assetItemId: e.target.value ? Number(e.target.value) : ''})}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-sm font-medium text-slate-900 dark:text-[#f0f0f0] focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="">No linked asset</option>
-                    {assetGroups.map((g: any) => {
-                      const rootItems = (g.items || []).filter((it: any) => !it.parentItemId)
-                      if (rootItems.length === 0) return null
-                      return (
-                        <optgroup key={g.id} label={g.name}>
-                          {rootItems.map((it: any) => (
-                            <option key={it.id} value={it.id}>{it.name}</option>
-                          ))}
-                        </optgroup>
-                      )
-                    })}
-                  </select>
-                 </div>
-                </div>
-              )}
-
-               {/* Recurring Toggle */}
-               {!editingId && !isSplit && (
-                <div className="pt-2">
-                  <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-[#1f1f1f] cursor-pointer hover:bg-slate-200 dark:hover:bg-[#242424] dark:bg-[#1a1a1a] transition-colors">
-                    <div className="relative flex items-center">
-                      <input 
-                        type="checkbox" 
-                        checked={form.isRecurring} 
-                        onChange={e => setForm({...form, isRecurring: e.target.checked})}
-                        className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-slate-300 dark:border-[#282828] transition-all checked:border-blue-500 checked:bg-blue-500"
-                      />
-                      <svg className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                        <path fillRule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <span className="text-sm font-medium text-slate-700 dark:text-[#d8d8d8]">Recurring Transaction</span>
-                  </label>
-                  
-                  {form.isRecurring && (
-                    <div className="mt-3 pl-3 border-l-2 border-slate-100 dark:border-[#1f1f1f] space-y-3 animate-in slide-in-from-top-2">
+                  {/* Recurring options (Frequency and End Date) when recurring is checked */}
+                  {!editingId && !isSplit && form.isRecurring && (
+                    <div className="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 dark:bg-[#111111]/40 p-4 rounded-xl border border-slate-100 dark:border-[#1f1f1f]">
                       <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Frequency</label>
                         <div className="relative">
                           <div 
                             onClick={() => setShowFrequencyDropdown(!showFrequencyDropdown)}
-                            className={`w-full px-4 py-3 bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-sm font-medium text-slate-900 dark:text-[#f0f0f0] cursor-pointer flex items-center justify-between transition-all ${showFrequencyDropdown ? 'ring-2 ring-blue-500 border-transparent' : ''}`}
+                            className={`w-full px-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-sm font-medium text-slate-900 dark:text-[#f0f0f0] cursor-pointer flex items-center justify-between transition-all ${showFrequencyDropdown ? 'ring-2 ring-blue-500 border-transparent' : ''}`}
                           >
                             <span>
                               {form.frequency === 'WEEKLY' && 'Weekly'}
@@ -938,7 +832,7 @@ export const TransactionModal = memo(function TransactionModal({
                                     className={`px-4 py-3 text-sm font-medium cursor-pointer transition-colors flex items-center justify-between ${
                                       form.frequency === opt.val 
                                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
-                                        : 'text-slate-700 dark:text-[#d8d8d8] hover:bg-slate-200 dark:hover:bg-[#242424] dark:bg-[#1a1a1a]'
+                                        : 'text-slate-700 dark:text-[#d8d8d8] hover:bg-slate-50 dark:hover:bg-[#1a1a1a]'
                                     }`}
                                   >
                                     {opt.label}
@@ -962,7 +856,7 @@ export const TransactionModal = memo(function TransactionModal({
                             type="date" 
                             value={form.endDate} 
                             onChange={e => setForm({...form, endDate: e.target.value})}
-                            className="w-full px-4 py-3 bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-sm font-medium text-slate-900 dark:text-[#f0f0f0] focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                            className="w-full px-4 py-3 bg-white dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl text-sm font-medium text-slate-900 dark:text-[#f0f0f0] focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                           />
                           <div className="absolute right-4 pointer-events-none text-slate-300">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -973,6 +867,117 @@ export const TransactionModal = memo(function TransactionModal({
                       </div>
                     </div>
                   )}
+
+                  {/* Tags Input */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Tags</label>
+                    <TagInput
+                      tags={form.tags || []}
+                      onChange={(newTags) => setForm({ ...form, tags: newTags })}
+                    />
+                  </div>
+
+                  {/* Receipt Attachment */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1.5">Receipt</label>
+                    <div 
+                      className={`relative transition-all ${isHoveringReceipt ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900 rounded-xl' : ''}`}
+                      onMouseEnter={() => setIsHoveringReceipt(true)}
+                      onMouseLeave={() => setIsHoveringReceipt(false)}
+                    >
+                      <input 
+                        type="file" 
+                        id="receipt-upload"
+                        accept="image/*,application/pdf"
+                        onChange={e => {
+                          if (e.target.files && e.target.files[0]) {
+                            setForm({...form, receipt: e.target.files[0]});
+                          }
+                        }}
+                        className="hidden"
+                      />
+                      <label 
+                        htmlFor="receipt-upload"
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-[#111111] border border-slate-200 dark:border-[#1f1f1f] rounded-xl flex items-center cursor-pointer hover:bg-slate-100 dark:hover:bg-[#242424] dark:bg-[#1a1a1a] transition-colors"
+                      >
+                        <span className="mr-4 py-2 px-4 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-sm font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+                          Choose File
+                        </span>
+                        <span className="text-sm text-slate-500 dark:text-[#888] truncate flex-1">
+                          {form.receipt ? form.receipt.name : (form.attachmentPath ? "Existing Receipt Attached" : (isHoveringReceipt ? "Paste to upload..." : "No file chosen"))}
+                        </span>
+                        
+                        {/* Clear pending upload */}
+                        {form.receipt && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setForm({...form, receipt: null});
+                                }}
+                                className="ml-2 p-1 text-slate-500 hover:text-slate-700 dark:text-[#888] dark:hover:text-slate-200"
+                                title="Clear selection"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                                    <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                                </svg>
+                            </button>
+                        )}
+
+                        {/* View/Delete existing attachment */}
+                        {form.attachmentPath && !form.receipt && (
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        secureFetch(`/api/transactions/${editingId}/attachment`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+                                        .then(res => {
+                                            if (!res.ok) throw new Error('Failed to load');
+                                            return res.blob();
+                                        })
+                                        .then(blob => {
+                                          const url = window.URL.createObjectURL(blob);
+                                          window.open(url, '_blank');
+                                        })
+                                        .catch(() => showToast('Could not load receipt', 'error'));
+                                    }}
+                                    className="ml-2 p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                                    title="View Receipt"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                        <path fillRule="evenodd" d="M18.97 3.659a2.25 2.25 0 00-3.182 0l-10.94 10.94a3.75 3.75 0 105.304 5.303l7.693-7.693a.75.75 0 011.06 1.06l-7.693 7.693a5.25 5.25 0 11-7.424-7.424l10.939-10.94a3.75 3.75 0 115.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 015.91 15.66l7.81-7.81a.75.75 0 011.061 1.06l-7.81 7.81a.75.75 0 001.054 1.068L18.97 6.84a2.25 2.25 0 000-3.182z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        showAlert({
+                                          title: 'Remove Attachment',
+                                          message: 'Are you sure you want to remove this attachment?',
+                                          confirmText: 'Remove',
+                                          type: 'danger',
+                                          onConfirm: () => {
+                                            setForm({...form, attachmentPath: null, deleteAttachment: true});
+                                          }
+                                        });
+                                    }}
+                                    className="p-1 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                                    title="Remove Receipt"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                                      <path fillRule="evenodd" d="M16.5 4.478v.227a48.816 48.816 0 013.878.512.75.75 0 11-.256 1.478l-.209-.035-1.005 13.07a3 3 0 01-2.991 2.77H8.084a3 3 0 01-2.991-2.77L4.087 6.66l-.209.035a.75.75 0 01-.256-1.478A48.567 48.567 0 017.5 4.705v-.227c0-1.564 1.213-2.9 2.816-2.951a52.662 52.662 0 013.369 0c1.603.051 2.815 1.387 2.815 2.951zm-6.136-1.452a51.196 51.196 0 013.273 0C14.39 3.05 15 3.684 15 4.478v.113a49.488 49.488 0 00-6 0v-.113c0-.794.609-1.428 1.636-1.452zM12.9 8.11a.75.75 0 10-1.5 0v6.923a.75.75 0 001.5 0V8.11zm-4.05.75a.75.75 0 00-1.5 0v6.923a.75.75 0 001.5 0V8.86zm9.6 0a.75.75 0 00-1.5 0v6.923a.75.75 0 001.5 0V8.86z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
+                        )}
+                      </label>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1007,6 +1012,7 @@ export const TransactionModal = memo(function TransactionModal({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
     )
 })

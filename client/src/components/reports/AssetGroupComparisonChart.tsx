@@ -21,6 +21,7 @@ export const AssetGroupComparisonChart: React.FC<AssetGroupComparisonChartProps>
     return {
       textStyle: { fontFamily: 'Inter, sans-serif' },
       tooltip: {
+      transitionDuration: 0,
         trigger: 'axis',
         backgroundColor: isDark ? '#141414' : '#ffffff',
         borderColor: isDark ? '#141414' : '#e5e7eb',

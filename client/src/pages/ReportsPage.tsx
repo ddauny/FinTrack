@@ -146,9 +146,9 @@ export function ReportsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#101010] pb-24">
+    <div className="h-full overflow-y-auto custom-scrollbar">
        {/* Full Width Container */}
-       <div className="w-full px-6 sm:px-8 lg:px-12 py-6 space-y-6">
+       <div className="w-full px-6 sm:px-8 lg:px-12 py-6 space-y-6 pb-24">
           
           {/* Header & Controls */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">

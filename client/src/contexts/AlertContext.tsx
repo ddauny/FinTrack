@@ -39,7 +39,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
 
   const closeAlert = useCallback(() => {
     setIsOpen(false)
-    setTimeout(() => setConfig(null), 300) // Clear after animation
+    setTimeout(() => setConfig(null), 200) // Clear after animation
   }, [])
 
   const handleConfirm = () => {
@@ -77,7 +77,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
       {/* Backdrop */}
       <div 
         className={`
-          fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm transition-opacity duration-300
+          fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm transition-opacity duration-200 ease-out
           ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}
         `}
         onClick={handleCancel}
@@ -91,7 +91,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
         <div 
           className={`
             w-full max-w-sm bg-white dark:bg-[#101010] rounded-lg shadow-2xl 
-            transform transition-all duration-300 pointer-events-auto
+            transform transition-all duration-200 ease-out pointer-events-auto
             flex flex-col overflow-hidden
             ${isOpen ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-4'}
           `}

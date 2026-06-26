@@ -837,152 +837,354 @@ reportsRouter.get("/portfolio-analytics", requireAuth, async (req: AuthRequest, 
     const userId = req.userId!;
     const { start, end } = parseRange(req.query);
 
-    // 1. Treemap Data: AssetGroup -> AssetItem (with nested children) -> Final Current Value
-    const groups = await prisma.assetGroup.findMany({
+    // 1. Fetch asset groups with items and children
+    const allGroups = await prisma.assetGroup.findMany({
       where: { userId },
       include: {
         items: {
           include: {
-            children: { include: { valuations: { orderBy: { month: 'desc' }, take: 1 } } },
-            valuations: { orderBy: { month: 'desc' }, take: 1 }
+            children: true
           }
         }
       }
     });
 
-    const treemapData = groups.map(group => {
-      const topLevelItems = group.items.filter(i => !i.parentItemId);
-      let groupValue = 0;
-      
-      const children = topLevelItems.map(item => {
-        const itemVal = item.valuations.length > 0 ? Number(item.valuations[0].value) : 0;
-        
-        let childrenVal = 0;
-        const mappedChildren = item.children.map(child => {
-          const cVal = child.valuations.length > 0 ? Number(child.valuations[0].value) : 0;
-          childrenVal += cVal;
-          return { name: child.name, value: cVal };
-        });
+    const groups = allGroups.filter(g => g.isInvestment);
+    const groupIds = groups.map(g => g.id);
 
-        const totalVal = itemVal + childrenVal;
-        groupValue += totalVal;
-
-        return {
-          name: item.name,
-          value: totalVal,
-          children: mappedChildren.length > 0 ? mappedChildren : undefined
-        };
-      });
-
-      return {
-        name: group.name,
-        value: groupValue,
-        children
-      };
-    });
-
-    // 2. Contribution vs Market Growth
-    const txns = await prisma.transaction.findMany({
+    // Fetch all asset items in the selected groups (root + children)
+    const assetItems = await prisma.assetItem.findMany({
       where: {
-        userId,
-        assetItemId: { not: null },
-        ...(start && { date: { gte: start } }),
-        ...(end && { date: { lte: end } })
+        OR: [
+          { groupId: { in: groupIds } },
+          { parentItem: { groupId: { in: groupIds } } }
+        ]
       }
     });
-    
-    const valuations = await prisma.assetValuation.findMany({
-      where: {
-        item: {
-          OR: [
-            { group: { userId } },
-            { parentItem: { group: { userId } } }
-          ]
-        },
-        ...(start && { month: { gte: start } }),
-        ...(end && { month: { lte: end } })
-      },
-      include: { item: true }
-    });
+    const assetItemIds = assetItems.map(i => i.id);
 
-    // Group by month
-    const sortedMonths = Array.from(new Set([
-      ...txns.map(t => dayjs(t.date).format('YYYY-MM')),
+    // Fetch directly-linked transactions AND investment contribution (PAC) transactions
+    // PAC transactions use isAssetLinked categories and represent periodic investment deposits
+    const [directTxns, pacTxns, valuations] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { userId, assetItemId: { in: assetItemIds } },
+        include: { category: true }
+      }),
+      prisma.transaction.findMany({
+        where: {
+          userId,
+          assetItemId: null,
+          category: { isAssetLinked: true }
+        },
+        include: { category: true }
+      }),
+      prisma.assetValuation.findMany({
+        where: {
+          item: {
+            OR: [
+              { groupId: { in: groupIds } },
+              { parentItem: { groupId: { in: groupIds } } }
+            ]
+          }
+        },
+        orderBy: { month: 'asc' },
+        include: { item: true }
+      })
+    ]);
+
+    // Build lookup maps for valuations and direct transactions
+    const itemValuations = new Map<number, any[]>();
+    for (const v of valuations) {
+      if (!itemValuations.has(v.itemId)) itemValuations.set(v.itemId, []);
+      itemValuations.get(v.itemId)!.push(v);
+    }
+
+    const itemTxns = new Map<number, any[]>();
+    for (const t of directTxns) {
+      if (t.assetItemId) {
+        if (!itemTxns.has(t.assetItemId)) itemTxns.set(t.assetItemId, []);
+        itemTxns.get(t.assetItemId)!.push(t);
+      }
+    }
+
+    // All sorted months (valuations + all investment transactions)
+    const allSortedMonths = Array.from(new Set([
+      ...directTxns.map(t => dayjs(t.date).format('YYYY-MM')),
+      ...pacTxns.map(t => dayjs(t.date).format('YYYY-MM')),
       ...valuations.map(v => dayjs(v.month).format('YYYY-MM'))
     ])).sort();
 
-    const txnsPre = await prisma.transaction.aggregate({
-      where: {
-        userId,
-        assetItemId: { not: null },
-        ...(start && { date: { lt: start } })
-      },
-      _sum: { amount: true }
-    });
-    let cumulativeContrib = Number(txnsPre._sum.amount || 0);
+    // Separate root items from children
+    const rootItems = assetItems.filter(i => !i.parentItemId);
 
-    const contributionGrowth: any[] = [];
-    let lastValuation = 0;
-    
-    for (const monthStr of sortedMonths) {
-      const monthTxns = txns.filter(t => dayjs(t.date).format('YYYY-MM') === monthStr);
-      for (const t of monthTxns) {
-         cumulativeContrib += Number(t.amount);
+    // Helper: round to 2 decimal places to eliminate Prisma Decimal floating-point noise
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+
+    // For each root item, compute its effective monthly valuation:
+    // = own valuation if it exists, OR sum of children valuations for that month
+    const getEffectiveVal = (item: any, monthStr: string): number | null => {
+      const ownVals = itemValuations.get(item.id) || [];
+      const ownEntry = ownVals.find((v: any) => dayjs(v.month).format('YYYY-MM') === monthStr);
+      if (ownEntry) return r2(Number(ownEntry.value));
+
+      const children = assetItems.filter((c: any) => c.parentItemId === item.id);
+      if (children.length > 0) {
+        let sum = 0; let hasAny = false;
+        for (const child of children) {
+          const childVals = itemValuations.get(child.id) || [];
+          const childEntry = childVals.find((v: any) => dayjs(v.month).format('YYYY-MM') === monthStr);
+          if (childEntry) { sum += r2(Number(childEntry.value)); hasAny = true; }
+        }
+        if (hasAny) return r2(sum);
       }
+      return null;
+    };
 
-      const monthVals = valuations.filter(v => dayjs(v.month).format('YYYY-MM') === monthStr);
-      let monthValuation = 0;
-      if (monthVals.length > 0) {
-        monthValuation = monthVals.reduce((sum, v) => sum + Number(v.value), 0);
-        lastValuation = monthValuation;
-      } else {
-        monthValuation = lastValuation;
+    const getCarriedForwardVal = (itemId: number, targetMonthStr: string): number => {
+      const ownVals = itemValuations.get(itemId) || [];
+      const sortedVals = [...ownVals].sort((a, b) => dayjs(a.month).valueOf() - dayjs(b.month).valueOf());
+      
+      let lastVal = 0;
+      for (const v of sortedVals) {
+        const mStr = dayjs(v.month).format('YYYY-MM');
+        if (mStr <= targetMonthStr) {
+          lastVal = r2(Number(v.value));
+        } else {
+          break;
+        }
       }
+      return lastVal;
+    };
 
-      contributionGrowth.push({
-        month: monthStr,
-        contribution: cumulativeContrib,
-        valuation: monthValuation
+    const getEffectiveCarriedForwardVal = (item: any, targetMonthStr: string): number => {
+      const ownVal = getCarriedForwardVal(item.id, targetMonthStr);
+      if (ownVal > 0) return ownVal;
+
+      const children = assetItems.filter((c: any) => c.parentItemId === item.id);
+      if (children.length > 0) {
+        let sum = 0;
+        for (const child of children) {
+          sum += getEffectiveCarriedForwardVal(child, targetMonthStr);
+        }
+        return r2(sum);
+      }
+      return 0;
+    };
+
+    interface ItemState {
+      itemId: number;
+      hasValuations: boolean;
+      m_first?: string;
+      v_first?: number;
+      valVal: number;
+      history: Map<string, { valuation: number }>;
+    }
+
+    // Build valuation states (one per root item, tracking only valuation)
+    const itemStates: ItemState[] = [];
+    for (const item of rootItems) {
+      const firstValMonth = allSortedMonths.find(m => getEffectiveVal(item, m) !== null) ?? null;
+      const firstValValue = firstValMonth ? getEffectiveVal(item, firstValMonth) : null;
+      const hasValuations = firstValMonth !== null;
+
+      itemStates.push({
+        itemId: item.id,
+        hasValuations,
+        m_first: firstValMonth ?? undefined,
+        v_first: firstValValue ?? undefined,
+        valVal: 0,
+        history: new Map()
       });
     }
 
+    // === CONTRIBUTION calculation (separate from valuation) ===
+    // Global start: earliest initialContributionDate among root items (or first valuation month)
+    const rootItemsWithStart = rootItems.filter(i => (i as any).initialContributionDate);
+    const globalStartMonth = rootItemsWithStart.length > 0
+      ? rootItemsWithStart
+          .map(i => dayjs((i as any).initialContributionDate).format('YYYY-MM'))
+          .sort()[0]
+      : (allSortedMonths[0] ?? null);
+
+    // Sum of all initialContributions (flat total at start)
+    const totalInitialContrib = r2(rootItems.reduce((sum, i) => {
+      return sum + ((i as any).initialContribution != null ? r2(Number((i as any).initialContribution)) : 0);
+    }, 0));
+
+    // PAC transactions by month (isAssetLinked, not current month)
+    const currentCalendarMonth = dayjs().format('YYYY-MM');
+    const pacByMonth = new Map<string, number>();
+    for (const t of pacTxns) {
+      const m = dayjs(t.date).format('YYYY-MM');
+      if (m === currentCalendarMonth) continue;
+      const amt = (t.type === 'Expense' || t.type === 'Transfer') ? r2(Number(t.amount)) : -r2(Number(t.amount));
+      pacByMonth.set(m, r2((pacByMonth.get(m) || 0) + amt));
+    }
+    // Direct txns by month (for contribution tracking)
+    const directByMonth = new Map<string, number>();
+    for (const t of directTxns) {
+      const m = dayjs(t.date).format('YYYY-MM');
+      if (m === currentCalendarMonth) continue;
+      const amt = (t.type === 'Expense' || t.type === 'Transfer') ? r2(Number(t.amount)) : -r2(Number(t.amount));
+      directByMonth.set(m, r2((directByMonth.get(m) || 0) + amt));
+    }
+
+    // Find the effective end month based on user filter or last available month
+    const endMonthFilter = end ? dayjs(end).format('YYYY-MM') : null;
+    let effectiveEndMonth = allSortedMonths.length > 0 ? allSortedMonths[allSortedMonths.length - 1] : '';
+    if (endMonthFilter && allSortedMonths.length > 0) {
+      const matchingMonths = allSortedMonths.filter(m => m <= endMonthFilter);
+      if (matchingMonths.length > 0) effectiveEndMonth = matchingMonths[matchingMonths.length - 1];
+    }
+
+    const itemValInEndMonth = new Map<number, number>();
+    const overallTimeline: { month: string; contribution: number; valuation: number }[] = [];
+
+    let runningContrib = 0;
+    let contribStarted = false;
+
+    for (const monthStr of allSortedMonths) {
+      if (monthStr === currentCalendarMonth) continue;
+
+      // === CONTRIBUTION ===
+      if (globalStartMonth !== null) {
+        if (monthStr < globalStartMonth) {
+          runningContrib = 0;
+        } else if (monthStr === globalStartMonth) {
+          // At start month: set initial capital + any PAC that month
+          runningContrib = r2(totalInitialContrib + (pacByMonth.get(monthStr) || 0) + (directByMonth.get(monthStr) || 0));
+          contribStarted = true;
+        } else if (contribStarted) {
+          // After start: accumulate PAC + direct transactions
+          runningContrib = r2(runningContrib + (pacByMonth.get(monthStr) || 0) + (directByMonth.get(monthStr) || 0));
+        }
+      }
+
+      // === VALUATION ===
+      let monthTotalValuation = 0;
+      for (const state of itemStates) {
+        const itemObj = rootItems.find(i => i.id === state.itemId)!;
+        const effectiveVal = getEffectiveVal(itemObj, monthStr);
+
+        if (state.hasValuations) {
+          if (monthStr < state.m_first!) {
+            state.valVal = 0;
+          } else if (monthStr === state.m_first!) {
+            state.valVal = state.v_first!;
+          } else {
+            state.valVal = effectiveVal !== null ? effectiveVal : state.valVal;
+          }
+        } else {
+          state.valVal = 0;
+        }
+        if (state.valVal < 0) state.valVal = 0;
+        state.history.set(monthStr, { valuation: state.valVal });
+        monthTotalValuation = r2(monthTotalValuation + state.valVal);
+      }
+
+      if (monthStr === effectiveEndMonth) {
+        for (const s of itemStates) {
+          itemValInEndMonth.set(s.itemId, s.valVal);
+        }
+      }
+
+      overallTimeline.push({ month: monthStr, contribution: runningContrib, valuation: monthTotalValuation });
+    }
+
+
+
+    // Filter the timeline by date range
+    let filteredTimeline = overallTimeline;
+    const startMonthFilter = start ? dayjs(start).format('YYYY-MM') : null;
+    if (startMonthFilter) {
+      filteredTimeline = filteredTimeline.filter(t => t.month >= startMonthFilter);
+    }
+    if (endMonthFilter) {
+      filteredTimeline = filteredTimeline.filter(t => t.month <= endMonthFilter);
+    }
+
     // 3. CAGR and Total Return
-    const finalValuation = contributionGrowth.length > 0 ? contributionGrowth[contributionGrowth.length - 1].valuation : 0;
-    const finalContribution = cumulativeContrib;
+    const finalValuation = filteredTimeline.length > 0 ? filteredTimeline[filteredTimeline.length - 1].valuation : 0;
+    const finalContribution = filteredTimeline.length > 0 ? filteredTimeline[filteredTimeline.length - 1].contribution : 0;
 
     const totalReturn = finalContribution > 0 ? ((finalValuation - finalContribution) / finalContribution) * 100 : 0;
     
     let cagr = 0;
     if (start && end && finalContribution > 0) {
        const years = dayjs(end).diff(dayjs(start), 'year', true);
-       if (years > 0) {
-          cagr = (Math.pow(finalValuation / finalContribution, 1 / years) - 1) * 100;
+       if (years > 0.08) {
+          cagr = (Math.pow(Math.max(0, finalValuation) / finalContribution, 1 / years) - 1) * 100;
        }
     }
 
-    // 4. MoM Correlation Matrix
+    // Generate Treemap Data: use getEffectiveCarriedForwardVal for accurate carried-forward end-month values
+    const treemapData = groups.map(group => {
+      const topLevelItems = group.items.filter(i => !i.parentItemId);
+      let groupValue = 0;
+
+      const children = topLevelItems.map(item => {
+        // Use getEffectiveCarriedForwardVal which handles own valuation OR sum of children (carried forward)
+        const totalVal = effectiveEndMonth ? getEffectiveCarriedForwardVal(item, effectiveEndMonth) : 0;
+        groupValue += totalVal;
+
+        // For treemap children display: get individual children values carried forward
+        const subChildren = (item.children || []).map((child: any) => {
+          const val = effectiveEndMonth ? getEffectiveCarriedForwardVal(child, effectiveEndMonth) : 0;
+          return { name: child.name, value: val };
+        }).filter((c: any) => c.value > 0);
+
+        return {
+          name: item.name,
+          value: totalVal,
+          children: subChildren.length > 0 ? subChildren : undefined
+        };
+      });
+
+      return { name: group.name, value: groupValue, children };
+    });
+
+    const concentrationRisk = treemapData.map(g => ({
+        name: g.name,
+        percentage: finalValuation > 0 ? (g.value / finalValuation) * 100 : 0
+    })).sort((a,b) => b.percentage - a.percentage);
+
+    // 4. MoM Correlation Matrix (for filtered months)
     const correlationMatrix: Record<string, Record<string, number>> = {};
     const groupsNames = groups.map(g => g.name);
     
     const groupMoMs: Record<string, number[]> = {};
-    
-    for (const group of groups) {
-      const gVals = valuations.filter(v => 
-        group.items.some(i => i.id === v.item.id || i.children.some(c => c.id === v.item.id))
-      );
-      const moVals: Record<string, number> = {};
-      for (const v of gVals) {
-        const m = dayjs(v.month).format('YYYY-MM');
-        moVals[m] = (moVals[m] || 0) + Number(v.value);
+
+    const filteredMonthsList = allSortedMonths.filter(m => {
+      if (startMonthFilter && m < startMonthFilter) return false;
+      if (endMonthFilter && m > endMonthFilter) return false;
+      return true;
+    });
+
+    const getGroupVal = (group: typeof groups[0], mStr: string) => {
+      let sum = 0;
+      for (const item of group.items) {
+        const state = itemStates.find(s => s.itemId === item.id);
+        if (state) {
+          sum += state.history.get(mStr)?.valuation || 0;
+        }
       }
+      return sum;
+    };
+
+    for (const group of groups) {
       const moms: number[] = [];
-      for (let i = 1; i < sortedMonths.length; i++) {
-         const m1 = sortedMonths[i-1];
-         const m2 = sortedMonths[i];
-         const v1 = moVals[m1] || 0;
-         const v2 = moVals[m2] || 0;
-         const ret = v1 > 0 ? (v2 - v1) / v1 : 0;
-         moms.push(ret);
+      for (let i = 0; i < filteredMonthsList.length; i++) {
+        const currentMonth = filteredMonthsList[i];
+        
+        // Find previous month relative to current month in allSortedMonths to compute MoM return correctly
+        const allIdx = allSortedMonths.indexOf(currentMonth);
+        const prevMonth = allIdx > 0 ? allSortedMonths[allIdx - 1] : null;
+        if (!prevMonth) continue;
+
+        const v1 = getGroupVal(group, prevMonth);
+        const v2 = getGroupVal(group, currentMonth);
+        const ret = v1 > 0 ? (v2 - v1) / v1 : 0;
+        moms.push(ret);
       }
       groupMoMs[group.name] = moms;
     }
@@ -1010,11 +1212,26 @@ reportsRouter.get("/portfolio-analytics", requireAuth, async (req: AuthRequest, 
       }
     }
 
+    // New Metric: Saving Rate (Last 12 months)
+    const yearAgo = dayjs().subtract(1, 'year').toDate();
+    const incomeTxns = await prisma.transaction.aggregate({
+        where: { userId, category: { type: 'Income' }, date: { gte: yearAgo } },
+        _sum: { amount: true }
+    });
+    const expenseTxns = await prisma.transaction.aggregate({
+        where: { userId, category: { type: 'Expense' }, date: { gte: yearAgo } },
+        _sum: { amount: true }
+    });
+    const totalInc = Number(incomeTxns._sum.amount || 0);
+    const totalExp = Math.abs(Number(expenseTxns._sum.amount || 0));
+    const savingRate = totalInc > 0 ? ((totalInc - totalExp) / totalInc) * 100 : 0;
+
     return res.json({
       treemapData,
-      contributionGrowth,
-      metrics: { totalReturn, cagr },
-      correlationMatrix
+      contributionGrowth: filteredTimeline,
+      metrics: { totalReturn, cagr, savingRate, finalValuation, finalContribution },
+      correlationMatrix,
+      concentrationRisk
     });
   } catch (error) {
      console.error('Error in portfolio-analytics:', error);

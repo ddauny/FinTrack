@@ -43,7 +43,8 @@ export const TagAnalysisSection: React.FC<TagAnalysisSectionProps> = ({ isDark, 
 
   const option = useMemo(() => ({
      textStyle: { fontFamily: 'Inter, sans-serif', color: chartTextColor },
-     tooltip: { 
+     tooltip: {
+      transitionDuration: 0, 
         trigger: 'axis', 
         axisPointer: { type: 'shadow' },
         backgroundColor: isDark ? '#141414' : '#ffffff', 

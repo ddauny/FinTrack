@@ -53,13 +53,13 @@ export function MonthlySummaryPage() {
         
         // Fetch transactions for the selected month
         const query = `?startDate=${startDate}&endDate=${endDate}&limit=1000`
-        console.log('Fetching transactions with query:', query)
+        
         const res = await api.transactions.list(query)
         
         if (!isMounted) return
 
         const transactions = (res as any).items || []
-        console.log('Fetched transactions:', transactions.length, 'items')
+        
 
         // Group by category type and calculate totals
         const income = new Map()
@@ -91,13 +91,7 @@ export function MonthlySummaryPage() {
         const totalIncome = incomeArray.reduce((sum, item) => sum + item.amount, 0)
         const totalExpenses = expensesArray.reduce((sum, item) => sum + item.amount, 0)
 
-        console.log('Processed data:', {
-          income: incomeArray,
-          expenses: expensesArray,
-          totalIncome,
-          totalExpenses,
-          netResult: totalIncome - totalExpenses
-        })
+        
 
         if (isMounted) {
           setMonthlyData({
@@ -204,6 +198,7 @@ export function MonthlySummaryPage() {
   const incomeChartOption = useMemo(() => ({
     backgroundColor: 'transparent',
     tooltip: {
+      transitionDuration: 0,
       trigger: 'item',
       backgroundColor: resolved === 'dark' ? '#141414' : '#ffffff',
       borderColor: resolved === 'dark' ? '#1f1f1f' : '#e2e8f0',
@@ -269,6 +264,7 @@ export function MonthlySummaryPage() {
   const expensesChartOption = useMemo(() => ({
     backgroundColor: 'transparent',
     tooltip: {
+      transitionDuration: 0,
       trigger: 'item',
       backgroundColor: resolved === 'dark' ? '#141414' : '#ffffff',
       borderColor: resolved === 'dark' ? '#1f1f1f' : '#e2e8f0',
@@ -346,7 +342,7 @@ export function MonthlySummaryPage() {
   }
 
   return (
-    <div className={`flex flex-col p-3 gap-3 ${isMobile ? 'overflow-y-auto hide-scrollbar h-auto min-h-[calc(100vh-3.5rem)]' : 'h-[calc(100vh-3.5rem)] overflow-y-auto hide-scrollbar'}`}>
+    <div className={`flex flex-col p-3 gap-3 h-full ${isMobile ? 'overflow-y-auto hide-scrollbar' : 'overflow-hidden'}`}>
       {selectedCategory && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-2 flex items-center justify-between shrink-0">
           <div className="text-xs text-blue-800 dark:text-blue-100">Viewing category: <strong className="font-semibold">{selectedCategory}</strong></div>
@@ -357,7 +353,7 @@ export function MonthlySummaryPage() {
       {/* Top Section: Month Selector + Summary Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 shrink-0">
         {/* Month Selector - Takes 1 col */}
-        <div className="bg-white dark:bg-[#111111] p-4 rounded-lg border border-slate-200/80 dark:border-[#1f1f1f] flex flex-col justify-center items-center">
+        <div className="glass-card gradient-border-card p-4 rounded-xl flex flex-col justify-center items-center shadow-sm">
           <div className="text-xs text-slate-500 dark:text-[#bbb] uppercase tracking-wider mb-1">Selected Month</div>
           <div className="flex items-center justify-between w-full">
             <button 
@@ -388,7 +384,7 @@ export function MonthlySummaryPage() {
         {monthlyData && (
           <>
             {/* Income */}
-            <div className="bg-white dark:bg-[#111111] p-4 rounded-lg border border-slate-200/80 dark:border-[#1f1f1f] flex items-center justify-between relative overflow-hidden">
+            <div className="glass-card gradient-border-card p-4 rounded-xl flex items-center justify-between relative overflow-hidden shadow-sm hover:shadow-md hover:translate-y-[-2px] transition-all duration-300">
               <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500 rounded-l-2xl" />
               <div className="pl-2">
                 <p className="text-xs font-semibold text-slate-400 dark:text-[#888] uppercase tracking-wider">Total Income</p>
@@ -406,7 +402,7 @@ export function MonthlySummaryPage() {
             </div>
 
             {/* Expenses */}
-            <div className="bg-white dark:bg-[#111111] p-4 rounded-lg border border-slate-200/80 dark:border-[#1f1f1f] flex items-center justify-between relative overflow-hidden">
+            <div className="glass-card gradient-border-card p-4 rounded-xl flex items-center justify-between relative overflow-hidden shadow-sm hover:shadow-md hover:translate-y-[-2px] transition-all duration-300">
               <div className="absolute top-0 left-0 w-1 h-full bg-rose-500 rounded-l-2xl" />
               <div className="pl-2">
                 <p className="text-xs font-semibold text-slate-400 dark:text-[#888] uppercase tracking-wider">Total Expenses</p>
@@ -424,7 +420,7 @@ export function MonthlySummaryPage() {
             </div>
 
             {/* Net Result */}
-            <div className="bg-white dark:bg-[#111111] p-4 rounded-lg border border-slate-200/80 dark:border-[#1f1f1f] flex items-center justify-between relative overflow-hidden">
+            <div className="glass-card gradient-border-card p-4 rounded-xl flex items-center justify-between relative overflow-hidden shadow-sm hover:shadow-md hover:translate-y-[-2px] transition-all duration-300">
               <div className={`absolute top-0 left-0 w-1 h-full rounded-l-2xl ${monthlyData.netResult >= 0 ? 'bg-blue-500' : 'bg-orange-500'}`} />
               <div className="pl-2">
                 <p className="text-xs font-semibold text-slate-400 dark:text-[#888] uppercase tracking-wider">Net Result</p>
@@ -445,10 +441,10 @@ export function MonthlySummaryPage() {
       </div>
 
       {monthlyData && (
-        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-3 ${isMobile ? '' : ' min-h-0'}`}>
+        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-3 ${isMobile ? '' : 'min-h-0 flex-1'}`}>
           
           {/* Income Section */}
-          <div className={`bg-white dark:bg-[#111111] p-4 rounded-lg border border-slate-200/80 dark:border-[#1f1f1f] flex flex-col ${isMobile ? '' : 'h-full overflow-hidden'}`}>
+          <div className={`glass-card gradient-border-card p-4 rounded-xl flex flex-col shadow-sm ${isMobile ? '' : 'h-full overflow-hidden'}`}>
             <h3 className="text-base font-bold text-slate-900 dark:text-[#f0f0f0] mb-3 shrink-0">Income Breakdown</h3>
             
             <div className="h-[300px] shrink-0">
@@ -489,7 +485,7 @@ export function MonthlySummaryPage() {
           </div>
 
           {/* Expenses Section */}
-          <div className={`bg-white dark:bg-[#111111] p-4 rounded-lg border border-slate-200/80 dark:border-[#1f1f1f] flex flex-col ${isMobile ? '' : 'h-full overflow-hidden'}`}>
+          <div className={`glass-card gradient-border-card p-4 rounded-xl flex flex-col shadow-sm ${isMobile ? '' : 'h-full overflow-hidden'}`}>
             <h3 className="text-base font-bold text-slate-900 dark:text-[#f0f0f0] mb-3 shrink-0">Expense Breakdown</h3>
             
             <div className="h-[300px] shrink-0">

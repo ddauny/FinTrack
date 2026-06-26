@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
 import { parsePagination } from "../utils/pagination.js";
@@ -8,8 +9,69 @@ import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { generatePrismaFilter } from "../services/ai.js";
 
 export const transactionsRouter = Router();
+
+// ... existing code ...
+
+transactionsRouter.post("/ai-query", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { prompt } = req.body;
+
+    // Security: Check if user has AI features enabled
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.isAiEnabled) {
+      return res.status(403).json({ error: "AI features are disabled for this account." });
+    }
+
+    if (!prompt || typeof prompt !== 'string') return res.status(400).json({ error: "Prompt is required and must be a string" });
+    if (prompt.length > 500) return res.status(400).json({ error: "Prompt is too long (max 500 characters)" });
+
+    // Fetch context to help AI map names and types
+    const categories = await prisma.category.findMany({ where: { userId }, select: { name: true, type: true } });
+    const accounts = await prisma.account.findMany({ where: { userId }, select: { name: true } });
+    const tags = await prisma.tag.findMany({ where: { userId }, select: { name: true } });
+
+    const filter = await generatePrismaFilter(prompt, {
+      categories: categories.map(c => `${c.name} (${c.type})`),
+      accounts: accounts.map(a => a.name),
+      tags: tags.map(t => t.name)
+    });
+
+    // console.log("[AI Query] Generated Filter:", JSON.stringify(filter));
+
+    // Security: Merge with userId to ensure no data leakage
+    const secureFilter = { ...filter, userId };
+
+    const items = await prisma.transaction.findMany({
+      where: secureFilter,
+      include: { category: true, account: true },
+      orderBy: { date: "desc" },
+      take: 100 // Limit for safety
+    });
+
+    res.json({ items, filterApplied: filter });
+  } catch (error) {
+    console.error("AI Query Error:", error);
+    res.status(500).json({ error: "AI failed to process your request." });
+  }
+});
+
+transactionsRouter.get("/export-json", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const items = await prisma.transaction.findMany({
+      where: { userId },
+      include: { category: true, account: true },
+      orderBy: { date: "desc" }
+    });
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({ error: "Export failed" });
+  }
+});
 
 // Enable strict format-based parsing like DD/MM/YYYY
 dayjs.extend(customParseFormat);
@@ -87,7 +149,7 @@ const requireLocalNetwork = (req: any, res: any, next: any) => {
     ip.startsWith('192.168.') || 
     (ip.startsWith('172.') && parseInt(ip.split('.')[1], 10) >= 16 && parseInt(ip.split('.')[1], 10) <= 31);
 
-  console.log(`[Security] IP Check: ${ip} -> ${isLocal ? 'ALLOWED' : 'BLOCKED'}`);
+  // console.log(`[Security] IP Check: ${ip} -> ${isLocal ? 'ALLOWED' : 'BLOCKED'}`);
 
   if (!isLocal) {
     return res.status(403).json({ error: "Access denied: Restricted to local network." });
@@ -123,11 +185,11 @@ transactionsRouter.post(
       const parse = remoteJsonSchema.safeParse(req.body);
       if (!parse.success) {
         console.error("Validation failed:", parse.error);
-        return res.status(400).json({ error: "Invalid JSON structure", details: parse.error });
+        return res.status(400).json({ error: "Invalid JSON structure", details: env.isProduction ? undefined : parse.error });
       }
       
       const incomingTxns = parse.data.transactions;
-      console.log(`[Import JSON] Received ${incomingTxns.length} transactions for user ${userId}`);
+      // console.log(`[Import JSON] Received ${incomingTxns.length} transactions for user ${userId}`);
 
       // 2. Setup Account e Categoria Default
       // Trova o crea account principale
@@ -161,7 +223,7 @@ transactionsRouter.post(
         const parsedDate = dayjs(t.Date, "DD.MM.YYYY", true);
         
         if (!parsedDate.isValid()) {
-          console.warn(`Skipping invalid date: ${t.Date}`);
+          // console.warn(`Skipping invalid date: ${t.Date}`);
           continue;
         }
         
@@ -222,7 +284,7 @@ transactionsRouter.post(
         addedCount++;
       }
 
-      console.log(`[Import JSON] Complete. Added: ${addedCount}, Skipped: ${skippedCount}`);
+      // console.log(`[Import JSON] Complete. Added: ${addedCount}, Skipped: ${skippedCount}`);
       
       return res.json({ 
         success: true, 
@@ -240,9 +302,14 @@ transactionsRouter.post(
 */
 transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
   const { page, limit, skip } = parsePagination(req.query as any);
-  const sortBy = String((req.query as any).sortBy ?? "date");
+  let sortBy = String((req.query as any).sortBy ?? "date");
+  const allowedSortFields = ["date", "amount", "notes", "accountId", "categoryId", "id", "type"];
+  if (!allowedSortFields.includes(sortBy)) {
+    sortBy = "date";
+  }
   const order = String((req.query as any).order ?? "desc").toLowerCase() === "asc" ? "asc" : "desc";
-  const filterByCategory = (req.query as any).filterByCategory ? Number((req.query as any).filterByCategory) : undefined;
+  const filterByCategoryRaw = (req.query as any).filterByCategory;
+  const filterByCategory = filterByCategoryRaw && !Number.isNaN(Number(filterByCategoryRaw)) ? Number(filterByCategoryRaw) : undefined;
   const categoryName = (req.query as any).category;
   const startDate = (req.query as any).startDate;
   const endDate = (req.query as any).endDate;
@@ -475,10 +542,32 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
       }
 
       return {
-        notes: {
-          contains: term,
-          mode: 'insensitive'
-        }
+        OR: [
+          {
+            notes: {
+              contains: term,
+              mode: 'insensitive'
+            }
+          },
+          {
+            category: {
+              name: {
+                contains: term,
+                mode: 'insensitive'
+              }
+            }
+          },
+          {
+            tags: {
+              some: {
+                name: {
+                  contains: term,
+                  mode: 'insensitive'
+                }
+              }
+            }
+          }
+        ]
       };
     };
 
@@ -523,8 +612,8 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
     orderBy = { id: order };
   }
 
-  console.log('Final where clause:', JSON.stringify(where, null, 2));
-  console.log('Search query:', searchQuery);
+  // console.log('Final where clause:', JSON.stringify(where, null, 2));
+  // console.log('Search query:', searchQuery);
 
   const [items, total] = await Promise.all([
     prisma.transaction.findMany({ 
@@ -620,7 +709,7 @@ transactionsRouter.get("/notes", requireAuth, async (req: AuthRequest, res) => {
   
   // Deduplicate notes, keeping the most recent one (first in array due to desc sort)
   const seenNotes = new Set<string>();
-  const suggestions = [];
+  const suggestions: any[] = [];
 
   for (const t of notesWithCategory) {
     if (t.notes && !seenNotes.has(t.notes)) {
@@ -710,18 +799,50 @@ transactionsRouter.post("/", requireAuth, upload.single('receipt'), async (req: 
   const parse = createSchema.safeParse(rawBody);
   if (!parse.success) {
     if (req.file) fs.unlinkSync(req.file.path); // Cleanup
-    console.error(parse.error); return res.status(400).json({ error: "Invalid payload", details: parse.error });
+    console.error(parse.error); return res.status(400).json({ error: "Invalid payload", details: env.isProduction ? undefined : parse.error });
   }
   const data = parse.data;
-const baseDate = dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm:ss.SSSZ" as any], true).isValid()
+
+  // Security Check: Verify account ownership
+  const account = await prisma.account.findFirst({
+    where: { id: data.accountId, userId: req.userId! }
+  });
+  if (!account) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(403).json({ error: "Access denied to account" });
+  }
+
+  // Security Check: Verify asset item ownership
+  if (data.assetItemId) {
+    const assetItem = await prisma.assetItem.findFirst({
+      where: { id: data.assetItemId, group: { userId: req.userId! } }
+    });
+    if (!assetItem) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(403).json({ error: "Access denied to asset item" });
+    }
+  }
+
+  const baseDate = dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm:ss.SSSZ" as any], true).isValid()
     ? dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm:ss.SSSZ" as any], true).toDate()
     : new Date(data.date);
 
   if (data.splits && data.splits.length > 0) {
-    const splitGroupId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const createdItems = [];
+    // Security Check: Verify splits category ownership
     for (const split of data.splits) {
-      const splitCat = await prisma.category.findUnique({ where: { id: split.categoryId } });
+      const splitCat = await prisma.category.findFirst({
+        where: { id: split.categoryId, userId: req.userId! }
+      });
+      if (!splitCat) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(403).json({ error: "Access denied to split category" });
+      }
+    }
+
+    const splitGroupId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const createdItems: any[] = [];
+    for (const split of data.splits) {
+      const splitCat = await prisma.category.findFirst({ where: { id: split.categoryId, userId: req.userId! } });
       const splitType = splitCat?.type || "Expense";
       const item = await prisma.transaction.create({
         data: {
@@ -751,8 +872,16 @@ const baseDate = dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm
     if (!data.categoryId) {
         return res.status(400).json({ error: "Category is required if no splits are provided" });
     }
-    const category = await prisma.category.findUnique({ where: { id: data.categoryId } });
-    const type = category?.type || "Expense";
+    // Security Check: Verify category ownership
+    const category = await prisma.category.findFirst({
+      where: { id: data.categoryId, userId: req.userId! }
+    });
+    if (!category) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(403).json({ error: "Access denied to category" });
+    }
+
+    const type = category.type || "Expense";
     const item = await prisma.transaction.create({
       data: {
         userId: req.userId!,
@@ -778,27 +907,24 @@ const baseDate = dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY", "YYYY-MM-DDTHH:mm
   }
 });
 
-// 1. Definisci il nuovo schema di validazione (più semplice)
+// Shortcut expense schema — accountId is the account to charge
 const shortcutExpenseSchema = z.object({
   amount: z.number().positive("Amount must be a positive number"),
-  userId: z.number().int("accountId must be an integer"), // O z.string() se usi CUID/UUID
+  accountId: z.number().int("accountId must be an integer"),
   notes: z.string().optional(),
   type: z.enum(["Expense", "Income"]).default("Expense"),
-  categoryId: z.number().int("categoryId must be an integer").optional(), // Categoria opzionale
-  categoryName: z.string().optional(), // Nome categoria opzionale (alternativa a categoryId)
+  categoryId: z.number().int("categoryId must be an integer").optional(),
+  categoryName: z.string().optional(),
 });
 
-// 2. Crea il nuovo endpoint
+// Shortcut endpoint: create an expense/income quickly
 transactionsRouter.post(
   "/addExpenseFromShortcut",
-  requireAuth, // <-- RIUTILIZZIAMO L'AUTENTICAZIONE!
+  requireAuth,
   async (req: AuthRequest, res) => {
-    
-    // 3. VALIDAZIONE con Zod (Sicurezza contro dati malformati)
-    console.log("PAYLOAD RICEVUTO:", req.body); // STAMPA IL PAYLOAD
     const parse = shortcutExpenseSchema.safeParse(req.body);
     if (!parse.success) {
-      return res.status(400).json({ error: "Invalid payload", details: parse.error });
+      return res.status(400).json({ error: "Invalid payload" });
     }
     const data = parse.data;
 
@@ -806,8 +932,14 @@ transactionsRouter.post(
     // Dobbiamo trovare una categoria "di servizio" (es. "Da categorizzare")
     // che sia di tipo "Expense" e appartenga a questo utente.
     
-    const userId = req.userId!; // Ottenuto da requireAuth
-    const defaultCategoryName = "Da categorizzare"; // O "Uncategorized"
+    const userId = req.userId!;
+
+    // Verify the account belongs to the authenticated user
+    const account = await prisma.account.findFirst({ where: { id: data.accountId, userId } });
+    if (!account) return res.status(403).json({ error: "Account not found or access denied" });
+
+
+    const defaultCategoryName = "Uncategorized";
 
     let defaultCategory = await prisma.category.findFirst({
       where: {
@@ -828,77 +960,16 @@ transactionsRouter.post(
       });
     }
 
-    // 5. CREAZIONE TRANSAZIONE (Sicuro grazie a Prisma)
+    // 5. Create the transaction
     try {
       const item = await prisma.transaction.create({
         data: {
           userId: userId,
-          accountId: data.userId,
-          categoryId: defaultCategory.id, // <-- Usiamo l'ID della categoria di default
-          date: new Date(), // <-- Usiamo la data odierna
+          accountId: data.accountId,
+          categoryId: defaultCategory.id,
+          date: new Date(),
           amount: data.amount,
-          type: "Expense", // <-- Tipo fisso, come da nome endpoint
-          notes: data.notes,
-        },
-      });
-
-      res.status(201).json(item);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Could not create transaction" });
-    }
-  }
-);
-
-transactionsRouter.post(
-  "/addExpenseFromShortcut",
-  requireAuth, // <-- RIUTILIZZIAMO L'AUTENTICAZIONE!
-  async (req: AuthRequest, res) => {
-    
-    // 3. VALIDAZIONE con Zod (Sicurezza contro dati malformati)
-    console.log("PAYLOAD RICEVUTO:", req.body); // STAMPA IL PAYLOAD
-    const parse = shortcutExpenseSchema.safeParse(req.body);
-    if (!parse.success) {
-      return res.status(400).json({ error: "Invalid payload", details: parse.error });
-    }
-    const data = parse.data;
-
-    // 4. LOGICA DI BUSINESS (Categoria di default)
-    // Dobbiamo trovare una categoria "di servizio" (es. "Da categorizzare")
-    // che sia di tipo "Expense" e appartenga a questo utente.
-    
-    const userId = req.userId!; // Ottenuto da requireAuth
-    const defaultCategoryName = "Da categorizzare"; // O "Uncategorized"
-
-    let defaultCategory = await prisma.category.findFirst({
-      where: {
-        userId: userId,
-        name: defaultCategoryName,
-        type: "Expense",
-      },
-    });
-
-    // Se non esiste, creala al volo
-    if (!defaultCategory) {
-      defaultCategory = await prisma.category.create({
-        data: {
-          userId: userId,
-          name: defaultCategoryName,
           type: "Expense",
-        },
-      });
-    }
-
-    // 5. CREAZIONE TRANSAZIONE (Sicuro grazie a Prisma)
-    try {
-      const item = await prisma.transaction.create({
-        data: {
-          userId: userId,
-          accountId: data.userId,
-          categoryId: defaultCategory.id, // <-- Usiamo l'ID della categoria di default
-          date: new Date(), // <-- Usiamo la data odierna
-          amount: data.amount,
-          type: "Expense", // <-- Tipo fisso, come da nome endpoint
           notes: data.notes,
         },
       });
@@ -911,24 +982,26 @@ transactionsRouter.post(
   }
 );
 
+// Shortcut endpoint: create any type of transaction quickly
 transactionsRouter.post(
   "/addTransactionFromShortcut",
-  requireAuth, // <-- RIUTILIZZIAMO L'AUTENTICAZIONE!
+  requireAuth,
   async (req: AuthRequest, res) => {
-    
-    // 3. VALIDAZIONE con Zod (Sicurezza contro dati malformati)
-    console.log("PAYLOAD RICEVUTO:", req.body); // STAMPA IL PAYLOAD
     const parse = shortcutExpenseSchema.safeParse(req.body);
     if (!parse.success) {
-      return res.status(400).json({ error: "Invalid payload", details: parse.error });
+      return res.status(400).json({ error: "Invalid payload" });
     }
     const data = parse.data;
 
-    // 4. LOGICA DI BUSINESS (Categoria)
-    const userId = req.userId!; // Ottenuto da requireAuth
+    const userId = req.userId!;
+
+    // Verify the account belongs to the authenticated user
+    const account = await prisma.account.findFirst({ where: { id: data.accountId, userId } });
+    if (!account) return res.status(403).json({ error: "Account not found or access denied" });
+
     let categoryId: number;
     
-    // Se è stato fornito categoryId, usalo direttamente
+    // If categoryId is provided, use it directly
     if (data.categoryId) {
       // Verifica che la categoria esista e appartenga all'utente
       const category = await prisma.category.findFirst({
@@ -946,8 +1019,6 @@ transactionsRouter.post(
     }
     // Altrimenti, se è stato fornito categoryName, cercala o creala
     else if (data.categoryName) {
-      console.log("Searching for category:", data.categoryName, "userId:", userId, "type:", data.type);
-      
       let category = await prisma.category.findFirst({
         where: {
           userId: userId,
@@ -955,28 +1026,21 @@ transactionsRouter.post(
         },
       });
       
-      console.log("Found category:", category);
-      
-      // Se non esiste, creala con TitleCase
       if (!category) {
-        // Formatta il nome in TitleCase (prima lettera maiuscola)
+        // Format to TitleCase
         const formattedName = data.categoryName
           .toLowerCase()
           .split(' ')
           .map(word => word.charAt(0).toUpperCase() + word.slice(1))
           .join(' ');
         
-        console.log("Creating new category:", formattedName);
-        
         category = await prisma.category.create({
           data: {
             userId: userId,
             name: formattedName,
-            type: data.type, // Usa il tipo della transazione
+            type: data.type,
           },
         });
-        
-        console.log("Created category:", category);
       }
       
       categoryId = category.id;
@@ -1007,14 +1071,14 @@ transactionsRouter.post(
       categoryId = defaultCategory.id;
     }
 
-    // 5. CREAZIONE TRANSAZIONE (Sicuro grazie a Prisma)
+    // 5. Create the transaction
     try {
       const item = await prisma.transaction.create({
         data: {
           userId: userId,
-          accountId: data.userId,
+          accountId: data.accountId,
           categoryId: categoryId,
-          date: new Date(), // <-- Usiamo la data odierna
+          date: new Date(),
           amount: data.amount,
           type: data.type,
           notes: data.notes,
@@ -1055,14 +1119,43 @@ transactionsRouter.put("/:id", requireAuth, upload.single('receipt'), async (req
   const parse = createSchema.safeParse(rawBody);
   if (!parse.success) {
     if (req.file) fs.unlinkSync(req.file.path);
-    console.error(parse.error); return res.status(400).json({ error: "Invalid payload", details: parse.error });
+    console.error(parse.error); return res.status(400).json({ error: "Invalid payload", details: env.isProduction ? undefined : parse.error });
   }
   const data = parse.data;
-  const category = await prisma.category.findUnique({ where: { id: data.categoryId } });
-  const type = category?.type || "Expense";
+
+  // Security Check: Verify account ownership
+  const account = await prisma.account.findFirst({
+    where: { id: data.accountId, userId: req.userId! }
+  });
+  if (!account) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(403).json({ error: "Access denied to account" });
+  }
+
+  // Security Check: Verify category ownership
+  const category = await prisma.category.findFirst({
+    where: { id: data.categoryId, userId: req.userId! }
+  });
+  if (!category) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(403).json({ error: "Access denied to category" });
+  }
+
+  // Security Check: Verify asset item ownership
+  if (data.assetItemId) {
+    const assetItem = await prisma.assetItem.findFirst({
+      where: { id: data.assetItemId, group: { userId: req.userId! } }
+    });
+    if (!assetItem) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(403).json({ error: "Access denied to asset item" });
+    }
+  }
+
+  const type = category.type || "Expense";
   
   // Handle file replacement or deletion
-  let attachmentPath = undefined;
+  let attachmentPath: string | undefined = undefined;
   const shouldDeleteAttachment = req.body.deleteAttachment === 'true' || req.body.deleteAttachment === true;
 
   if (req.file || shouldDeleteAttachment) {
@@ -1123,8 +1216,11 @@ transactionsRouter.delete("/:id", requireAuth, async (req: AuthRequest, res) => 
   res.status(204).end();
 });
 
-// Delete all transactions for current user
+// Delete ALL transactions for current user — requires explicit confirmation body
 transactionsRouter.delete("/", requireAuth, async (req: AuthRequest, res) => {
+  if (req.body?.confirm !== "DELETE_ALL") {
+    return res.status(400).json({ error: 'Must send { "confirm": "DELETE_ALL" } to confirm bulk deletion' });
+  }
   const del = await prisma.transaction.deleteMany({ where: { userId: req.userId! } });
   res.json({ deleted: del.count });
 });
@@ -1267,7 +1363,7 @@ transactionsRouter.post("/import", requireAuth, uploadCsv.single("file"), async 
           if (/^\d+$/.test(rawStr)) {
             // Numeric provided in 'category' column -> treat as categoryId
             catId = Number(rawStr);
-            cat = await prisma.category.findUnique({ where: { id: catId } });
+            cat = await prisma.category.findFirst({ where: { id: catId, userId: req.userId! } });
           } else {
             const nameRaw = rawStr;
             const name = toTitleCase(nameRaw);
@@ -1293,16 +1389,22 @@ transactionsRouter.post("/import", requireAuth, uploadCsv.single("file"), async 
         }
       } else if (idx["categoryid"] !== undefined) {
         catId = Number(cells[idx["categoryid"]]);
-        cat = await prisma.category.findUnique({ where: { id: catId } });
+        cat = await prisma.category.findFirst({ where: { id: catId, userId: req.userId! } });
       }
       if (!catId) throw new Error("Missing category");
       if (!cat) {
-        cat = await prisma.category.findUnique({ where: { id: catId } });
+        cat = await prisma.category.findFirst({ where: { id: catId, userId: req.userId! } });
       }
-      const inferredType = cat?.type || "Expense";
-      const accountId = idx["accountid"] !== undefined && cells[idx["accountid"]]
-        ? Number(cells[idx["accountid"]])
-        : await ensurePrimaryAccount(req.userId!);
+      if (!cat) throw new Error("Category not found or access denied");
+      const inferredType = cat.type || "Expense";
+      
+      let accountId = await ensurePrimaryAccount(req.userId!);
+      if (idx["accountid"] !== undefined && cells[idx["accountid"]]) {
+        const parsedAccId = Number(cells[idx["accountid"]]);
+        const userAccount = await prisma.account.findFirst({ where: { id: parsedAccId, userId: req.userId! } });
+        if (!userAccount) throw new Error("Account not found or access denied");
+        accountId = userAccount.id;
+      }
       const item = await prisma.transaction.create({
         data: {
           userId: req.userId!,
@@ -1318,7 +1420,7 @@ transactionsRouter.post("/import", requireAuth, uploadCsv.single("file"), async 
     } catch (e) {
       // skip invalid rows
       // eslint-disable-next-line no-console
-      console.warn(`${logPrefix} row#${rowNum} skipped:`, { row, error: (e as Error)?.message });
+      // console.warn(`${logPrefix} row#${rowNum} skipped:`, { row, error: (e as Error)?.message });
     }
   }
   // eslint-disable-next-line no-console
@@ -1333,7 +1435,7 @@ const bulkDeleteSchema = z.object({
 
 transactionsRouter.post("/bulk-delete", requireAuth, async (req: AuthRequest, res) => {
   const parse = bulkDeleteSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  if (!parse.success) return res.status(400).json({ error: "Invalid payload", details: env.isProduction ? undefined : parse.error });
   
   const { ids } = parse.data;
   const userId = req.userId!;
@@ -1357,7 +1459,7 @@ const bulkUpdateCategorySchema = z.object({
 
 transactionsRouter.patch("/bulk-update-category", requireAuth, async (req: AuthRequest, res) => {
   const parse = bulkUpdateCategorySchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  if (!parse.success) return res.status(400).json({ error: "Invalid payload", details: env.isProduction ? undefined : parse.error });
   
   const { ids, categoryId } = parse.data;
   const userId = req.userId!;
@@ -1406,13 +1508,13 @@ const deleteByDetailsSchema = z.object({
 transactionsRouter.post("/delete-by-details", requireAuth, async (req: AuthRequest, res) => {
   const parse = deleteByDetailsSchema.safeParse(req.body);
   if (!parse.success) {
-    return res.status(400).json({ error: "Invalid payload", details: parse.error });
+    return res.status(400).json({ error: "Invalid payload", details: env.isProduction ? undefined : parse.error });
   }
   
   const data = parse.data;
   const userId = req.userId!;
   
-  console.log("Delete by details request:", data);
+  // console.log("Delete by details request:", data);
   
   // Parse the date to get start and end of day
   const parsedDate = dayjs(data.date, ["YYYY-MM-DD", "DD/MM/YYYY"], true);
@@ -1473,7 +1575,7 @@ transactionsRouter.post("/delete-by-details", requireAuth, async (req: AuthReque
     where.categoryId = categoryId;
   }
   
-  console.log("Delete where clause:", JSON.stringify(where, null, 2));
+  // console.log("Delete where clause:", JSON.stringify(where, null, 2));
   
   // Find matching transactions first
   const matchingTransactions = await prisma.transaction.findMany({
@@ -1491,7 +1593,7 @@ transactionsRouter.post("/delete-by-details", requireAuth, async (req: AuthReque
     },
   });
   
-  console.log("Found matching transactions:", matchingTransactions.length);
+  // console.log("Found matching transactions:", matchingTransactions.length);
   
   if (matchingTransactions.length === 0) {
     return res.status(404).json({ error: "No matching transaction found" });
@@ -1502,7 +1604,7 @@ transactionsRouter.post("/delete-by-details", requireAuth, async (req: AuthReque
     where,
   });
   
-  console.log("Deleted transactions:", result.count);
+  // console.log("Deleted transactions:", result.count);
   
   res.json({ 
     deleted: result.count,

@@ -4,8 +4,17 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 
 export const authRouter = Router();
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // Limit each IP to 5 requests per minute
+  message: { error: "Too many authentication requests, please try again in a minute." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Types for API responses
 interface RegisterResponse {
@@ -30,7 +39,7 @@ const registerSchema = z.object({
   password: z.string().min(8),
 });
 
-authRouter.post("/register", async (req: Request, res: Response<RegisterResponse | ErrorResponse>) => {
+authRouter.post("/register", authLimiter, async (req: Request, res: Response<RegisterResponse | ErrorResponse>) => {
     const parse = registerSchema.safeParse(req.body);
     if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
     const { email, password } = parse.data;
@@ -46,7 +55,7 @@ const loginSchema = z.object({
   password: z.string().min(8),
 });
 
-authRouter.post("/login", async (req: Request, res: Response<LoginResponse | ErrorResponse>) => {
+authRouter.post("/login", authLimiter, async (req: Request, res: Response<LoginResponse | ErrorResponse>) => {
   const parse = loginSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const { email, password } = parse.data;
@@ -58,8 +67,9 @@ authRouter.post("/login", async (req: Request, res: Response<LoginResponse | Err
   return res.json({ token });
 });
 
-authRouter.post("/forgot-password", async (_req: Request, res: Response<OkResponse>) => {
-  // Placeholder: SDD lists endpoint; actual email reset flow out of scope for MVP
+authRouter.post("/forgot-password", authLimiter, async (_req: Request, res: Response<OkResponse>) => {
+  // Placeholder: actual email reset flow is out of scope for MVP.
+  // Returns ok:true regardless to avoid email enumeration.
   return res.json({ ok: true });
 });
 

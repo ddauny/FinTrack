@@ -13,7 +13,7 @@ import type {
 
 const base = '' // proxied to server in dev
 
-function authHeaders(): Record<string, string> {
+export function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
@@ -80,8 +80,8 @@ export const api = {
   dashboardSummary: () => apiGet<DashboardSummary>('/api/dashboard/summary'),
   transactions: {
     list: (q: string) => apiGet<Transaction[]>(`/api/transactions${q}`),
-    create: (data: Partial<Transaction> & { assetItemId?: number | null }) => apiJson<Transaction>('/api/transactions', 'POST', data),
-    update: (id: number, data: Partial<Transaction> & { assetItemId?: number | null }) => apiJson<Transaction>(`/api/transactions/${id}`, 'PUT', data),
+    create: (data: any) => apiJson<Transaction>('/api/transactions', 'POST', data),
+    update: (id: number, data: any) => apiJson<Transaction>(`/api/transactions/${id}`, 'PUT', data),
     remove: (id: number) => apiJson<void>(`/api/transactions/${id}`, 'DELETE'),
     bulkDelete: (ids: number[]) => apiJson<{ deleted: number }>('/api/transactions/bulk-delete', 'POST', { ids }),
     bulkUpdateCategory: (ids: number[], categoryId: number) => apiJson<{ updated: number }>('/api/transactions/bulk-update-category', 'PATCH', { ids, categoryId }),
@@ -100,6 +100,8 @@ export const api = {
     },
     getNotes: (query: string) => apiGet(`/api/transactions/notes?q=${encodeURIComponent(query)}`),
     getTags: (query: string) => apiGet<string[]>(`/api/transactions/tags?q=${encodeURIComponent(query)}`),
+    aiQuery: (prompt: string) => apiJson<{ items: any[], filterApplied: any }>('/api/transactions/ai-query', 'POST', { prompt }),
+    exportJson: () => apiGet<any[]>('/api/transactions/export-json'),
   },
   accounts: {
     list: () => apiGet<Account[]>('/api/accounts'),
@@ -125,11 +127,10 @@ export const api = {
       cashflow: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/cashflow?start=${start||''}&end=${end||''}`),
       spendingByCategory: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/spending-by-category?start=${start||''}&end=${end||''}`),
       trends: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/trends?start=${start||''}&end=${end||''}`),
-      test: () => apiGet(`/api/reports/test`),
-      monthlyExpenses: (start?: string, end?: string) => apiGet(`/api/reports/monthly-expenses?start=${start||''}&end=${end||''}`),
-      categoryAnalysis: (start?: string, end?: string) => apiGet(`/api/reports/category-analysis?start=${start||''}&end=${end||''}`),
-      tagAnalysis: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/tag-analysis?start=${start||''}&end=${end||''}`),
       netWorthTrend: (start?: string, end?: string) => apiGet(`/api/reports/net-worth-trend?start=${start||''}&end=${end||''}`),
+      monthlyExpenses: (start?: string, end?: string) => apiGet(`/api/reports/monthly-expenses?start=${start||''}&end=${end||''}`),
+      categoryAnalysis: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/category-analysis?start=${start||''}&end=${end||''}`),
+      tagAnalysis: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/tag-analysis?start=${start||''}&end=${end||''}`),
       assetGrowthTrend: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-growth-trend?start=${start||''}&end=${end||''}`),
       assetDistribution: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-distribution?start=${start||''}&end=${end||''}`),
       assetGroupComparison: (start?: string, end?: string) => apiGet<any>(`/api/reports/asset-group-comparison?start=${start||''}&end=${end||''}`),

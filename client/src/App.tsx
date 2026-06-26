@@ -5,11 +5,8 @@ import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { TransactionsPage } from './pages/TransactionsPage'
 import { AssetsPage } from './pages/AssetsPage'
-import { MonthlySummaryPage } from './pages/MonthlySummaryPage'
-import { ReportsPage } from './pages/ReportsPage'
-import { TrendsPage } from './pages/TrendsPage'
+import { AnalyticsWorkspace } from './pages/AnalyticsWorkspace'
 import { SettingsPage } from './pages/SettingsPage'
-import { PortfolioAnalyticsPage } from './pages/PortfolioAnalyticsPage'
 import { TopNav } from './components/TopNav'
 import { PrivacyProvider } from './contexts/PrivacyContext'
 import { ToastProvider } from './contexts/ToastContext'
@@ -45,10 +42,11 @@ export default function App() {
                 <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
                 <Route path="/transactions" element={<PrivateRoute><TransactionsPage /></PrivateRoute>} />
                 <Route path="/assets" element={<PrivateRoute><AssetsPage /></PrivateRoute>} />
-                <Route path="/portfolio" element={<PrivateRoute><PortfolioAnalyticsPage /></PrivateRoute>} />
-                <Route path="/monthly-summary" element={<PrivateRoute><MonthlySummaryPage /></PrivateRoute>} />
-                <Route path="/reports" element={<PrivateRoute><ReportsPage /></PrivateRoute>} />
-                <Route path="/trends" element={<PrivateRoute><TrendsPage /></PrivateRoute>} />
+                <Route path="/analytics" element={<PrivateRoute><AnalyticsWorkspace /></PrivateRoute>} />
+                <Route path="/reports" element={<Navigate to="/analytics?view=overview" replace />} />
+                <Route path="/portfolio" element={<Navigate to="/analytics?view=portfolio" replace />} />
+                <Route path="/monthly-summary" element={<Navigate to="/analytics?view=monthly" replace />} />
+                <Route path="/trends" element={<Navigate to="/analytics?view=trends" replace />} />
                 <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
               </Routes>
             </div>

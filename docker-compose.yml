@@ -2,73 +2,103 @@ version: '3.8'
 
 services:
   #################
-  # Database (Sviluppo)
+  # SHARED DATABASE
   #################
   db:
     image: postgres:15-alpine
-    container_name: fintrack-dev-db # Aggiunto -dev
+    container_name: fintrack-db-shared
     ports:
-      - "5432:5432" # Esponiamo la porta per il debug
-    env_file:
-      - .env
-    # MODIFICA QUESTO BLOCCO (per usare le variabili)
+      - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - fintrack-dev-data:/var/lib/postgresql/data # Volume separato
+      - fintrack-db-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
-    restart: unless-stopped
+    restart: always
 
   #################
-  # Backend (Sviluppo)
+  # PRODUCTION (Main Service)
   #################
-  app:
-    container_name: fintrack-dev-app # Aggiunto -dev
+  app-prod:
+    container_name: fintrack-app-prod
     build:
       context: .
-      dockerfile: ./server/Dockerfile # Usa il Dockerfile di sviluppo
+      dockerfile: ./server/Dockerfile.prod
     ports:
       - "4000:4000"
     env_file:
-      - .env # Usa un file .env separato
+      - .env.production
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+
+  client-prod:
+    container_name: fintrack-client-prod
+    build:
+      context: .
+      dockerfile: ./client/Dockerfile.prod
+    ports:
+      - "5173:80" # Mapping 5173 (Host) to 80 (Nginx inside) as requested for Cloudflare
+    depends_on:
+      - app-prod
+    restart: always
+
+  #################
+  # DEVELOPMENT (Test Service)
+  #################
+  app-dev:
+    container_name: fintrack-app-dev
+    build:
+      context: .
+      dockerfile: ./server/Dockerfile
+    ports:
+      - "4001:4001"
+    env_file:
+      - .env.development
     volumes:
-      # Hot-reloading: collega il tuo codice locale al container
       - ./server:/app/server
-      # Volume "anonimo" per node_modules per evitare conflitti
       - /app/server/node_modules
-    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"
+    command: sh -c "npm install && npx prisma generate && npx prisma migrate deploy && npm run dev"
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
 
-  #################
-  # Frontend (Sviluppo)
-  #################
-  client:
-    container_name: fintrack-dev-client # Aggiunto -dev
+  client-dev:
+    container_name: fintrack-client-dev
     build:
       context: ./client
-      dockerfile: Dockerfile # Usa il Dockerfile di sviluppo
+      dockerfile: Dockerfile
     ports:
-      - "5173:5173"
+      - "5174:5173" # Mapping 5174 (Host) to 5173 (Vite inside)
     volumes:
-      # Hot-reloading: collega il tuo codice locale al container
       - ./client:/app/client
-      # Volume "anonimo" per node_modules
       - /app/client/node_modules
-    depends_on:
-      - app
     environment:
-      # Necessario per far funzionare Vite/hot-reload
       - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - app-dev
     restart: unless-stopped
 
+  #################
+  # LOCAL AI (Ollama)
+  #################
+  ollama:
+    image: ollama/ollama:latest
+    container_name: fintrack-ollama
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: always
+
 volumes:
-  fintrack-dev-data: # Volume dati separato per lo sviluppo
+  fintrack-db-data:
+    external: true
+    name: fintrack_fintrack-dev-data # Existing volume with your data
+  ollama-data:

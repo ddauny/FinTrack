@@ -22,10 +22,12 @@ export function RegisterPage() {
       const { token } = await api.login(email, password)
       localStorage.setItem('token', token)
       navigate('/')
-    } catch (e: any) {
-      setError(typeof e?.message === 'string' ? e.message : 'Registration failed')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : null
+      setError(msg && msg.length < 200 ? msg : 'Registration failed')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (

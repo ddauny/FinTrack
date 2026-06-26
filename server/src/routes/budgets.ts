@@ -55,7 +55,7 @@ budgetsRouter.put("/:id", requireAuth, async (req: AuthRequest, res) => {
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const updated = await prisma.budget.updateMany({ where: { id, userId: req.userId! }, data: parse.data });
   if (updated.count === 0) return res.status(404).json({ error: "Not found" });
-  const item = await prisma.budget.findUnique({ where: { id } });
+  const item = await prisma.budget.findFirst({ where: { id, userId: req.userId! } });
   res.json(item);
 });
 

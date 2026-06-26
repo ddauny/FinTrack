@@ -80,7 +80,8 @@ export const AssetAnalysisSection: React.FC<AssetAnalysisSectionProps> = ({ isDa
 
   const assetDistributionOption = useMemo(() => ({
     textStyle: { color: chartTextColor, fontFamily: 'Inter, sans-serif' },
-    tooltip: { 
+    tooltip: {
+      transitionDuration: 0, 
         trigger: 'item', 
         backgroundColor: isDark ? '#141414' : '#ffffff', 
         borderColor: isDark ? '#141414' : '#e5e7eb', 

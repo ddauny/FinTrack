@@ -14,6 +14,7 @@ model User {
   passwordHash String
   createdAt    DateTime  @default(now())
   automationToken String? // JWT token for iPhone Shortcuts and automation
+  isAiEnabled  Boolean   @default(false) // Access control for AI features
 
   accounts     Account[]
   categories   Category[]
@@ -87,6 +88,8 @@ model Transaction {
 
   @@index([userId, date])
   @@index([userId, splitGroupId])
+  @@index([userId, accountId])
+  @@index([userId, categoryId])
 }
 
 model RecurringTransaction {
@@ -158,6 +161,7 @@ model AssetGroup {
   id        Int      @id @default(autoincrement())
   userId    Int
   name      String   // e.g., 'Stock & ETF', 'Cash', 'Real Estate'
+  isInvestment Boolean @default(true) // Whether to include in portfolio analytics
   order     Int      @default(0) // Display order
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -172,6 +176,8 @@ model AssetItem {
   description       String?
   hidden            Boolean     @default(false)
   depreciationAmount Decimal?   // Monthly depreciation amount (e.g., 250.00)
+  initialContribution Decimal?  // Starting capital/cost basis before transactions
+  initialContributionDate DateTime? // Date/Month for the initial capital
   order             Int         @default(0) // Display order within group or parent
 
   group             AssetGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)

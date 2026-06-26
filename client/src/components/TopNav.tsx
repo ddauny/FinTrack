@@ -19,10 +19,7 @@ const navItems = [
   { to: '/', label: 'Dashboard' },
   { to: '/transactions', label: 'Transactions' },
   { to: '/assets', label: 'Assets' },
-  { to: '/portfolio', label: 'Portfolio' },
-  { to: '/monthly-summary', label: 'Monthly' },
-  { to: '/reports', label: 'Reports' },
-  { to: '/trends', label: 'Trends' },
+  { to: '/analytics', label: 'Analytics' },
   { to: '/settings', label: 'Settings' },
 ]
 
@@ -52,8 +49,14 @@ export function TopNav() {
   const closeMobileMenu = () => setIsMobileMenuOpen(false)
 
   const isActive = (to: string) => {
+    if (!pathname || !to) return false
     if (to === '/') return pathname === '/'
     return pathname.startsWith(to)
+  }
+
+  if (!token && pathname !== '/login' && pathname !== '/register') {
+    // If no token and not on auth pages, we might be in a redirect loop or inconsistent state
+    // But App.tsx handles PrivateRoute, so TopNav should just render what it can.
   }
 
   return (

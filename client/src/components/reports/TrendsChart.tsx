@@ -17,7 +17,8 @@ export const TrendsChart: React.FC<TrendsChartProps> = ({ data, isDark, loading 
 
   const option = useMemo(() => ({
     textStyle: { fontFamily: 'Inter, sans-serif' },
-    tooltip: { 
+    tooltip: {
+      transitionDuration: 0, 
       trigger: 'axis', 
       backgroundColor: isDark ? '#141414' : '#ffffff', 
       borderColor: isDark ? '#141414' : '#e5e7eb', 

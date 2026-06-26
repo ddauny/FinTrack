@@ -78,7 +78,7 @@ categoriesRouter.put("/:id", requireAuth, async (req: AuthRequest, res) => {
     data: { type: parse.data.type }
   });
   
-  const item = await prisma.category.findUnique({ where: { id } });
+  const item = await prisma.category.findFirst({ where: { id, userId: req.userId! } });
   res.json(item);
 });
 

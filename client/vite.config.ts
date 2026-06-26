@@ -17,8 +17,8 @@ export default defineConfig({
     port: 5173,
     allowedHosts: ['fintrack.dauny.org'],
     proxy: {
-      '/api': 'http://app:4000',
-      '/health': 'http://app:4000'
+      '/api': 'http://app-dev:4001',
+      '/health': 'http://app-dev:4001'
     },
     watch: {
       usePolling: true

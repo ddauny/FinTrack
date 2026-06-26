@@ -95,7 +95,7 @@ export interface ManualAsset {
 
 // Component Props Types
 export interface PrivacyNumberProps {
-  value: number | string;
+  value?: number | string;
   className?: string;
   children?: React.ReactNode;
 }

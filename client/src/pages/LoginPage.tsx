@@ -19,8 +19,9 @@ export function LoginPage() {
       navigate('/')
     } catch {
       setError('Invalid email or password')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (

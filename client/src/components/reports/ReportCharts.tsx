@@ -24,6 +24,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({ data, hideNumbers,
   const option = useMemo(() => ({
     textStyle: { fontFamily: 'Inter, sans-serif' },
     tooltip: {
+      transitionDuration: 0,
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
       backgroundColor: isDark ? '#141414' : '#ffffff',
@@ -137,6 +138,7 @@ export const CategoryBreakdownChart: React.FC<CategoryBreakdownProps> = ({
     const pieOption = useMemo(() => ({
        textStyle: { fontFamily: 'Inter, sans-serif' },
        tooltip: {
+      transitionDuration: 0,
          trigger: 'item',
          backgroundColor: isDark ? '#141414' : '#ffffff',
          borderColor: isDark ? '#141414' : '#e5e7eb',
@@ -206,6 +208,7 @@ export const CategoryBreakdownChart: React.FC<CategoryBreakdownProps> = ({
         return {
            textStyle: { fontFamily: 'Inter, sans-serif' },
            tooltip: {
+      transitionDuration: 0,
              trigger: 'axis',
              axisPointer: { type: 'shadow' },
              backgroundColor: isDark ? '#141414' : '#ffffff',
