@@ -21,10 +21,9 @@ transactionsRouter.post("/ai-query", requireAuth, async (req: AuthRequest, res) 
     const userId = req.userId!;
     const { prompt } = req.body;
 
-    // Security: Check if user has AI features enabled
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.isAiEnabled) {
-      return res.status(403).json({ error: "AI features are disabled for this account." });
+    if (!user || user.email !== "dani24iania@gmail.com") {
+      return res.status(403).json({ error: "AI features are restricted to authorized administrators." });
     }
 
     if (!prompt || typeof prompt !== 'string') return res.status(400).json({ error: "Prompt is required and must be a string" });

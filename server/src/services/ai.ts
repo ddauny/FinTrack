@@ -3,6 +3,7 @@
  * Translates natural language to Prisma queries.
  */
 import dayjs from "dayjs";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function generatePrismaFilter(userPrompt: string, context: { categories: string[], accounts: string[], tags: string[] }) {
     const systemPrompt = `
@@ -34,24 +35,31 @@ Accounts: ${context.accounts.join(", ")}
 USER QUERY: "${userPrompt}"
     `;
 
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error("GEMINI_API_KEY is not configured in the environment variables.");
+    }
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+    });
+
     try {
-        const response = await fetch("http://ollama:11434/api/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                model: "llama3.2:1b",
-                prompt: systemPrompt,
-                stream: false,
-                format: "json",
-                options: { temperature: 0.1 }
-            })
-        });
+        const result = await model.generateContent([
+            systemPrompt
+        ]);
 
-        if (!response.ok) throw new Error("Local AI unavailable");
-        const data = (await response.json()) as any;
-        console.log("[Local AI] raw response:", data.response);
+        const responseText = result.response.text().trim();
+        let cleanedText = responseText;
+        if (cleanedText.startsWith("```json")) {
+            cleanedText = cleanedText.substring(7);
+        }
+        if (cleanedText.endsWith("```")) {
+            cleanedText = cleanedText.substring(0, cleanedText.length - 3);
+        }
+        cleanedText = cleanedText.trim();
 
-        const filter = JSON.parse(data.response);
+        const filter = JSON.parse(cleanedText);
         
         // Final sanity check & Post-processing
         const allowed = ['date', 'amount', 'notes', 'category', 'account', 'type', 'OR', 'AND', 'NOT', 'tags'];
