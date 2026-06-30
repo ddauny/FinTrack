@@ -10,6 +10,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { generatePrismaFilter } from "../services/ai.js";
+import { parseScreenshot } from "../services/ocr.js";
 
 export const transactionsRouter = Router();
 
@@ -1611,6 +1612,176 @@ transactionsRouter.post("/delete-by-details", requireAuth, async (req: AuthReque
     transactions: matchingTransactions,
   });
 });
+
+// ============================================================================
+// ENDPOINT: PARSE SCREENSHOT (Gemini AI OCR + Matcher)
+// ============================================================================
+transactionsRouter.post(
+  "/parse-screenshot",
+  requireAuth,
+  upload.array("screenshots", 10),
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.userId!;
+      const files = req.files as Express.Multer.File[];
+
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user || user.email !== "dani24iania@gmail.com") {
+        if (files && files.length > 0) {
+          for (const file of files) {
+            if (file.path) {
+              try {
+                fs.unlinkSync(file.path);
+              } catch (e) {
+                console.error("Failed to delete temp file:", e);
+              }
+            }
+          }
+        }
+        return res.status(403).json({ error: "Gemini AI scanning is currently restricted to authorized administrators." });
+      }
+
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "At least one screenshot file is required." });
+      }
+
+      // Fetch user's categories and accounts for mapping context
+      const categories = await prisma.category.findMany({
+        where: { userId },
+        select: { id: true, name: true, type: true }
+      });
+      const accounts = await prisma.account.findMany({
+        where: { userId },
+        select: { id: true, name: true, type: true }
+      });
+
+      // Parse all screenshots in parallel
+      const parsePromises = files.map(async (file) => {
+        const fileContent = file.buffer || fs.readFileSync(file.path);
+        const parsed = await parseScreenshot(
+          fileContent,
+          file.mimetype,
+          categories,
+          accounts
+        );
+
+        // Clean up the uploaded file if disk storage was used
+        if (file.path) {
+          try {
+            fs.unlinkSync(file.path);
+          } catch (e) {
+            console.error("Failed to delete temp file:", e);
+          }
+        }
+        return parsed;
+      });
+
+      const results = await Promise.all(parsePromises);
+      const parsedTransactions = results.flat();
+
+      // Fetch existing transactions for duplicate detection
+      const existingTxns = await prisma.transaction.findMany({
+        where: { userId },
+        select: { date: true, amount: true, notes: true }
+      });
+
+      // Map parsed transactions and flag duplicates
+      const items = parsedTransactions.map((tx) => {
+        // A simple duplicate check: same date and same amount (rounded to 2 decimal places)
+        const isDuplicate = existingTxns.some((ex) => {
+          const sameDate = dayjs(ex.date).format("YYYY-MM-DD") === tx.date;
+          const sameAmount = Math.abs(Number(ex.amount) - tx.amount) < 0.01;
+          return sameDate && sameAmount;
+        });
+
+        return {
+          ...tx,
+          isDuplicate
+        };
+      });
+
+      res.json({ transactions: items });
+    } catch (error: any) {
+      console.error("[Parse Screenshot Error]:", error);
+      res.status(500).json({ error: error.message || "Failed to process screenshot." });
+    }
+  }
+);
+
+// ============================================================================
+// ENDPOINT: BULK CREATE TRANSACTIONS
+// ============================================================================
+const bulkCreateSchema = z.object({
+  transactions: z.array(
+    z.object({
+      date: z.string(),
+      amount: z.number(),
+      type: z.enum(["Income", "Expense", "Transfer"]),
+      notes: z.string().optional().nullable(),
+      categoryId: z.number().int(),
+      accountId: z.number().int()
+    })
+  )
+});
+
+transactionsRouter.post(
+  "/bulk-create",
+  requireAuth,
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.userId!;
+      const parsedBody = bulkCreateSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({ error: "Invalid transactions array format", details: parsedBody.error });
+      }
+
+      const { transactions } = parsedBody.data;
+
+      // Verify that all accounts and categories belong to the user
+      const accountIds = [...new Set(transactions.map(t => t.accountId))];
+      const categoryIds = [...new Set(transactions.map(t => t.categoryId))];
+
+      const userAccounts = await prisma.account.findMany({
+        where: { id: { in: accountIds }, userId },
+        select: { id: true }
+      });
+      const userCategories = await prisma.category.findMany({
+        where: { id: { in: categoryIds }, userId },
+        select: { id: true }
+      });
+
+      if (userAccounts.length !== accountIds.length) {
+        return res.status(403).json({ error: "One or more accounts are invalid or access denied." });
+      }
+      if (userCategories.length !== categoryIds.length) {
+        return res.status(403).json({ error: "One or more categories are invalid or access denied." });
+      }
+
+      // Create transactions in a single database transaction
+      const createdTxns = await prisma.$transaction(
+        transactions.map((tx) =>
+          prisma.transaction.create({
+            data: {
+              userId,
+              date: new Date(tx.date),
+              amount: tx.amount,
+              type: tx.type,
+              notes: tx.notes || null,
+              accountId: tx.accountId,
+              categoryId: tx.categoryId
+            }
+          })
+        )
+      );
+
+      res.status(201).json({ createdCount: createdTxns.length, items: createdTxns });
+    } catch (error) {
+      console.error("[Bulk Create Error]:", error);
+      res.status(500).json({ error: "Failed to create transactions in bulk." });
+    }
+  }
+);
+
 
 
 

@@ -81,9 +81,9 @@ export const MobileTransactionCard = memo(function MobileTransactionCard({
                   )}
                 </div>
             </div>
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#222] rounded-lg">
-                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: (t.category?.color || categoryMap[t.categoryId]?.color) || '#ccc' }} />
-                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tighter truncate max-w-[80px]">{(t.category?.name || categoryMap[t.categoryId]?.name)?.slice(0,10)}</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 dark:bg-[#151515] border border-slate-200 dark:border-[#222] rounded-lg shrink-0 max-w-[150px]">
+                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: (t.category?.color || categoryMap[t.categoryId]?.color) || '#ccc' }} />
+                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tighter truncate">{t.category?.name || categoryMap[t.categoryId]?.name}</span>
             </div>
         </div>
         

@@ -4,6 +4,7 @@ import { api, apiMultipart } from '../lib/api'
 import { useToast } from '../contexts/ToastContext'
 import { useAlert } from '../contexts/AlertContext'
 import { TransactionModal } from '../components/TransactionModal'
+import { ScreenshotOcrModal } from '../components/ScreenshotOcrModal'
 import { TransactionFilters } from '../components/transactions/TransactionFilters'
 import { TransactionTable } from '../components/transactions/TransactionTable'
 import { PrivacyNumber } from '../components/PrivacyNumber'
@@ -16,6 +17,8 @@ export function TransactionsPage() {
   const { hideNumbers } = usePrivacy()
   const [items, setItems] = useState<any[]>([])
   const [showModal, setShowModal] = useState(false)
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false)
+  const [accounts, setAccounts] = useState<any[]>([])
   const [editingId, setEditingId] = useState<number|null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [showCategoryModal, setShowCategoryModal] = useState(false)
@@ -183,6 +186,7 @@ export function TransactionsPage() {
     if (!initialFetchStarted.current) initialFetchStarted.current = true
     
     Promise.all([api.accounts.list(), api.categories.list()]).then(([accs, cats])=>{
+      setAccounts(accs as any[])
       setCategories(cats as any[])
       if (!form.accountId && (accs as any[])[0]) setForm((f:any)=>({ ...f, accountId: (accs as any[])[0].id }))
       if (!form.categoryId && (cats as any[])[0]) setForm((f:any)=>({ ...f, categoryId: (cats as any[])[0].id }))
@@ -388,42 +392,81 @@ export function TransactionsPage() {
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                 </button>
+                <button
+                    onClick={() => setShowScreenshotModal(true)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-600 text-white shadow-md shadow-emerald-500/10 hover:bg-emerald-700 transition-all active:scale-95 shrink-0"
+                    title="Scan bank screenshot"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                      <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A1 1 0 0011.879 3H8.121a1 1 0 00-.707.293L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                    </svg>
+                </button>
             </div>
 
-            {/* Precision Search */}
-            <div className="relative w-full group justify-self-center max-w-2xl">
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder={isAiMode ? "Terminal Query Prompt..." : "Search data stream..."}
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setActiveSuggestion(-1) }}
-                onKeyDown={(e) => (e.key === 'Enter' && isAiMode) ? handleAiSearch() : handleSearchKeyDown(e)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                className={`w-full bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-[#1f1f1f] rounded-lg py-2 pl-10 pr-24 text-xs font-medium text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:border-blue-500/50 focus:bg-white dark:focus:bg-[#0d0d0d] focus:ring-4 focus:ring-blue-500/5 ${isAiMode ? 'border-indigo-500/40 bg-indigo-500/5 dark:bg-indigo-500/5' : ''}`}
-              />
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
-              
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-                {searchQuery && (
+            {/* Precision Search & Mobile Filters */}
+            <div className="flex items-center gap-2 w-full justify-self-center max-w-2xl">
+              <div className="relative flex-1 group">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder={isAiMode ? "Terminal Query Prompt..." : "Search data stream..."}
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setActiveSuggestion(-1) }}
+                  onKeyDown={(e) => (e.key === 'Enter' && isAiMode) ? handleAiSearch() : handleSearchKeyDown(e)}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  className={`w-full bg-slate-50 dark:bg-[#111] border border-slate-200 dark:border-[#1f1f1f] rounded-lg py-2 pl-10 pr-24 text-xs font-medium text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:border-blue-500/50 focus:bg-white dark:focus:bg-[#0d0d0d] focus:ring-4 focus:ring-blue-500/5 ${isAiMode ? 'border-indigo-500/40 bg-indigo-500/5 dark:bg-indigo-500/5' : ''}`}
+                />
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500 group-focus-within:text-blue-500 transition-colors" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
+                
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                  {searchQuery && (
+                    <button
+                      onClick={() => { setSearchQuery(''); setActiveSuggestion(-1); }}
+                      className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                      title="Clear search"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                        <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                      </svg>
+                    </button>
+                  )}
                   <button
-                    onClick={() => { setSearchQuery(''); setActiveSuggestion(-1); }}
-                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                    title="Clear search"
+                    onClick={() => { setIsAiMode(!isAiMode); if(!isAiMode) setSearchQuery('') }}
+                    className={`flex items-center gap-1.5 rounded px-2 py-1 text-[9px] font-bold uppercase transition-all ${isAiMode ? 'bg-indigo-600 text-white' : 'bg-slate-200/50 dark:bg-[#1a1a1a] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                      <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                    {aiLoading ? <div className="h-2 w-2 animate-spin rounded-full border border-white border-t-transparent" /> : <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L14.5 9H22L16 14L18.5 21L12 17L5.5 21L8 14L2 9H9.5L12 2Z"/></svg>}
+                    {isAiMode ? 'Processing' : 'AI'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Mobile-only filters button next to search input */}
+              <div className="flex items-center gap-2 shrink-0 md:hidden">
+                <button
+                  onClick={() => setIsFiltersOpen(true)}
+                  className={`w-8 h-8 flex items-center justify-center relative rounded-lg border transition-all ${activeFilterCount > 0 ? 'border-blue-500/40 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'border-slate-200 dark:border-[#1f1f1f] bg-white dark:bg-[#111] text-slate-500 hover:border-slate-300 dark:hover:border-[#2a2a2a] hover:text-slate-700 dark:hover:text-slate-300'} active:scale-95`}
+                  title="Filters"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                  {activeFilterCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[9px] font-black text-white ring-2 ring-white dark:ring-[#0c0c0c] animate-in zoom-in-50 duration-200">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+
+                {(activeFilterCount > 0 || searchQuery.trim() !== '') && (
+                  <button
+                    onClick={clearAllFiltersAndSearch}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-rose-200 dark:border-rose-950/30 bg-rose-50 dark:bg-rose-900/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/20 hover:border-rose-300 dark:hover:border-rose-800 transition-all active:scale-95 animate-in fade-in zoom-in-95 duration-200 shrink-0"
+                    title="Reset all filters & search query"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 )}
-                <button
-                  onClick={() => { setIsAiMode(!isAiMode); if(!isAiMode) setSearchQuery('') }}
-                  className={`flex items-center gap-1.5 rounded px-2 py-1 text-[9px] font-bold uppercase transition-all ${isAiMode ? 'bg-indigo-600 text-white' : 'bg-slate-200/50 dark:bg-[#1a1a1a] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                >
-                  {aiLoading ? <div className="h-2 w-2 animate-spin rounded-full border border-white border-t-transparent" /> : <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L14.5 9H22L16 14L18.5 21L12 17L5.5 21L8 14L2 9H9.5L12 2Z"/></svg>}
-                  {isAiMode ? 'Processing' : 'AI'}
-                </button>
               </div>
 
               {searchFocused && allSuggestions.length > 0 && (
@@ -439,7 +482,8 @@ export function TransactionsPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 justify-self-end">
+            {/* Desktop Filters */}
+            <div className="hidden md:flex items-center gap-2 shrink-0 justify-self-end">
               <button
                 onClick={() => setIsFiltersOpen(true)}
                 className={`w-8 h-8 flex items-center justify-center relative rounded-lg border transition-all ${activeFilterCount > 0 ? 'border-blue-500/40 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'border-slate-200 dark:border-[#1f1f1f] bg-white dark:bg-[#111] text-slate-500 hover:border-slate-300 dark:hover:border-[#2a2a2a] hover:text-slate-700 dark:hover:text-slate-300'} active:scale-95`}
@@ -563,6 +607,13 @@ export function TransactionsPage() {
         )}
 
         <TransactionModal isOpen={showModal} onClose={() => { setShowModal(false); setEditingId(null) }} onSave={createTxn} onDelete={handleDeleteTransaction} editingId={editingId} initialData={form} categories={categories} />
+        <ScreenshotOcrModal
+          isOpen={showScreenshotModal}
+          onClose={() => setShowScreenshotModal(false)}
+          categories={categories}
+          accounts={accounts}
+          onSuccess={refresh}
+        />
         {showCategoryModal && createPortal(
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
               <div className="w-full max-w-md bg-white dark:bg-[#111111] border border-slate-100 dark:border-[#1f1f1f] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-in zoom-in-95">

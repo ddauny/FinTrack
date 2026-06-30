@@ -47,3 +47,7 @@ script-linux.md
 backup.sql
 server/gen.cjs
 backup-db.sh
+
+# Uploads
+server/uploads/
+

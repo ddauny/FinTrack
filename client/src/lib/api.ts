@@ -101,6 +101,14 @@ export const api = {
     getNotes: (query: string) => apiGet(`/api/transactions/notes?q=${encodeURIComponent(query)}`),
     getTags: (query: string) => apiGet<string[]>(`/api/transactions/tags?q=${encodeURIComponent(query)}`),
     aiQuery: (prompt: string) => apiJson<{ items: any[], filterApplied: any }>('/api/transactions/ai-query', 'POST', { prompt }),
+    parseScreenshot: (files: File[]) => {
+      const form = new FormData()
+      for (const file of files) {
+        form.append('screenshots', file)
+      }
+      return apiMultipart<{ transactions: any[] }>('/api/transactions/parse-screenshot', 'POST', form)
+    },
+    bulkCreate: (transactions: any[]) => apiJson<{ createdCount: number, items: any[] }>('/api/transactions/bulk-create', 'POST', { transactions }),
     exportJson: () => apiGet<any[]>('/api/transactions/export-json'),
   },
   accounts: {

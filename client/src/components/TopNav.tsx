@@ -164,7 +164,7 @@ export function TopNav() {
 
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden border-t border-slate-200/60 dark:border-[#1f1f1f] bg-white/95 dark:bg-[#111111]/98 backdrop-blur-xl py-2">
+        <div className="md:hidden border-t border-slate-200/60 dark:border-ui-border bg-white dark:bg-[#111] py-2 shadow-lg">
           {token ? (
             <>
               {navItems.map(({ to, label }) => (
@@ -175,16 +175,16 @@ export function TopNav() {
                   className={`flex items-center px-4 py-2.5 text-sm font-medium transition-colors ${
                     isActive(to)
                       ? 'text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-500/10'
-                      : 'text-slate-600 dark:text-[#888] hover:bg-slate-50 dark:hover:bg-[#262626] dark:bg-[#1a1a1a]/40'
+                      : 'text-slate-600 dark:text-[#888] hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-[#181818]'
                   }`}
                 >
                   {label}
                 </Link>
               ))}
-              <div className="border-t border-slate-100 dark:border-[#1f1f1f] my-2 mx-4" />
+              <div className="border-t border-slate-100 dark:border-ui-border my-2 mx-4" />
               <button
                 onClick={() => { setPreference(preference === 'light' ? 'dark' : 'light'); closeMobileMenu(); }}
-                className="flex items-center w-full px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-[#888] hover:bg-slate-50 dark:hover:bg-[#262626] dark:bg-[#1a1a1a]/40 transition-colors"
+                className="flex items-center w-full px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-[#888] hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-[#181818] transition-colors"
               >
                 <span className="mr-2">
                   {resolved === 'light' ? (
@@ -201,7 +201,7 @@ export function TopNav() {
               </button>
               <button
                 onClick={() => { toggleNumbers(); closeMobileMenu(); }}
-                className="flex items-center w-full px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-[#888] hover:bg-slate-50 dark:hover:bg-[#262626] dark:bg-[#1a1a1a]/40 transition-colors"
+                className="flex items-center w-full px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-[#888] hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-[#181818] transition-colors"
               >
                 <span className="mr-2">
                   {hideNumbers ? (
@@ -228,7 +228,7 @@ export function TopNav() {
             </>
           ) : (
             <>
-              <Link to="/login" onClick={closeMobileMenu} className="block px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-[#888] hover:bg-slate-50 dark:hover:bg-[#262626] dark:bg-[#1a1a1a]/40">Login</Link>
+              <Link to="/login" onClick={closeMobileMenu} className="block px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-[#888] hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-[#181818]">Login</Link>
               <Link to="/register" onClick={closeMobileMenu} className="block px-4 py-2.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10">Register</Link>
             </>
           )}
