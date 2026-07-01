@@ -106,13 +106,15 @@ function ControlRow({ title, description, icon, onClick }: any) {
 export function SettingsPage() {
   const { showToast } = useToast(); const { showAlert } = useAlert(); const navigate = useNavigate()
   const [view, setView] = useState('dashboard')
-  const [profile, setProfile] = useState<any>(null); const [email, setEmail] = useState(''); const [password, setPassword] = useState('')
+  const [profile, setProfile] = useState<any>(null); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [geminiApiKey, setGeminiApiKey] = useState('')
   const [categories, setCategories] = useState<any[]>([]); const [groups, setGroups] = useState<any[]>([]); const [recurringTransactions, setRecurringTransactions] = useState<any[]>([])
   const [automationToken, setAutomationToken] = useState<string | null>(null); const [showToken, setShowToken] = useState(false); const [loading, setLoading] = useState(true)
   const [editingCategory, setEditingCategory] = useState<any>(null); const [showCatModal, setShowCatModal] = useState(false)
   const [editingRecurring, setEditingRecurring] = useState<any>(null)
   const [catForm, setCatForm] = useState<any>({ name:'', type:'Expense', color: '#3b82f6' })
   const [activeGroupId, setActiveGroupId] = useState<number | null>(null); const [depreciationValues, setDepreciationValues] = useState<Record<number, string>>({}); const [initialContributionValues, setInitialContributionValues] = useState<Record<number, string>>({})
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null)
+  const [draggedGroupIdx, setDraggedGroupIdx] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const refresh = useCallback(async () => {
@@ -157,6 +159,62 @@ export function SettingsPage() {
     [items[itemIdx], items[target]] = [items[target], items[itemIdx]]
     await secureFetch('/api/asset-items/reorder', { method:'POST', headers:{'Content-Type':'application/json', ...tokenHeader()}, body: JSON.stringify({ itemIds: items.map((it:any)=>it.id) }) })
     refresh()
+  }
+
+  const handleDragStart = (idx: number) => {
+    setDraggedIdx(idx)
+  }
+
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault()
+  }
+
+  const handleDrop = async (e: React.DragEvent, targetIdx: number) => {
+    e.preventDefault()
+    if (draggedIdx === null || draggedIdx === targetIdx) return
+    const g = groups.find(x => x.id === activeGroupId)
+    if (!g) return
+    const items = [...g.items.filter((it: any) => !it.parentItemId)]
+    const [draggedItem] = items.splice(draggedIdx, 1)
+    items.splice(targetIdx, 0, draggedItem)
+    await secureFetch('/api/asset-items/reorder', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json', ...tokenHeader() }, 
+      body: JSON.stringify({ itemIds: items.map((it: any) => it.id) }) 
+    })
+    setDraggedIdx(null)
+    refresh()
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null)
+  }
+
+  const handleGroupDragStart = (idx: number) => {
+    setDraggedGroupIdx(idx)
+  }
+
+  const handleGroupDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+  }
+
+  const handleGroupDrop = async (e: React.DragEvent, targetIdx: number) => {
+    e.preventDefault()
+    if (draggedGroupIdx === null || draggedGroupIdx === targetIdx) return
+    const reorderedGroups = [...groups]
+    const [draggedItem] = reorderedGroups.splice(draggedGroupIdx, 1)
+    reorderedGroups.splice(targetIdx, 0, draggedItem)
+    await secureFetch('/api/asset-groups/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...tokenHeader() },
+      body: JSON.stringify({ groupIds: reorderedGroups.map((g: any) => g.id) })
+    })
+    setDraggedGroupIdx(null)
+    refresh()
+  }
+
+  const handleGroupDragEnd = () => {
+    setDraggedGroupIdx(null)
   }
 
   if (loading) return (
@@ -233,7 +291,16 @@ export function SettingsPage() {
                                 className="text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors">
                                 Sign Out
                             </button>
-                            <button onClick={async()=>{await api.settings.updateProfile({email, password:password||undefined}); showToast('Updated!','success'); setPassword(''); refresh()}} className="btn-primary">Save Changes</button>
+                            <button onClick={async()=>{
+                                const payload: any = { email };
+                                if (password) payload.password = password;
+                                if (geminiApiKey) payload.geminiApiKey = geminiApiKey;
+                                await api.settings.updateProfile(payload);
+                                showToast('Updated!','success');
+                                setPassword('');
+                                setGeminiApiKey('');
+                                refresh();
+                            }} className="btn-primary">Save Changes</button>
                         </div>
                     }>
                         <div className="space-y-6">
@@ -244,6 +311,34 @@ export function SettingsPage() {
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold text-slate-400 dark:text-[#555] uppercase">New Password</label>
                                 <input type="password" value={password} onChange={e=>setPassword(e.target.value)} className="input-field" placeholder="Leave blank to keep current" />
+                            </div>
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-[10px] font-bold text-slate-400 dark:text-[#555] uppercase">Gemini API Key</label>
+                                    {profile?.hasGeminiApiKey && (
+                                        <button 
+                                            type="button" 
+                                            onClick={async () => {
+                                                if (confirm("Remove your stored Gemini API key?")) {
+                                                    await api.settings.updateProfile({ geminiApiKey: null });
+                                                    setGeminiApiKey('');
+                                                    showToast('Gemini API key removed', 'success');
+                                                    refresh();
+                                                }
+                                            }}
+                                            className="text-[9px] font-bold text-rose-500 hover:text-rose-600 transition-colors uppercase"
+                                        >
+                                            Delete Key
+                                        </button>
+                                    )}
+                                </div>
+                                <input 
+                                    type="password" 
+                                    value={geminiApiKey} 
+                                    onChange={e=>setGeminiApiKey(e.target.value)} 
+                                    className="input-field" 
+                                    placeholder={profile?.hasGeminiApiKey ? "•••••••••••••••• (Saved - type to change)" : "Enter your Gemini API key"} 
+                                />
                             </div>
                         </div>
                     </SectionCard>
@@ -366,12 +461,23 @@ export function SettingsPage() {
                 <div className="max-w-6xl mx-auto w-full">
                     <SettingsHeader title="Wealth Assets" description="Manage your accounts and investment items." onBack={() => setView('dashboard')} />
                     <div className="flex gap-2 overflow-x-auto pb-4 mb-6 hide-scrollbar border-b border-slate-200 dark:border-[#1f1f1f]">
-                        {groups.map(g => (
-                            <button key={g.id} onClick={()=>setActiveGroupId(g.id)} 
-                                className={`px-4 py-2 rounded-lg font-bold text-[11px] transition-all whitespace-nowrap ${activeGroupId===g.id?'bg-blue-600 text-white shadow-lg shadow-blue-500/20':'bg-white dark:bg-[#111] border border-slate-200 dark:border-[#1f1f1f] text-slate-500 hover:border-blue-500/40'}`}>
-                                {g.name}
-                            </button>
-                        ))}
+                        {groups.map((g, idx) => {
+                            const isDragging = draggedGroupIdx === idx
+                            return (
+                                <button 
+                                    key={g.id} 
+                                    onClick={()=>setActiveGroupId(g.id)} 
+                                    draggable
+                                    onDragStart={() => handleGroupDragStart(idx)}
+                                    onDragOver={handleGroupDragOver}
+                                    onDrop={(e) => handleGroupDrop(e, idx)}
+                                    onDragEnd={handleGroupDragEnd}
+                                    className={`px-4 py-2 rounded-lg font-bold text-[11px] transition-all whitespace-nowrap cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-40 border-blue-500 bg-blue-500/10' : ''} ${activeGroupId===g.id?'bg-blue-600 text-white shadow-lg shadow-blue-500/20':'bg-white dark:bg-[#111] border border-slate-200 dark:border-[#1f1f1f] text-slate-500 hover:border-blue-500/40'}`}
+                                >
+                                    {g.name}
+                                </button>
+                            )
+                        })}
                         <button onClick={()=>{const n=prompt('Group Name?'); if(n) secureFetch('/api/asset-groups',{method:'POST',headers:{'Content-Type':'application/json',...tokenHeader()},body:JSON.stringify({name:n})}).then(()=>refresh())}} 
                             className="px-3 py-2 rounded-lg border border-dashed border-slate-300 dark:border-[#333] text-slate-400 hover:text-blue-500 hover:border-blue-500 transition-colors">
                             <IconPlus />
@@ -419,8 +525,16 @@ export function SettingsPage() {
                             {groups.find(x=>x.id===activeGroupId)?.items.filter((it:any)=>!it.parentItemId).map((it:any, idx:number) => {
                                 const group = groups.find(x=>x.id===activeGroupId)
                                 const children = group.items.filter((c:any)=>c.parentItemId===it.id)
+                                const isDragging = draggedIdx === idx
                                 return (
-                                    <div key={it.id} className="bg-white dark:bg-[#111] border border-slate-200 dark:border-[#1f1f1f] rounded-lg p-5 flex flex-col gap-4">
+                                    <div key={it.id} 
+                                        draggable
+                                        onDragStart={() => handleDragStart(idx)}
+                                        onDragOver={(e) => handleDragOver(e, idx)}
+                                        onDrop={(e) => handleDrop(e, idx)}
+                                        onDragEnd={handleDragEnd}
+                                        className={`bg-white dark:bg-[#111] border ${isDragging ? 'border-blue-500/50 bg-blue-500/[0.02] opacity-50 scale-[0.98]' : 'border-slate-200 dark:border-[#1f1f1f]'} rounded-lg p-5 flex flex-col gap-4 cursor-grab active:cursor-grabbing transition-all duration-200`}
+                                    >
                                         <div className="flex justify-between items-start">
                                             <div className="min-w-0">
                                                 <h4 className="truncate text-sm font-bold text-slate-900 dark:text-[#f0f0f0]">{it.name}</h4>
@@ -429,6 +543,7 @@ export function SettingsPage() {
                                             <ActionMenu actions={[
                                                 { label: 'Add Sub-item', icon: <IconPlus />, onClick: () => { const n=prompt('Name?'); if(n) secureFetch(`/api/asset-items/${it.id}/children`, { method:'POST', headers:{'Content-Type':'application/json', ...tokenHeader()}, body: JSON.stringify({name:n}) }).then(()=>refresh()) } },
                                                 { label: 'Move Up', icon: '↑', onClick: () => moveItem(activeGroupId, idx, 'up') },
+                                                { label: 'Move Down', icon: '↓', onClick: () => moveItem(activeGroupId, idx, 'down') },
                                                 { label: 'Delete', icon: <IconTrash />, variant: 'danger', onClick: () => showAlert({ title: 'Delete Asset?', message: `Delete "${it.name}" and all its history?`, confirmText: 'Delete', type: 'danger', onConfirm: async () => { await secureFetch(`/api/asset-items/${it.id}`, { method:'DELETE', headers: tokenHeader() }); refresh() } }) }
                                             ]} />
                                         </div>
@@ -454,16 +569,7 @@ export function SettingsPage() {
                                                             className="w-24 rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-[#282828] pl-6 pr-3 py-1.5 text-xs font-bold text-right outline-none focus:border-blue-500 transition-colors" />
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center justify-between gap-4">
-                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-[#555] uppercase">Start Month</span>
-                                                    <input type="date" value={it.initialContributionDate ? String(it.initialContributionDate).slice(0, 10) : ''}
-                                                        onChange={async (e) => {
-                                                            const val = e.target.value ? e.target.value : null;
-                                                            await secureFetch(`/api/asset-items/${it.id}`, { method:'PUT', headers:{'Content-Type':'application/json', ...tokenHeader()}, body: JSON.stringify({ initialContributionDate: val }) });
-                                                            refresh();
-                                                        }}
-                                                        className="w-28 rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-[#282828] px-2 py-1 text-xs font-bold text-right outline-none focus:border-blue-500 transition-colors text-slate-700 dark:text-slate-300" />
-                                                </div>
+
                                                 <div className="text-[9px] text-slate-400 dark:text-[#555] italic text-right mt-0.5">
                                                     {it.firstTransactionDate ? (
                                                         <span>First transaction: {new Date(it.firstTransactionDate).toLocaleDateString('it-IT')}</span>
@@ -494,7 +600,7 @@ export function SettingsPage() {
                         <div className="space-y-4">
                             <div className="relative">
                                 <input readOnly value={automationToken||'Not Generated'} type={showToken?'text':'password'} 
-                                    className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-[#282828] p-4 rounded-lg font-mono text-[11px] text-blue-500 outline-none" />
+                                    className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-[#282828] p-4 pr-16 rounded-lg font-mono text-[11px] text-blue-500 outline-none" />
                                 <button onClick={()=>setShowToken(!showToken)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 hover:text-blue-500 transition-colors">
                                     {showToken?'MASK':'REVEAL'}
                                 </button>

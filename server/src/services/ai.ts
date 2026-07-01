@@ -5,7 +5,7 @@
 import dayjs from "dayjs";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export async function generatePrismaFilter(userPrompt: string, context: { categories: string[], accounts: string[], tags: string[] }) {
+export async function generatePrismaFilter(userPrompt: string, context: { categories: string[], accounts: string[], tags: string[] }, apiKey: string) {
     const systemPrompt = `
 Convert the USER QUERY into a Prisma JSON "where" object.
 Return ONLY JSON.
@@ -35,9 +35,8 @@ Accounts: ${context.accounts.join(", ")}
 USER QUERY: "${userPrompt}"
     `;
 
-    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-        throw new Error("GEMINI_API_KEY is not configured in the environment variables.");
+        throw new Error("Gemini API key is not configured.");
     }
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({

@@ -17,11 +17,11 @@ export async function parseScreenshot(
   fileBuffer: Buffer,
   mimeType: string,
   categories: { id: number; name: string; type: string }[],
-  accounts: { id: number; name: string; type: string }[]
+  accounts: { id: number; name: string; type: string }[],
+  apiKey: string
 ): Promise<ParsedTransaction[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not configured in the environment variables.");
+    throw new Error("Gemini API key is not configured.");
   }
 
   // Initialize the Gemini client

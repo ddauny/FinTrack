@@ -11,6 +11,7 @@ import path from "path";
 import fs from "fs";
 import { generatePrismaFilter } from "../services/ai.js";
 import { parseScreenshot } from "../services/ocr.js";
+import { decrypt } from "../utils/crypto.js";
 
 export const transactionsRouter = Router();
 
@@ -22,8 +23,20 @@ transactionsRouter.post("/ai-query", requireAuth, async (req: AuthRequest, res) 
     const { prompt } = req.body;
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || user.email !== "dani24iania@gmail.com") {
-      return res.status(403).json({ error: "AI features are restricted to authorized administrators." });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    let apiKey: string | null = null;
+    if (user.geminiApiKey) {
+      try {
+        apiKey = decrypt(user.geminiApiKey);
+      } catch (err) {
+        console.error("Failed to decrypt user Gemini API key:", err);
+        return res.status(500).json({ error: "Failed to load Gemini API key securely." });
+      }
+    }
+
+    if (!apiKey) {
+      return res.status(403).json({ error: "Gemini API key is not configured. Please configure it in Settings." });
     }
 
     if (!prompt || typeof prompt !== 'string') return res.status(400).json({ error: "Prompt is required and must be a string" });
@@ -38,7 +51,7 @@ transactionsRouter.post("/ai-query", requireAuth, async (req: AuthRequest, res) 
       categories: categories.map(c => `${c.name} (${c.type})`),
       accounts: accounts.map(a => a.name),
       tags: tags.map(t => t.name)
-    });
+    }, apiKey);
 
     // console.log("[AI Query] Generated Filter:", JSON.stringify(filter));
 
@@ -1625,19 +1638,43 @@ transactionsRouter.post(
       const files = req.files as Express.Multer.File[];
 
       const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (!user || user.email !== "dani24iania@gmail.com") {
+      if (!user) {
         if (files && files.length > 0) {
           for (const file of files) {
             if (file.path) {
-              try {
-                fs.unlinkSync(file.path);
-              } catch (e) {
-                console.error("Failed to delete temp file:", e);
-              }
+              try { fs.unlinkSync(file.path); } catch (e) { console.error("Failed to delete temp file:", e); }
             }
           }
         }
-        return res.status(403).json({ error: "Gemini AI scanning is currently restricted to authorized administrators." });
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      let apiKey: string | null = null;
+      if (user.geminiApiKey) {
+        try {
+          apiKey = decrypt(user.geminiApiKey);
+        } catch (err) {
+          console.error("Failed to decrypt user Gemini API key:", err);
+          if (files && files.length > 0) {
+            for (const file of files) {
+              if (file.path) {
+                try { fs.unlinkSync(file.path); } catch (e) { console.error("Failed to delete temp file:", e); }
+              }
+            }
+          }
+          return res.status(500).json({ error: "Failed to load Gemini API key securely." });
+        }
+      }
+
+      if (!apiKey) {
+        if (files && files.length > 0) {
+          for (const file of files) {
+            if (file.path) {
+              try { fs.unlinkSync(file.path); } catch (e) { console.error("Failed to delete temp file:", e); }
+            }
+          }
+        }
+        return res.status(403).json({ error: "Gemini API key is not configured. Please configure it in Settings." });
       }
 
       if (!files || files.length === 0) {
@@ -1661,7 +1698,8 @@ transactionsRouter.post(
           fileContent,
           file.mimetype,
           categories,
-          accounts
+          accounts,
+          apiKey!
         );
 
         // Clean up the uploaded file if disk storage was used

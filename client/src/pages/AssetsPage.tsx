@@ -130,6 +130,23 @@ export function AssetsPage() {
   const rows = useMemo(()=>{
     const r: { depth:number; isGroup:boolean; groupId?:number; item?:Item; name:string; isHiddenIndicator?:boolean; hiddenItems?:Item[] }[] = []
     if (!Array.isArray(groups)) return r
+
+    const getSortValue = (item: Item) => {
+      for (const m of months) {
+        const val = valueFor(item, m, true);
+        if (val !== 0) return val;
+      }
+      return 0;
+    };
+
+    const sortItems = (list: Item[]) => {
+      return [...list].sort((a, b) => {
+        const valA = getSortValue(a);
+        const valB = getSortValue(b);
+        return valB - valA;
+      });
+    };
+
     for (const g of groups) {
       r.push({ depth:0, isGroup:true, groupId:g.id, name:g.name })
       const items = (g.items||[]).filter(Boolean)
@@ -149,7 +166,9 @@ export function AssetsPage() {
            }
         }
 
-        for (const it of list) {
+        const sortedList = sortItems(list);
+
+        for (const it of sortedList) {
           if (!it) continue
           if (it.hidden) {
               hiddenRun.push(it)
@@ -170,7 +189,7 @@ export function AssetsPage() {
       emitSiblings(roots, 1)
     }
     return r
-  }, [groups])
+  }, [groups, months])
 
   const tokenHeader = authHeaders;
 

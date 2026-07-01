@@ -5,16 +5,25 @@ import { z } from "zod";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 
+import { encrypt } from "../utils/crypto.js";
+
 export const settingsRouter = Router();
 
 const profileSchema = z.object({
   email: z.string().email().optional(),
   password: z.string().min(8).optional(),
+  geminiApiKey: z.string().optional().nullable(),
 });
 
 settingsRouter.get("/profile", requireAuth, async (req: AuthRequest, res) => {
-  const user = await prisma.user.findUnique({ where: { id: req.userId! }, select: { id: true, email: true, createdAt: true } });
-  res.json(user);
+  const user = await prisma.user.findUnique({ where: { id: req.userId! }, select: { id: true, email: true, createdAt: true, geminiApiKey: true } });
+  if (!user) return res.status(404).json({ error: "User not found" });
+  res.json({
+    id: user.id,
+    email: user.email,
+    createdAt: user.createdAt,
+    hasGeminiApiKey: !!user.geminiApiKey,
+  });
 });
 
 settingsRouter.put("/profile", requireAuth, async (req: AuthRequest, res) => {
@@ -26,8 +35,15 @@ settingsRouter.put("/profile", requireAuth, async (req: AuthRequest, res) => {
     const bcrypt = await import("bcryptjs");
     data.passwordHash = await bcrypt.default.hash(parse.data.password, 10);
   }
+  if (parse.data.geminiApiKey !== undefined) {
+    if (parse.data.geminiApiKey === null || parse.data.geminiApiKey.trim() === "") {
+      data.geminiApiKey = null;
+    } else {
+      data.geminiApiKey = encrypt(parse.data.geminiApiKey.trim());
+    }
+  }
   const user = await prisma.user.update({ where: { id: req.userId! }, data });
-  res.json({ id: user.id, email: user.email });
+  res.json({ id: user.id, email: user.email, hasGeminiApiKey: !!user.geminiApiKey });
 });
 
 // Export transactions as JSON

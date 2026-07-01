@@ -15,6 +15,7 @@ model User {
   createdAt    DateTime  @default(now())
   automationToken String? // JWT token for iPhone Shortcuts and automation
   isAiEnabled  Boolean   @default(false) // Access control for AI features
+  geminiApiKey String?   // User-provided Gemini API key (optional, encrypted)
 
   accounts     Account[]
   categories   Category[]

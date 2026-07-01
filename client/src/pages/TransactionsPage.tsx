@@ -72,8 +72,22 @@ export function TransactionsPage() {
       setTotal(res.items.length)
       showToast('AI Query Applied!', 'success')
       setIsAiMode(false)
-    } catch (err) {
-      showToast('AI failed to parse query', 'error')
+    } catch (err: any) {
+      console.error(err)
+      let errMsg = 'AI failed to parse query'
+      if (err.message) {
+        try {
+          const parsedErr = JSON.parse(err.message)
+          if (parsedErr && parsedErr.error) {
+            errMsg = parsedErr.error
+          } else {
+            errMsg = err.message
+          }
+        } catch {
+          errMsg = err.message
+        }
+      }
+      showToast(errMsg, 'error')
     } finally {
       setAiLoading(false)
     }
@@ -393,7 +407,18 @@ export function TransactionsPage() {
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
                 </button>
                 <button
-                    onClick={() => setShowScreenshotModal(true)}
+                    onClick={async () => {
+                      try {
+                        const profile = await api.settings.profile();
+                        if (!profile.hasGeminiApiKey) {
+                          showToast("Gemini API key is not configured. Please configure it in Settings.", "error");
+                          return;
+                        }
+                        setShowScreenshotModal(true);
+                      } catch (err: any) {
+                        showToast("Failed to verify Gemini API key configuration.", "error");
+                      }
+                    }}
                     className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-600 text-white shadow-md shadow-emerald-500/10 hover:bg-emerald-700 transition-all active:scale-95 shrink-0"
                     title="Scan bank screenshot"
                 >
