@@ -145,6 +145,7 @@ export const api = {
       topAssetsEvolution: (start?: string, end?: string, limit?: number) => apiGet<any>(`/api/reports/top-assets-evolution?start=${start||''}&end=${end||''}&limit=${limit||5}`),
       assetAllocationChanges: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-allocation-changes?start=${start||''}&end=${end||''}`),
       monthlyCategoryTrends: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/monthly-category-trends?start=${start||''}&end=${end||''}`),
+      aiChat: (prompt: string) => apiJson<{markdownText: string, widgets?: any[]}>('/api/reports/ai-chat', 'POST', { prompt }),
       exportCsv: (path: string) => fetch(path + (path.includes('?')? '&':'?') + 'format=csv', { headers: { ...authHeaders() } }).then(async r => {
         if (r.status === 401) {
           localStorage.removeItem('token')

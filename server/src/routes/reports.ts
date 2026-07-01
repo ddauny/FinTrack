@@ -3,6 +3,8 @@ import { prisma } from "../db/prisma.js";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
+import { decrypt } from "../utils/crypto.js";
+import { generateAnalysis } from "../services/ai.js";
 
 export const reportsRouter = Router();
 dayjs.extend(customParseFormat);
@@ -1238,3 +1240,77 @@ reportsRouter.get("/portfolio-analytics", requireAuth, async (req: AuthRequest, 
      return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+reportsRouter.post("/ai-chat", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { prompt } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    let apiKey: string | null = null;
+    if (user.geminiApiKey) {
+      try {
+        apiKey = decrypt(user.geminiApiKey);
+      } catch (err) {
+        return res.status(500).json({ error: "Failed to load Gemini API key securely." });
+      }
+    }
+
+    if (!apiKey) {
+      return res.status(403).json({ error: "Gemini API key is not configured. Please configure it in Settings." });
+    }
+
+    if (!prompt || typeof prompt !== 'string') return res.status(400).json({ error: "Prompt is required" });
+
+    // Fetch minimal context for the AI
+    const assetGroups = await prisma.assetGroup.findMany({
+      where: { userId },
+      include: {
+        items: {
+          include: {
+            valuations: { orderBy: { month: "desc" }, take: 24 } // last 2 years
+          }
+        }
+      }
+    });
+
+    const oneYearAgo = dayjs().subtract(1, 'year').toDate();
+    const recentTxns = await prisma.transaction.findMany({
+      where: { userId, date: { gte: oneYearAgo } },
+      select: { amount: true, date: true, type: true, category: { select: { name: true } } }
+    });
+
+    // Group transactions by month, type, and category to preserve exact context (e.g., Income vs Expense)
+    const monthlySummary: any = {};
+    for (const tx of recentTxns) {
+      const m = dayjs(tx.date).format("YYYY-MM");
+      const type = tx.type; // Income, Expense, Transfer
+      const cat = tx.category?.name || "Uncategorized";
+      if (!monthlySummary[m]) monthlySummary[m] = {};
+      if (!monthlySummary[m][type]) monthlySummary[m][type] = {};
+      if (!monthlySummary[m][type][cat]) monthlySummary[m][type][cat] = 0;
+      monthlySummary[m][type][cat] += Number(tx.amount);
+    }
+
+    const context = {
+      assets: assetGroups.map(g => ({
+        name: g.name,
+        items: g.items.map((i: any) => ({
+          name: i.name,
+          recentValuations: i.valuations.map((v: any) => ({ month: dayjs(v.month).format("YYYY-MM"), value: Number(v.value) }))
+        }))
+      })),
+      monthlySpendingSummary: monthlySummary
+    };
+
+    const analysis = await generateAnalysis(prompt, context, apiKey);
+    res.json(analysis);
+
+  } catch (error) {
+    console.error("AI Chat Error:", error);
+    res.status(500).json({ error: "AI failed to process your request." });
+  }
+});
+
