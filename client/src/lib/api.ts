@@ -9,7 +9,8 @@ import type {
   Category,
   Portfolio,
   Holding,
-  ManualAsset
+  ManualAsset,
+  AiProviderConfig
 } from '../types';
 
 const base = '' // proxied to server in dev
@@ -130,6 +131,10 @@ export const api = {
     updateProfile: (data: any) => apiJson<any>('/api/settings/profile', 'PUT', data),
     getAutomationToken: () => apiGet<{ token: string | null }>('/api/settings/automation-token'),
     generateAutomationToken: () => apiJson<{ token: string }>('/api/settings/automation-token', 'POST', {}),
+    getAiProviderConfig: () => apiGet<AiProviderConfig>('/api/settings/ai-provider'),
+    saveAiProviderConfig: (data: { provider: string; baseUrl: string; model: string; apiKey: string }) =>
+      apiJson<AiProviderConfig>('/api/settings/ai-provider', 'PUT', data),
+    deleteAiProviderConfig: () => apiJson<AiProviderConfig>('/api/settings/ai-provider', 'DELETE'),
   },
   recurringTransactions: {
     list: () => apiGet<any[]>('/api/recurring-transactions'),

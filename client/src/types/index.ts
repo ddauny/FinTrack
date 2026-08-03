@@ -72,6 +72,13 @@ export interface BulkImportResponse {
   ids: number[];
 }
 
+export interface AiProviderConfig {
+  provider: string | null;
+  baseUrl: string | null;
+  model: string | null;
+  configured: boolean;
+}
+
 export interface NetWorthPoint {
   date: string;
   value: number;
