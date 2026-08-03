@@ -117,12 +117,14 @@ docker exec fintrack-prod-db pg_dump -U [USER] -d [DB] > backups/prod-backup-$(d
 
 ## Import transazioni da screenshot
 
-La pagina **Transactions** include la funzione **"Import screenshot"**: carichi uno o più screenshot dell'app bancaria, il sistema estrae automaticamente data, esercente, importo e tipo (Income/Expense) tramite Google Gemini, suggerisce la categoria, segnala possibili duplicati e mostra un riepilogo editabile prima della conferma.
+La pagina **Transactions** include la funzione **"Import screenshot"**: carichi uno o più screenshot dell'app bancaria, il sistema estrae automaticamente data, esercente, importo e tipo (Income/Expense) tramite un provider AI vision configurato dall'utente, suggerisce la categoria, segnala possibili duplicati e mostra un riepilogo editabile prima della conferma.
 
-Per abilitarla, aggiungi la chiave API a `.env.dev` e `.env.prod` (lato server, mai esposta al client):
+Ogni utente configura la **propria** chiave API da **Impostazioni → Import da Screenshot (AI)**: nessuna chiave condivisa, nessun utente consuma la quota di un altro. Sono supportati Gemini (via l'endpoint OpenAI-compatible di Google), OpenAI, o qualunque provider che espone un endpoint Chat Completions compatibile.
+
+Il server richiede una variabile d'ambiente per cifrare le chiavi salvate nel DB, da aggiungere a `.env.dev` e `.env.prod`:
 
 ```bash
-GEMINI_API_KEY=la-tua-chiave-google-ai-studio
+ENCRYPTION_KEY=<genera con: openssl rand -base64 32>
 ```
 
-Senza la chiave, gli endpoint `/api/transactions/extract` e `/api/transactions/bulk-import` rispondono `503`.
+Senza `ENCRYPTION_KEY`, gli endpoint `/api/settings/ai-provider` rispondono `503`. Un utente senza chiave configurata riceve un messaggio bloccante invece di poter usare l'import (nessun fallback su una chiave condivisa).
