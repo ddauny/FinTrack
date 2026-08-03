@@ -8,7 +8,7 @@ import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import multer from "multer";
 import { extractTransactionsFromImage } from "../services/screenshotOcr.js";
 import { suggestCategory } from "../services/merchantCategoryMatcher.js";
-import { env } from "../config/env.js";
+import { decryptSecret } from "../utils/crypto.js";
 
 export const transactionsRouter = Router();
 
@@ -728,13 +728,27 @@ transactionsRouter.post(
   requireAuth,
   imageUpload.array("files", 20),
   async (req: AuthRequest & { files?: Express.Multer.File[] }, res) => {
-    if (!env.geminiApiKey) {
-      return res.status(503).json({ error: "Screenshot import is not configured (missing GEMINI_API_KEY)" });
+    const userId = req.userId!;
+
+    const aiUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { screenshotAiBaseUrl: true, screenshotAiModel: true, screenshotAiKeyEncrypted: true },
+    });
+    if (!aiUser?.screenshotAiKeyEncrypted || !aiUser.screenshotAiBaseUrl || !aiUser.screenshotAiModel) {
+      return res.status(400).json({
+        error: "AI_NOT_CONFIGURED",
+        message: "Configura la tua chiave AI nelle Impostazioni per usare l'import da screenshot.",
+      });
     }
+    const providerConfig = {
+      baseUrl: aiUser.screenshotAiBaseUrl,
+      model: aiUser.screenshotAiModel,
+      apiKey: decryptSecret(aiUser.screenshotAiKeyEncrypted),
+    };
+
     const files = req.files ?? [];
     if (files.length === 0) return res.status(400).json({ error: "At least one image file required" });
 
-    const userId = req.userId!;
     // accountId is optional: defaults to the user's primary account (auto-created if missing)
     const rawAccountId = Number((req.body as any)?.accountId);
     const accountId = Number.isInteger(rawAccountId) && rawAccountId > 0
@@ -753,7 +767,7 @@ transactionsRouter.post(
     const settled = await Promise.allSettled(
       files.map(async (f) => ({
         file: f.originalname,
-        transactions: await extractTransactionsFromImage(f.buffer, f.mimetype),
+        transactions: await extractTransactionsFromImage(f.buffer, f.mimetype, providerConfig),
       }))
     );
 
