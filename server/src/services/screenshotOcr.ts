@@ -48,7 +48,8 @@ function assertSafeBaseUrl(baseUrl: string): void {
   if (parsed.protocol !== "https:") {
     throw new Error("Base URL must use https");
   }
-  if (PRIVATE_HOST_PATTERNS.some((p) => p.test(parsed.hostname))) {
+  const hostname = parsed.hostname.replace(/^\[/, "").replace(/\]$/, "");
+  if (PRIVATE_HOST_PATTERNS.some((p) => p.test(hostname))) {
     throw new Error("Base URL host is not allowed");
   }
 }
