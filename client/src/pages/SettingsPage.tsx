@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { api } from '../lib/api'
-import type { Tag } from '../types'
+import type { Tag, AiProviderConfig } from '../types'
 import { useNavigate } from 'react-router-dom'
 
 // Icons
@@ -51,6 +51,12 @@ const IconEdit = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
   </svg>
 )
+
+const AI_PROVIDER_PRESETS: Record<string, { baseUrl: string; model: string }> = {
+  Gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash' },
+  OpenAI: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  Custom: { baseUrl: '', model: '' },
+}
 
 function ActionMenu({ actions }: { actions: { label: string, onClick: () => void, icon?: React.ReactNode, variant?: 'danger' | 'default' }[] }) {
   const [open, setOpen] = useState(false)
@@ -199,6 +205,12 @@ export function SettingsPage() {
   const [automationToken, setAutomationToken] = useState<string | null>(null)
   const [showToken, setShowToken] = useState(false)
   const [showImportInfo, setShowImportInfo] = useState(false)
+  const [aiConfig, setAiConfig] = useState<AiProviderConfig | null>(null)
+  const [aiEditing, setAiEditing] = useState(false)
+  const [aiForm, setAiForm] = useState({ provider: 'Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash', apiKey: '' })
+  const [aiSaving, setAiSaving] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [showAiKey, setShowAiKey] = useState(false)
   const [externalIncomeSources, setExternalIncomeSources] = useState<ExternalIncomeSource[]>([])
   const [showExternalIncomeModal, setShowExternalIncomeModal] = useState(false)
   const [editingExternalIncomeId, setEditingExternalIncomeId] = useState<number | null>(null)
@@ -254,8 +266,40 @@ export function SettingsPage() {
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
+  function selectAiPreset(name: string) {
+    const preset = AI_PROVIDER_PRESETS[name]
+    setAiForm(f => ({ ...f, provider: name, baseUrl: preset.baseUrl, model: preset.model }))
+  }
+
+  async function saveAiConfig() {
+    setAiSaving(true)
+    setAiError(null)
+    try {
+      const result = await api.settings.saveAiProviderConfig(aiForm)
+      setAiConfig(result)
+      setAiEditing(false)
+      setAiForm(f => ({ ...f, apiKey: '' }))
+    } catch (e: any) {
+      try {
+        const parsed = JSON.parse(e?.message || '{}')
+        setAiError(parsed.error || 'Salvataggio fallito')
+      } catch {
+        setAiError('Salvataggio fallito')
+      }
+    } finally {
+      setAiSaving(false)
+    }
+  }
+
+  async function removeAiConfig() {
+    if (!confirm("Rimuovere la configurazione AI? L'import da screenshot smetterà di funzionare finché non ne configuri una nuova.")) return
+    const result = await api.settings.deleteAiProviderConfig()
+    setAiConfig(result)
+    setAiEditing(false)
+  }
+
   async function refresh() {
-    const [p, c, g, r, accounts, tokenData, tagsData, externalSources] = await Promise.all([
+    const [p, c, g, r, accounts, tokenData, tagsData, externalSources, aiProviderConfig] = await Promise.all([
       api.settings.profile(),
       api.categories.list(),
       fetch('/api/asset-groups', { headers: tokenHeader() }).then(r => r.json()),
@@ -264,6 +308,7 @@ export function SettingsPage() {
       api.settings.getAutomationToken(),
       api.tags.list(),
       api.externalIncomeSources.list(),
+      api.settings.getAiProviderConfig(),
     ])
     setProfile(p)
     setEmail((p as any)?.email || '')
@@ -273,6 +318,7 @@ export function SettingsPage() {
     setAutomationToken(tokenData.token)
     setTags(tagsData)
     setExternalIncomeSources((externalSources as ExternalIncomeSource[]) || [])
+    setAiConfig(aiProviderConfig)
 
     // Create maps for easier lookups
     const catMap: Record<number, any> = {}
@@ -720,6 +766,119 @@ export function SettingsPage() {
                 Don't share it publicly and regenerate it if compromised.
               </p>
             </div>
+          </div>
+        </section>
+
+        {/* AI Provider (Screenshot Import) Section */}
+        <section className="bg-white dark:bg-stone-800 p-4 sm:p-6 rounded-lg shadow-sm border border-stone-200 dark:border-stone-700">
+          <h2 className="text-lg font-semibold mb-4 text-stone-900 dark:text-stone-100 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+            </svg>
+            Import da Screenshot (AI)
+          </h2>
+          <div className="space-y-4">
+            <p className="text-sm text-stone-600 dark:text-stone-400">
+              Configura la tua chiave API personale per estrarre transazioni dagli screenshot bancari. Ogni utente usa la propria chiave: nessuna condivisione di quota o costi.
+            </p>
+
+            {aiError && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-700 dark:text-red-400">
+                {aiError}
+              </div>
+            )}
+
+            {aiConfig?.configured && !aiEditing ? (
+              <div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 space-y-3">
+                <div>
+                  <h3 className="font-semibold text-stone-900 dark:text-stone-100 mb-1">{aiConfig.provider}</h3>
+                  <p className="text-xs text-stone-500 dark:text-stone-400 font-mono">{aiConfig.model}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setAiForm({ provider: aiConfig.provider || 'Custom', baseUrl: aiConfig.baseUrl || '', model: aiConfig.model || '', apiKey: '' })
+                      setAiEditing(true)
+                    }}
+                    className="btn-secondary flex-1"
+                  >
+                    Modifica
+                  </button>
+                  <button onClick={removeAiConfig} className="btn-danger-solid flex-1">
+                    Rimuovi
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-stone-200 dark:border-stone-700 rounded-lg p-4 space-y-3">
+                <div className="flex gap-2">
+                  {Object.keys(AI_PROVIDER_PRESETS).map(name => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => selectAiPreset(name)}
+                      className={`px-3 py-1.5 text-sm rounded-md border ${aiForm.provider === name ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 border-stone-900 dark:border-stone-100' : 'border-stone-300 dark:border-stone-600 text-stone-700 dark:text-stone-300'}`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-500 dark:text-stone-400 mb-1">Base URL</label>
+                  <input
+                    type="text"
+                    value={aiForm.baseUrl}
+                    onChange={e => setAiForm(f => ({ ...f, baseUrl: e.target.value }))}
+                    placeholder="https://api.openai.com/v1"
+                    className="w-full p-2.5 rounded-md bg-stone-50 dark:bg-stone-700 text-stone-900 dark:text-stone-100 border border-stone-300 dark:border-stone-600 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-500 dark:text-stone-400 mb-1">Model</label>
+                  <input
+                    type="text"
+                    value={aiForm.model}
+                    onChange={e => setAiForm(f => ({ ...f, model: e.target.value }))}
+                    placeholder="gpt-4o-mini"
+                    className="w-full p-2.5 rounded-md bg-stone-50 dark:bg-stone-700 text-stone-900 dark:text-stone-100 border border-stone-300 dark:border-stone-600 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-500 dark:text-stone-400 mb-1">API Key</label>
+                  <div className="relative">
+                    <input
+                      type={showAiKey ? "text" : "password"}
+                      value={aiForm.apiKey}
+                      onChange={e => setAiForm(f => ({ ...f, apiKey: e.target.value }))}
+                      placeholder="sk-..."
+                      className="w-full p-2.5 pr-16 rounded-md bg-stone-50 dark:bg-stone-700 text-stone-900 dark:text-stone-100 border border-stone-300 dark:border-stone-600 font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAiKey(!showAiKey)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs rounded bg-stone-200 dark:bg-stone-600 hover:bg-stone-300 dark:hover:bg-stone-500 transition-colors"
+                    >
+                      {showAiKey ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveAiConfig}
+                    disabled={aiSaving || !aiForm.baseUrl || !aiForm.model || !aiForm.apiKey}
+                    className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {aiSaving ? 'Verifica in corso…' : 'Salva e verifica'}
+                  </button>
+                  {aiConfig?.configured && (
+                    <button onClick={() => { setAiEditing(false); setAiError(null) }} className="btn-secondary flex-1">
+                      Annulla
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
