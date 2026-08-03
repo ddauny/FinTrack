@@ -1,11 +1,14 @@
-import { GoogleGenAI } from "@google/genai";
-import { env } from "../config/env.js";
-
 export interface OcrTransaction {
   date: string; // YYYY-MM-DD
   merchant: string;
   amount: number;
   type: "Income" | "Expense";
+}
+
+export interface VisionProviderConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
 }
 
 const EXTRACTION_PROMPT = `You are an assistant that extracts financial transactions from a banking or payment app screenshot.
@@ -18,46 +21,47 @@ Analyze the image and extract ALL transactions visible (there may be more than o
 
 Return ONLY a valid JSON array of objects with exactly these keys: date, merchant, amount, type. No markdown, no explanation. If no transaction is found, return an empty array [].`;
 
-// Model candidates in preference order; verified at runtime and cached.
-// See https://ai.google.dev/gemini-api/docs/models for the current list.
-const MODEL_CANDIDATES = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-
-let cachedModel: string | null = null;
-
-function getClient(): GoogleGenAI {
-  if (!env.geminiApiKey) {
-    throw new Error("GEMINI_API_KEY is not configured");
-  }
-  return new GoogleGenAI({ apiKey: env.geminiApiKey });
+function chatCompletionsUrl(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
 }
 
-async function resolveModel(ai: GoogleGenAI): Promise<string> {
-  if (cachedModel) return cachedModel;
-  try {
-    // list available models and pick the first candidate that is available
-    const pager = await ai.models.list();
-    const available = new Set<string>();
-    for await (const m of pager as any) {
-      if (m?.name) available.add(String(m.name).replace(/^models\//, ""));
-    }
-    for (const c of MODEL_CANDIDATES) {
-      if (available.has(c)) {
-        cachedModel = c;
-        return c;
-      }
-    }
-  } catch {
-    // If listing fails (permissions/network), fall back to default candidate
+// Calls any OpenAI-Chat-Completions-compatible endpoint (OpenAI itself,
+// Gemini via Google's OpenAI-compat layer, or any other provider speaking
+// the same format) and returns the assistant's text content.
+async function callChatCompletions(
+  config: VisionProviderConfig,
+  content: Array<Record<string, unknown>>,
+  maxTokens: number
+): Promise<string> {
+  const res = await fetch(chatCompletionsUrl(config.baseUrl), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [{ role: "user", content }],
+      temperature: 0.1,
+      max_tokens: maxTokens,
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Provider request failed (${res.status}): ${body.slice(0, 300)}`);
   }
-  cachedModel = MODEL_CANDIDATES[0];
-  return cachedModel;
+
+  const json: any = await res.json();
+  const text = json?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("Empty response from model");
+  return text;
 }
 
 function extractJsonArray(text: string): OcrTransaction[] {
-  // Strip markdown fences if present
   let cleaned = text.trim();
   cleaned = cleaned.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
-  // Try to find the first JSON array in the text
   const start = cleaned.indexOf("[");
   const end = cleaned.lastIndexOf("]");
   if (start === -1 || end === -1 || end <= start) {
@@ -81,34 +85,38 @@ function extractJsonArray(text: string): OcrTransaction[] {
 }
 
 /**
- * Extract transactions from a single screenshot image buffer using Gemini Vision.
- * Throws on unrecoverable errors (missing key, network, invalid response).
+ * Extract transactions from a single screenshot image buffer using the
+ * given provider config. Throws on unrecoverable errors (bad key, network,
+ * invalid response).
  */
 export async function extractTransactionsFromImage(
   buffer: Buffer,
-  mimeType: string
+  mimeType: string,
+  config: VisionProviderConfig
 ): Promise<OcrTransaction[]> {
-  const ai = getClient();
-  const model = await resolveModel(ai);
-
-  const response = await ai.models.generateContent({
-    model,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: EXTRACTION_PROMPT },
-          { inlineData: { mimeType, data: buffer.toString("base64") } },
-        ],
-      },
+  const text = await callChatCompletions(
+    config,
+    [
+      { type: "text", text: EXTRACTION_PROMPT },
+      { type: "image_url", image_url: { url: `data:${mimeType};base64,${buffer.toString("base64")}` } },
     ],
-    config: {
-      temperature: 0.1,
-      maxOutputTokens: 2048,
-    },
-  });
-
-  const text = (response as any).text ?? "";
-  if (!text) throw new Error("Empty response from model");
+    2048
+  );
   return extractJsonArray(text);
+}
+
+/**
+ * Verifies that baseUrl + apiKey + model actually work together, with a
+ * minimal text-only request. Used by the Settings "save" flow before
+ * persisting a user's provider config.
+ */
+export async function validateProviderConfig(
+  config: VisionProviderConfig
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    await callChatCompletions(config, [{ type: "text", text: "Reply with the single word: ok" }], 5);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, message: e?.message || "Validation request failed" };
+  }
 }
