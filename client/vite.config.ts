@@ -13,7 +13,7 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
-    allowedHosts: ['fintrack.kusy.duckdns.org', 'fintrack.kusy'],
+    allowedHosts: ['fintrack.kusy.duckdns.org', 'fintrack.kusy', 'fintrack.marcor.it'],
     proxy: {
       '/api': 'http://app-dev:4000',
       '/health': 'http://app-dev:4000'
