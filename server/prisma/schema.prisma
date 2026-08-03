@@ -15,6 +15,13 @@ model User {
   createdAt    DateTime  @default(now())
   automationToken String? // JWT token for iPhone Shortcuts and automation
 
+  // Per-user AI provider config for the screenshot-import feature.
+  // Every user brings their own key — no shared/instance-wide fallback.
+  screenshotAiProvider     String? // free-form label, e.g. "Gemini", "OpenAI", "Custom"
+  screenshotAiBaseUrl      String? // e.g. https://generativelanguage.googleapis.com/v1beta/openai
+  screenshotAiModel        String? // e.g. "gemini-2.5-flash"
+  screenshotAiKeyEncrypted String? // ciphertext only, see server/src/utils/crypto.ts
+
   accounts     Account[]
   categories   Category[]
   transactions Transaction[]
