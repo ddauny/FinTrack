@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import type { ExtractedTransaction, Category } from '../types'
 import { formatEUR } from '../lib/format'
@@ -19,6 +20,7 @@ export function ImportScreenshotsModal({ categories, onClose, onImported }: Prop
   const [extractErrors, setExtractErrors] = useState<{ file: string; message: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [aiNotConfigured, setAiNotConfigured] = useState(false)
   const [importIssues, setImportIssues] = useState<{ index: number; field: string; message: string }[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -49,6 +51,7 @@ export function ImportScreenshotsModal({ categories, onClose, onImported }: Prop
     if (files.length === 0) { setError('Please add at least one screenshot.'); return }
     setLoading(true)
     setError(null)
+    setAiNotConfigured(false)
     try {
       const res = await api.transactions.extractScreenshots(files)
       setExtractErrors(res.errors)
@@ -61,7 +64,16 @@ export function ImportScreenshotsModal({ categories, onClose, onImported }: Prop
       )
       setStep('review')
     } catch (e: any) {
-      setError(`Extraction failed: ${e?.message || 'unknown error'}`)
+      try {
+        const parsed = JSON.parse(e?.message || '{}')
+        if (parsed.error === 'AI_NOT_CONFIGURED') {
+          setAiNotConfigured(true)
+        } else {
+          setError(parsed.message || parsed.error || `Extraction failed: ${e?.message}`)
+        }
+      } catch {
+        setError(`Extraction failed: ${e?.message || 'unknown error'}`)
+      }
     } finally {
       setLoading(false)
     }
@@ -161,6 +173,19 @@ export function ImportScreenshotsModal({ categories, onClose, onImported }: Prop
           {error && (
             <div className="px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-400">
               {error}
+            </div>
+          )}
+
+          {aiNotConfigured && (
+            <div className="px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm text-amber-800 dark:text-amber-300 flex items-center justify-between gap-3">
+              <span>Configura la tua chiave AI nelle Impostazioni per usare l'import da screenshot.</span>
+              <Link
+                to="/settings"
+                onClick={onClose}
+                className="shrink-0 px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 transition-colors"
+              >
+                Vai alle Impostazioni
+              </Link>
             </div>
           )}
 
