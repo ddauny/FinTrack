@@ -4,6 +4,8 @@ import { requireAuth, AuthRequest } from "../middleware/auth.js";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
+import { encryptSecret, isEncryptionConfigured } from "../utils/crypto.js";
+import { validateProviderConfig } from "../services/screenshotOcr.js";
 
 export const settingsRouter = Router();
 
@@ -156,4 +158,85 @@ settingsRouter.post("/automation-token", requireAuth, async (req: AuthRequest, r
   });
   
   res.json({ token });
+});
+
+const aiProviderSchema = z.object({
+  provider: z.string().min(1).max(50),
+  baseUrl: z.string().url(),
+  model: z.string().min(1).max(100),
+  apiKey: z.string().min(1),
+});
+
+function aiProviderResponse(user: {
+  screenshotAiProvider: string | null;
+  screenshotAiBaseUrl: string | null;
+  screenshotAiModel: string | null;
+  screenshotAiKeyEncrypted: string | null;
+} | null) {
+  return {
+    provider: user?.screenshotAiProvider ?? null,
+    baseUrl: user?.screenshotAiBaseUrl ?? null,
+    model: user?.screenshotAiModel ?? null,
+    configured: Boolean(user?.screenshotAiKeyEncrypted && user?.screenshotAiBaseUrl && user?.screenshotAiModel),
+  };
+}
+
+// Get the current user's AI provider config for screenshot import (never returns the key)
+settingsRouter.get("/ai-provider", requireAuth, async (req: AuthRequest, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.userId! },
+    select: {
+      screenshotAiProvider: true,
+      screenshotAiBaseUrl: true,
+      screenshotAiModel: true,
+      screenshotAiKeyEncrypted: true,
+    },
+  });
+  res.json(aiProviderResponse(user));
+});
+
+// Validate and save the current user's AI provider config
+settingsRouter.put("/ai-provider", requireAuth, async (req: AuthRequest, res) => {
+  if (!isEncryptionConfigured()) {
+    return res.status(503).json({ error: "Encryption is not configured on this server (missing ENCRYPTION_KEY)" });
+  }
+  const parse = aiProviderSchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
+  const { provider, baseUrl, model, apiKey } = parse.data;
+
+  const validation = await validateProviderConfig({ baseUrl, apiKey, model });
+  if (validation.ok === false) {
+    return res.status(400).json({ error: `Provider validation failed: ${validation.message}` });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.userId! },
+    data: {
+      screenshotAiProvider: provider,
+      screenshotAiBaseUrl: baseUrl,
+      screenshotAiModel: model,
+      screenshotAiKeyEncrypted: encryptSecret(apiKey),
+    },
+    select: {
+      screenshotAiProvider: true,
+      screenshotAiBaseUrl: true,
+      screenshotAiModel: true,
+      screenshotAiKeyEncrypted: true,
+    },
+  });
+  res.json(aiProviderResponse(user));
+});
+
+// Clear the current user's AI provider config
+settingsRouter.delete("/ai-provider", requireAuth, async (req: AuthRequest, res) => {
+  await prisma.user.update({
+    where: { id: req.userId! },
+    data: {
+      screenshotAiProvider: null,
+      screenshotAiBaseUrl: null,
+      screenshotAiModel: null,
+      screenshotAiKeyEncrypted: null,
+    },
+  });
+  res.json(aiProviderResponse(null));
 });
