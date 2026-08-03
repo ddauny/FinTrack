@@ -7,6 +7,10 @@ import { authRouter, dashboardRouter, accountsRouter, categoriesRouter, transact
 import { refreshMarketData } from "./services/marketData.js";
 import { startRecurringScheduler } from "./services/recurringScheduler.js";
 
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection:", reason);
+});
+
 const app = express();
 
 app.use(helmet());

@@ -1,3 +1,3 @@
 -- AlterTable
-ALTER TABLE "BondData" ADD COLUMN     "linkedAccountId" INTEGER,
-ADD COLUMN     "linkedCategoryId" INTEGER;
+ALTER TABLE "BondData" ADD COLUMN IF NOT EXISTS "linkedAccountId" INTEGER,
+ADD COLUMN IF NOT EXISTS "linkedCategoryId" INTEGER;

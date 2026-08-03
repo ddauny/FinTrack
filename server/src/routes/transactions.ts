@@ -8,7 +8,7 @@ import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import multer from "multer";
 import { extractTransactionsFromImage } from "../services/screenshotOcr.js";
 import { suggestCategory } from "../services/merchantCategoryMatcher.js";
-import { decryptSecret } from "../utils/crypto.js";
+import { decryptSecret, isEncryptionConfigured } from "../utils/crypto.js";
 
 export const transactionsRouter = Router();
 
@@ -730,6 +730,10 @@ transactionsRouter.post(
   async (req: AuthRequest & { files?: Express.Multer.File[] }, res) => {
     const userId = req.userId!;
 
+    if (!isEncryptionConfigured()) {
+      return res.status(503).json({ error: "Screenshot import is not configured (missing ENCRYPTION_KEY)" });
+    }
+
     const aiUser = await prisma.user.findUnique({
       where: { id: userId },
       select: { screenshotAiBaseUrl: true, screenshotAiModel: true, screenshotAiKeyEncrypted: true },
@@ -740,10 +744,18 @@ transactionsRouter.post(
         message: "Configura la tua chiave AI nelle Impostazioni per usare l'import da screenshot.",
       });
     }
+
+    let apiKey: string;
+    try {
+      apiKey = decryptSecret(aiUser.screenshotAiKeyEncrypted);
+    } catch (e) {
+      console.error("[extract] failed to decrypt stored AI key for user", userId, e);
+      return res.status(500).json({ error: "Failed to decrypt stored AI configuration. Please reconfigure your AI provider in Settings." });
+    }
     const providerConfig = {
       baseUrl: aiUser.screenshotAiBaseUrl,
       model: aiUser.screenshotAiModel,
-      apiKey: decryptSecret(aiUser.screenshotAiKeyEncrypted),
+      apiKey,
     };
 
     const files = req.files ?? [];

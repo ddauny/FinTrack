@@ -209,13 +209,21 @@ settingsRouter.put("/ai-provider", requireAuth, async (req: AuthRequest, res) =>
     return res.status(400).json({ error: `Provider validation failed: ${validation.message}` });
   }
 
+  let encryptedKey: string;
+  try {
+    encryptedKey = encryptSecret(apiKey);
+  } catch (e) {
+    console.error("[settings] failed to encrypt AI key for user", req.userId, e);
+    return res.status(500).json({ error: "Failed to save AI configuration securely." });
+  }
+
   const user = await prisma.user.update({
     where: { id: req.userId! },
     data: {
       screenshotAiProvider: provider,
       screenshotAiBaseUrl: baseUrl,
       screenshotAiModel: model,
-      screenshotAiKeyEncrypted: encryptSecret(apiKey),
+      screenshotAiKeyEncrypted: encryptedKey,
     },
     select: {
       screenshotAiProvider: true,

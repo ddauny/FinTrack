@@ -15,7 +15,12 @@ function getKey(): Buffer {
 }
 
 export function isEncryptionConfigured(): boolean {
-  return Boolean(env.encryptionKey);
+  if (!env.encryptionKey) return false;
+  try {
+    return Buffer.from(env.encryptionKey, "base64").length === 32;
+  } catch {
+    return false;
+  }
 }
 
 // Format: base64(iv):base64(authTag):base64(ciphertext)
