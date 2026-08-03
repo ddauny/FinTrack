@@ -56,6 +56,20 @@ export const api = {
       return fetch('/api/transactions/import', { method: 'POST', headers: { ...authHeaders() }, body: form }).then(r => r.json())
     },
     getNotes: (query: string) => apiGet(`/api/transactions/notes?q=${encodeURIComponent(query)}`),
+    extractScreenshots: async (files: File[], accountId?: number): Promise<import('../types').ExtractResponse> => {
+      const form = new FormData()
+      files.forEach(f => form.append('files', f))
+      if (accountId) form.append('accountId', String(accountId))
+      const res = await fetch('/api/transactions/extract', {
+        method: 'POST',
+        headers: { ...authHeaders() },
+        body: form,
+      })
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
+    },
+    bulkImport: (items: import('../types').BulkImportItem[], accountId?: number) =>
+      apiJson<import('../types').BulkImportResponse>('/api/transactions/bulk-import', 'POST', { accountId, items }),
   },
   accounts: {
     list: () => apiGet<Account[]>('/api/accounts'),

@@ -40,6 +40,38 @@ export interface Transaction {
   tags?: Tag[];
 }
 
+// Screenshot import (extracted candidates, pre-confirmation)
+export interface ExtractedTransaction {
+  tempId: number;
+  sourceImage: string;
+  date: string; // YYYY-MM-DD
+  merchant: string;
+  amount: number;
+  type: 'Income' | 'Expense';
+  categoryId: number;
+  categoryName: string;
+  isDuplicate: boolean;
+  duplicateId?: number;
+}
+
+export interface ExtractResponse {
+  items: ExtractedTransaction[];
+  errors: { file: string; message: string }[];
+}
+
+export interface BulkImportItem {
+  date: string;
+  merchant: string;
+  amount: number;
+  type: 'Income' | 'Expense';
+  categoryId: number;
+}
+
+export interface BulkImportResponse {
+  imported: number;
+  ids: number[];
+}
+
 export interface NetWorthPoint {
   date: string;
   value: number;

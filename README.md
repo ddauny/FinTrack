@@ -112,3 +112,17 @@ docker exec fintrack-prod-db pg_dump -U [USER] -d [DB] > backups/prod-backup-$(d
 - Non committare `.env.dev` e `.env.prod`
 - Gli ambienti sono isolati e separati
 - Consulta i singoli script nella cartella `/scripts` per dettagli extra
+
+---
+
+## Import transazioni da screenshot
+
+La pagina **Transactions** include la funzione **"Import screenshot"**: carichi uno o più screenshot dell'app bancaria, il sistema estrae automaticamente data, esercente, importo e tipo (Income/Expense) tramite Google Gemini, suggerisce la categoria, segnala possibili duplicati e mostra un riepilogo editabile prima della conferma.
+
+Per abilitarla, aggiungi la chiave API a `.env.dev` e `.env.prod` (lato server, mai esposta al client):
+
+```bash
+GEMINI_API_KEY=la-tua-chiave-google-ai-studio
+```
+
+Senza la chiave, gli endpoint `/api/transactions/extract` e `/api/transactions/bulk-import` rispondono `503`.

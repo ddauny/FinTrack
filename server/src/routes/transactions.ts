@@ -6,6 +6,9 @@ import { z } from "zod";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import multer from "multer";
+import { extractTransactionsFromImage } from "../services/screenshotOcr.js";
+import { suggestCategory } from "../services/merchantCategoryMatcher.js";
+import { env } from "../config/env.js";
 
 export const transactionsRouter = Router();
 
@@ -575,12 +578,6 @@ transactionsRouter.post("/import", requireAuth, upload.single("file"), async (re
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(" ");
   }
-  async function ensurePrimaryAccount(userId: number): Promise<number> {
-    const acc = await prisma.account.findFirst({ where: { userId }, orderBy: { id: "asc" } });
-    if (acc) return acc.id;
-    const created = await prisma.account.create({ data: { userId, name: "Primary", type: "Checking", initialBalance: 0 } });
-    return created.id;
-  }
   let rowNum = 0;
   function parseAmountLocale(raw: string): number {
     if (raw == null) return 0;
@@ -685,6 +682,217 @@ transactionsRouter.post("/import", requireAuth, upload.single("file"), async (re
   // eslint-disable-next-line no-console
   console.log(`${logPrefix} imported=${created.length}`);
   res.json({ imported: created.length, ids: created });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Screenshot-based import (multipart/form-data, multi-file)
+// Step 1: /extract — OCR + categorization suggestion + duplicate detection.
+//   No DB writes. Returns candidate items the user reviews before confirming.
+// Step 2: /bulk-import — validated, atomic creation of the confirmed items.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 20 },
+  fileFilter: (_req, file, cb) => {
+    const ok = ["image/png", "image/jpeg", "image/jpg", "image/webp"].includes(file.mimetype);
+    if (ok) cb(null, true);
+    else cb(new Error(`Unsupported image type: ${file.mimetype}`));
+  },
+});
+
+const DEFAULT_CATEGORY_NAME = "Da categorizzare";
+
+// Resolve the user's default account: the first one, created on the fly if none
+// exists. Same behavior as the CSV import — accounts are optional in the app.
+async function ensurePrimaryAccount(userId: number): Promise<number> {
+  const acc = await prisma.account.findFirst({ where: { userId }, orderBy: { id: "asc" } });
+  if (acc) return acc.id;
+  const created = await prisma.account.create({ data: { userId, name: "Primary", type: "Checking", initialBalance: 0 } });
+  return created.id;
+}
+
+async function ensureDefaultCategory(userId: number, type: "Income" | "Expense") {
+  let cat = await prisma.category.findFirst({
+    where: { userId, name: DEFAULT_CATEGORY_NAME, type },
+  });
+  if (!cat) {
+    cat = await prisma.category.create({ data: { userId, name: DEFAULT_CATEGORY_NAME, type } });
+  }
+  return cat;
+}
+
+// POST /api/transactions/extract
+transactionsRouter.post(
+  "/extract",
+  requireAuth,
+  imageUpload.array("files", 20),
+  async (req: AuthRequest & { files?: Express.Multer.File[] }, res) => {
+    if (!env.geminiApiKey) {
+      return res.status(503).json({ error: "Screenshot import is not configured (missing GEMINI_API_KEY)" });
+    }
+    const files = req.files ?? [];
+    if (files.length === 0) return res.status(400).json({ error: "At least one image file required" });
+
+    const userId = req.userId!;
+    // accountId is optional: defaults to the user's primary account (auto-created if missing)
+    const rawAccountId = Number((req.body as any)?.accountId);
+    const accountId = Number.isInteger(rawAccountId) && rawAccountId > 0
+      ? rawAccountId
+      : await ensurePrimaryAccount(userId);
+
+    const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+    if (!account) return res.status(404).json({ error: "Account not found" });
+
+    const userCategories = await prisma.category.findMany({
+      where: { userId },
+      select: { id: true, name: true, type: true },
+    });
+
+    // Process files in parallel, keeping per-file errors isolated
+    const settled = await Promise.allSettled(
+      files.map(async (f) => ({
+        file: f.originalname,
+        transactions: await extractTransactionsFromImage(f.buffer, f.mimetype),
+      }))
+    );
+
+    const items: any[] = [];
+    const errors: { file: string; message: string }[] = [];
+    let seq = 0;
+
+    for (const s of settled) {
+      if (s.status === "rejected") {
+        errors.push({ file: "unknown", message: (s.reason as Error)?.message || "Extraction failed" });
+        continue;
+      }
+      for (const t of s.value.transactions) {
+        seq += 1;
+        // Categorization suggestion (type-constrained), fallback to default category
+        let categoryId = suggestCategory(t.merchant, t.type, userCategories);
+        let categoryName: string | null = null;
+        if (categoryId) {
+          categoryName = userCategories.find((c) => c.id === categoryId)?.name ?? null;
+        } else {
+          const def = await ensureDefaultCategory(userId, t.type);
+          categoryId = def.id;
+          categoryName = def.name;
+        }
+
+        // Duplicate detection: same account, date ±1 day, same amount, similar merchant in notes.
+        // NOTE: `notes contains` is a LIKE '%...%' scan — fine for small batches thanks to the
+        // [userId, date] index narrowing the set first. Consider pg_trgm if this becomes heavy.
+        const d = dayjs(t.date, "YYYY-MM-DD", true);
+        let isDuplicate = false;
+        let duplicateId: number | undefined;
+        if (d.isValid()) {
+          const dup = await prisma.transaction.findFirst({
+            where: {
+              userId,
+              accountId,
+              amount: t.amount,
+              date: { gte: d.subtract(1, "day").startOf("day").toDate(), lte: d.add(1, "day").endOf("day").toDate() },
+              notes: { contains: t.merchant, mode: "insensitive" },
+            },
+            select: { id: true },
+          });
+          if (dup) {
+            isDuplicate = true;
+            duplicateId = dup.id;
+          }
+        }
+
+        items.push({
+          tempId: seq,
+          sourceImage: s.value.file,
+          date: t.date,
+          merchant: t.merchant,
+          amount: t.amount,
+          type: t.type,
+          categoryId,
+          categoryName,
+          isDuplicate,
+          duplicateId,
+        });
+      }
+    }
+
+    res.json({ items, errors });
+  }
+);
+
+// POST /api/transactions/bulk-import — atomic, validated
+const bulkImportSchema = z.object({
+  accountId: z.number().int().optional(),
+  items: z
+    .array(
+      z.object({
+        date: z.string(),
+        merchant: z.string().min(1),
+        amount: z.number().positive(),
+        type: z.enum(["Income", "Expense"]),
+        categoryId: z.number().int(),
+      })
+    )
+    .min(1),
+});
+
+transactionsRouter.post("/bulk-import", requireAuth, async (req: AuthRequest, res) => {
+  const parse = bulkImportSchema.safeParse(req.body);
+  if (!parse.success) return res.status(400).json({ error: "Invalid payload", details: parse.error });
+  const { items } = parse.data;
+  const userId = req.userId!;
+  // accountId is optional: defaults to the user's primary account (auto-created if missing)
+  const accountId = parse.data.accountId ?? await ensurePrimaryAccount(userId);
+
+  // ── Pre-flight validation: validate EVERYTHING before touching the DB ──
+  const issues: { index: number; field: string; message: string }[] = [];
+
+  const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+  if (!account) issues.push({ index: -1, field: "accountId", message: "Account not found or not authorized" });
+
+  const categoryIds = [...new Set(items.map((i) => i.categoryId))];
+  const cats = await prisma.category.findMany({ where: { id: { in: categoryIds }, userId }, select: { id: true, type: true } });
+  const catMap = new Map(cats.map((c) => [c.id, c.type]));
+
+  items.forEach((item, index) => {
+    if (!catMap.has(item.categoryId)) {
+      issues.push({ index, field: "categoryId", message: `Category ${item.categoryId} not found or not authorized` });
+    } else if (catMap.get(item.categoryId) !== item.type) {
+      issues.push({ index, field: "type", message: `Type '${item.type}' does not match the selected category's type` });
+    }
+    const d = dayjs(item.date, ["YYYY-MM-DD", "DD/MM/YYYY"], true);
+    if (!d.isValid()) {
+      issues.push({ index, field: "date", message: `Invalid date '${item.date}'` });
+    }
+  });
+
+  if (issues.length > 0) {
+    return res.status(400).json({ error: "Validation failed", issues });
+  }
+
+  // ── Atomic creation: all-or-nothing ──
+  try {
+    const created = await prisma.$transaction(
+      items.map((item) =>
+        prisma.transaction.create({
+          data: {
+            userId,
+            accountId,
+            categoryId: item.categoryId,
+            type: item.type,
+            amount: item.amount,
+            date: dayjs(item.date, ["YYYY-MM-DD", "DD/MM/YYYY"], true).toDate(),
+            notes: item.merchant,
+          },
+        })
+      )
+    );
+    res.status(201).json({ imported: created.length, ids: created.map((c) => c.id) });
+  } catch (e) {
+    console.error("[bulk-import] atomic creation failed, rolled back:", e);
+    res.status(500).json({ error: "Import failed and was rolled back. No transaction was created." });
+  }
 });
 
 // Bulk delete transactions

@@ -1,5 +1,30 @@
 services:
   #################
+  # Database (Sviluppo)
+  #################
+  db-dev:
+    image: postgres:15-alpine
+    container_name: fintrack-dev-db
+    env_file: .env.dev
+    command: >
+      postgres
+      -c max_connections=20
+      -c shared_buffers=16MB
+      -c work_mem=4MB
+    volumes:
+      - fintrack-dev-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - default-dev
+
+  #################
   # Backend (Sviluppo)
   #################
   app-dev:
@@ -8,17 +33,19 @@ services:
       context: .
       dockerfile: ./server/Dockerfile
     env_file:
-      - .env
-    environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@fintrack-prod-db:5432/${POSTGRES_DB}?schema=public
+      - .env.dev
+    ports:
+      - "4000:4000"
     volumes:
       # Hot-reloading: collega il tuo codice locale al container
       - ./server:/app/server
       # Volume "anonimo" per node_modules per evitare conflitti
       - /app/server/node_modules
     command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run dev"
+    depends_on:
+      db-dev:
+        condition: service_healthy
     networks:
-      - fintrack-prod
       - default-dev
     restart: unless-stopped
 
@@ -30,6 +57,8 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
     volumes:
       # Hot-reloading: collega il tuo codice locale al container
       - ./client:/app/client
@@ -39,16 +68,13 @@ services:
       - app-dev
     environment:
       - CHOKIDAR_USEPOLLING=true
-      - BACKEND_SERVICE_NAME=app-dev
     networks:
-      - web-proxy
       - default-dev
 
+volumes:
+  fintrack-dev-data:
+    name: fintrack-dev-data
+
 networks:
-  web-proxy:
-    external: true
-  fintrack-prod:
-    external: true
-    name: fintrack-prod-network
   default-dev:
     driver: bridge
