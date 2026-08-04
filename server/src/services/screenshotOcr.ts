@@ -11,15 +11,22 @@ export interface VisionProviderConfig {
   model: string;
 }
 
-const EXTRACTION_PROMPT = `You are an assistant that extracts financial transactions from a banking or payment app screenshot.
+function buildExtractionPrompt(today: string): string {
+  return `You are an assistant that extracts financial transactions from a banking or payment app screenshot.
+
+Today's date is ${today} (YYYY-MM-DD). Use it as your only reference point for interpreting partial or relative dates in the image — do not assume any other "today".
 
 Analyze the image and extract ALL transactions visible (there may be more than one). For each transaction provide:
-- date: the transaction date in YYYY-MM-DD format. The image may show dates in DD/MM/YYYY, DD.MM.YYYY or Italian formats — convert them.
+- date: the transaction date in YYYY-MM-DD format.
+  - Full dates in DD/MM/YYYY or DD.MM.YYYY format convert directly.
+  - Dates shown as "day + Italian month abbreviation" with no year (e.g. "3 ago", "15 lug", "22 mag") use the ITALIAN MONTH NAME, not the English word "ago" ("in the past") — gen=January, feb=February, mar=March, apr=April, mag=May, giu=June, lug=July, ago=August, set=September, ott=October, nov=November, dic=December. These are NOT relative time offsets; never subtract days from today to compute them.
+  - When the year is omitted, assume the current year (from today's date above), unless that would place the date in the future, in which case use the previous year instead.
 - merchant: the merchant / payee / payer name (esercente) as shown.
 - amount: the transaction amount as a positive number (e.g. 12.50). If the image uses comma as decimal separator, convert to dot.
 - type: "Income" if money was received (bonifico in entrata, stipendio, ricarica, rimborso, + sign, green), "Expense" if money was spent (pagamento, pos, bonifico in uscita, addebito, - sign, red). Use visual cues like +/- signs, labels, and colors — not just the numeric sign.
 
 Return ONLY a valid JSON array of objects with exactly these keys: date, merchant, amount, type. No markdown, no explanation. If no transaction is found, return an empty array [].`;
+}
 
 function chatCompletionsUrl(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
@@ -129,10 +136,11 @@ export async function extractTransactionsFromImage(
   mimeType: string,
   config: VisionProviderConfig
 ): Promise<OcrTransaction[]> {
+  const today = new Date().toISOString().slice(0, 10);
   const text = await callChatCompletions(
     config,
     [
-      { type: "text", text: EXTRACTION_PROMPT },
+      { type: "text", text: buildExtractionPrompt(today) },
       { type: "image_url", image_url: { url: `data:${mimeType};base64,${buffer.toString("base64")}` } },
     ],
     { maxTokens: 2048, temperature: 0.1, requireContent: true }
