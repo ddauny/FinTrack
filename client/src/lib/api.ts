@@ -20,9 +20,15 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+function handleUnauthorized() {
+  localStorage.removeItem('token')
+  if (location.pathname !== '/login') location.href = '/login'
+}
+
 async function apiGet<T>(path: string): Promise<T> {
   const url = path.includes('?') ? `${path}&_t=${Date.now()}` : `${path}?_t=${Date.now()}`
   const res = await fetch(base + url, { headers: { ...authHeaders() }, cache: 'no-store' as RequestCache })
+  if (res.status === 401) handleUnauthorized()
   if (!res.ok) throw new Error(await res.text())
   return res.json()
 }
@@ -33,6 +39,7 @@ async function apiJson<T>(path: string, method: string, body?: any): Promise<T> 
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: body ? JSON.stringify(body) : undefined,
   })
+  if (res.status === 401) handleUnauthorized()
   if (!res.ok) throw new Error(await res.text())
   if (res.status === 204) return undefined as unknown as T
   const text = await res.text()
@@ -51,10 +58,13 @@ export const api = {
     bulkDelete: (ids: number[]) => apiJson<{ deleted: number }>('/api/transactions/bulk-delete', 'POST', { ids }),
     bulkUpdateCategory: (ids: number[], categoryId: number) => apiJson<{ updated: number }>('/api/transactions/bulk-update-category', 'PATCH', { ids, categoryId }),
     bulkUpdateTags: (ids: number[], tagIds: number[]) => apiJson<{ updated: number }>('/api/transactions/bulk-update-tags', 'PATCH', { ids, tagIds }),
-    importCsv: (file: File) => {
+    importCsv: async (file: File) => {
       const form = new FormData()
       form.append('file', file)
-      return fetch('/api/transactions/import', { method: 'POST', headers: { ...authHeaders() }, body: form }).then(r => r.json())
+      const res = await fetch('/api/transactions/import', { method: 'POST', headers: { ...authHeaders() }, body: form })
+      if (res.status === 401) handleUnauthorized()
+      if (!res.ok) throw new Error(await res.text())
+      return res.json()
     },
     getNotes: (query: string) => apiGet(`/api/transactions/notes?q=${encodeURIComponent(query)}`),
     extractScreenshots: async (files: File[], accountId?: number): Promise<import('../types').ExtractResponse> => {
@@ -66,6 +76,7 @@ export const api = {
         headers: { ...authHeaders() },
         body: form,
       })
+      if (res.status === 401) handleUnauthorized()
       if (!res.ok) throw new Error(await res.text())
       return res.json()
     },
@@ -103,7 +114,12 @@ export const api = {
     assetGroupComparison: (start?: string, end?: string) => apiGet<any>(`/api/reports/asset-group-comparison?start=${start || ''}&end=${end || ''}`),
     topAssetsEvolution: (start?: string, end?: string, limit?: number) => apiGet<any>(`/api/reports/top-assets-evolution?start=${start || ''}&end=${end || ''}&limit=${limit || 5}`),
     assetAllocationChanges: (start?: string, end?: string) => apiGet<any[]>(`/api/reports/asset-allocation-changes?start=${start || ''}&end=${end || ''}`),
-    exportCsv: (path: string) => fetch(path + (path.includes('?') ? '&' : '?') + 'format=csv', { headers: { ...authHeaders() } }).then(r => r.text()),
+    exportCsv: async (path: string) => {
+      const res = await fetch(path + (path.includes('?') ? '&' : '?') + 'format=csv', { headers: { ...authHeaders() } })
+      if (res.status === 401) handleUnauthorized()
+      if (!res.ok) throw new Error(await res.text())
+      return res.text()
+    },
   },
   assets: {
     portfolios: {
