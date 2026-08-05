@@ -147,6 +147,7 @@ export const api = {
     updateProfile: (data: any) => apiJson<any>('/api/settings/profile', 'PUT', data),
     getAutomationToken: () => apiGet<{ token: string | null }>('/api/settings/automation-token'),
     generateAutomationToken: () => apiJson<{ token: string }>('/api/settings/automation-token', 'POST', {}),
+    logoutAllDevices: () => apiJson<{ ok: boolean }>('/api/settings/logout-all-devices', 'POST', {}),
     getAiProviderConfig: () => apiGet<AiProviderConfig>('/api/settings/ai-provider'),
     saveAiProviderConfig: (data: { provider: string; baseUrl: string; model: string; apiKey: string }) =>
       apiJson<AiProviderConfig>('/api/settings/ai-provider', 'PUT', data),

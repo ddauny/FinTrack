@@ -3,35 +3,36 @@
 Analisi del codebase (server Express/Prisma + client React) al 2026-08-05.
 Ogni punto è ancorato a un file/riga concreto, non a un principio generico. Ordinate per impatto.
 
+**Stato**: i punti 1-6 sono stati sistemati (branch `security-fixes`, mergiato in `marco`). Il resto è ancora da fare.
+
 ## Sicurezza
 
-### 1. `JWT_SECRET` ha un fallback insicuro
+### ✅ 1. `JWT_SECRET` ha un fallback insicuro — FIXATO
 `server/src/config/env.ts:7` — `process.env.JWT_SECRET ?? "development_secret_change_me"`.
 Se in produzione la variabile d'ambiente non è impostata (es. `.env.prod` incompleto), il server parte comunque firmando i token con un segreto pubblico e noto: chiunque può forgiare un JWT valido per qualsiasi `userId`.
-**Fix**: in `env.ts`, se `NODE_ENV === "production"` e `JWT_SECRET` non è settato, `throw`/`process.exit(1)` all'avvio invece di usare il default.
+**Fix applicato**: `env.ts` ora fa `throw` all'avvio se `NODE_ENV === "production"` e `JWT_SECRET` non è settato, invece di usare il default.
 
-### 2. Nessun rate limiting
+### ✅ 2. Nessun rate limiting — FIXATO
 Nessuna dipendenza `express-rate-limit` o simile (`server/package.json`), nessun middleware di questo tipo in `server/src/index.ts`.
 - `/api/auth/login` è quindi vulnerabile a brute-force sulle password.
 - `/api/transactions/extract` (estrazione screenshot via AI, `server/src/routes/transactions.ts:694`) chiama un provider AI esterno pagato dall'utente: senza limite, un token rubato o un bug client può generare costi ripetuti in loop.
-**Fix**: `express-rate-limit` (già ottima per la ladder "dipendenza minima") su `/api/auth/*` (es. 5 tentativi/15min per IP) e su `/api/transactions/extract`.
+**Fix applicato**: `express-rate-limit` su `/api/auth/login` e `/api/auth/register` (10 richieste/15min per IP) e su `/api/transactions/extract` (30/ora per IP).
 
-### 3. CORS aperto a qualunque origine
+### ✅ 3. CORS aperto a qualunque origine — FIXATO
 `server/src/index.ts:16` — `app.use(cors())` senza opzioni riflette qualsiasi `Origin`.
 Con auth Bearer (non cookie) il rischio principale è mitigato, ma resta comunque un'apertura non necessaria se il frontend gira sempre da un'origine nota.
-**Fix**: `cors({ origin: env.clientOrigin })` con `CLIENT_ORIGIN` da env.
+**Fix applicato**: `cors({ origin: env.clientOrigin })` quando `CLIENT_ORIGIN` è impostata nell'env; resta aperto se non impostata, per non rompere il setup dev/proxy attuale.
 
-### 4. Nessuna revoca dei token
+### ✅ 4. Nessuna revoca dei token — FIXATO
 Login emette JWT con `expiresIn: "7d"` (`server/src/routes/auth.ts:57`) e non esiste alcun meccanismo di blacklist/refresh. Un token rubato resta valido fino a 7 giorni anche dopo un cambio password o un logout "sospetto".
-**Fix minimo**: se in futuro aggiungi cambio-password, invalidare i token esistenti (es. `tokenVersion` incrementale sull'utente, controllato in `requireAuth`). Non necessario oggi se il rischio è accettato per un'app self-hosted mono-utente per account.
+**Fix applicato**: aggiunta colonna `User.tokenVersion` (migration `20260805150000_add_token_version`). I JWT (login e automation token) includono `tv: tokenVersion` alla firma; `requireAuth` ora fa una lookup DB e confronta `tv` con il valore corrente, invalidando ogni token già emesso quando la versione cambia. Nuovo endpoint `POST /api/settings/logout-all-devices` incrementa `tokenVersion` (bottone "Sign Out Everywhere" in Impostazioni → Profilo). **Nota**: la migration non è stata applicata a un DB reale in questa sessione (nessun Postgres raggiungibile) — va eseguita con `prisma migrate deploy` prima del deploy.
 
-### 5. `/api/auth/forgot-password` è un placeholder che mente
-`server/src/routes/auth.ts:61-64` risponde sempre `{ ok: true }` senza fare nulla. Non è collegato dalla UI (nessun riferimento in `client/src`), quindi oggi è solo codice morto che, se mai esposto in UI, darebbe un falso senso di sicurezza ("email di reset inviata" quando non lo è).
-**Fix**: implementare il flusso reale (invio email con token one-time) oppure rimuovere l'endpoint finché non serve.
+### ✅ 5. `/api/auth/forgot-password` era un placeholder che mentiva — RIMOSSO
+Rispondeva sempre `{ ok: true }` senza fare nulla e non era collegato dalla UI.
+**Fix applicato**: endpoint rimosso. Implementare un vero flusso di reset password richiede un provider email (SMTP/API key) che oggi non esiste nel progetto — da riprogettare insieme all'infrastruttura email quando servirà davvero.
 
-### 6. `automationToken` è generato ma non usato per autenticare
-`server/src/routes/settings.ts` genera e salva un `automationToken` per utente (per iPhone Shortcuts), ma nessun middleware lo controlla come credenziale alternativa a `requireAuth` — ho cercato ogni riferimento (`x-automation-token` ecc.) e non ne esiste uno lato server.
-**Fix**: se la feature "Shortcuts/automazione" serve davvero, aggiungi in `requireAuth` (o in un middleware dedicato) il controllo di un header tipo `X-Automation-Token` contro il valore salvato. Altrimenti è un campo DB morto da rimuovere.
+### 6. `automationToken` — correzione: non era codice morto
+Analisi iniziale sbagliata: avevo concluso che nessun middleware lo controllasse. In realtà `settings.ts:150-161` genera un JWT **senza scadenza** con lo stesso segreto e lo stesso payload `{ sub }` di un login normale — funziona già oggi passandolo come `Authorization: Bearer <token>` (vedi testo in `SettingsPage.tsx:694`), riusando lo stesso `requireAuth`. Nessuna modifica necessaria: il fix del punto 4 lo copre automaticamente (bumping `tokenVersion` invalida anche l'automation token, che va rigenerato dopo un "Sign Out Everywhere").
 
 ## Affidabilità
 
@@ -57,8 +58,8 @@ Solo `.env.dev` (non versionato, giustamente) esiste. Le variabili richieste (`P
 
 ## Priorità consigliata
 
-1. **JWT_SECRET fail-fast in produzione** (punto 1) — rischio più alto, fix di poche righe.
+1. ~~**JWT_SECRET fail-fast in produzione** (punto 1) — rischio più alto, fix di poche righe.~~ ✅ fatto
 2. **Error handler globale + asyncHandler** (punto 7) — stabilità, fix concentrato.
-3. **Rate limiting su login ed extract** (punto 2) — costo/abuso.
+3. ~~**Rate limiting su login ed extract** (punto 2) — costo/abuso.~~ ✅ fatto
 4. **`.env.example`** (punto 9) — previene la causa del punto 1.
-5. Il resto (CORS, forgot-password, automationToken, test/CI) è utile ma non urgente per un'app self-hosted a uso personale/familiare.
+5. Il resto (test/CI) è utile ma non urgente per un'app self-hosted a uso personale/familiare.
