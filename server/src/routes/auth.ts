@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import rateLimit from "express-rate-limit";
 import { prisma } from "../db/prisma.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -6,6 +7,15 @@ import { env } from "../config/env.js";
 import { z } from "zod";
 
 export const authRouter = Router();
+
+// ponytail: per-IP limit, not per-account — good enough for a self-hosted
+// personal-finance app; move to a per-account counter if it ever matters.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Types for API responses
 interface RegisterResponse {
@@ -30,7 +40,7 @@ const registerSchema = z.object({
   password: z.string().min(8),
 });
 
-authRouter.post("/register", async (req: Request, res: Response<RegisterResponse | ErrorResponse>) => {
+authRouter.post("/register", authLimiter, async (req: Request, res: Response<RegisterResponse | ErrorResponse>) => {
     const parse = registerSchema.safeParse(req.body);
     if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
     const { email, password } = parse.data;
@@ -46,7 +56,7 @@ const loginSchema = z.object({
   password: z.string().min(8),
 });
 
-authRouter.post("/login", async (req: Request, res: Response<LoginResponse | ErrorResponse>) => {
+authRouter.post("/login", authLimiter, async (req: Request, res: Response<LoginResponse | ErrorResponse>) => {
   const parse = loginSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const { email, password } = parse.data;

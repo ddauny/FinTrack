@@ -6,6 +6,7 @@ import { z } from "zod";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import multer from "multer";
+import rateLimit from "express-rate-limit";
 import { extractTransactionsFromImage } from "../services/screenshotOcr.js";
 import { suggestCategory } from "../services/merchantCategoryMatcher.js";
 import { decryptSecret, isEncryptionConfigured } from "../utils/crypto.js";
@@ -701,6 +702,15 @@ const imageUpload = multer({
   },
 });
 
+// ponytail: per-IP limit on the paid AI-vision call, not per-account — caps
+// the blast radius of a leaked token/runaway client loop; tighten if abused.
+const extractLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const DEFAULT_CATEGORY_NAME = "Da categorizzare";
 
 // Resolve the user's default account: the first one, created on the fly if none
@@ -726,6 +736,7 @@ async function ensureDefaultCategory(userId: number, type: "Income" | "Expense")
 transactionsRouter.post(
   "/extract",
   requireAuth,
+  extractLimiter,
   imageUpload.array("files", 20),
   async (req: AuthRequest & { files?: Express.Multer.File[] }, res) => {
     const userId = req.userId!;
