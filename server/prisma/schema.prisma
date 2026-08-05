@@ -14,6 +14,7 @@ model User {
   passwordHash String
   createdAt    DateTime  @default(now())
   automationToken String? // JWT token for iPhone Shortcuts and automation
+  tokenVersion Int       @default(0) // bumped to invalidate every issued JWT (login + automation)
 
   // Per-user AI provider config for the screenshot-import feature.
   // Every user brings their own key — no shared/instance-wide fallback.

@@ -148,16 +148,27 @@ settingsRouter.get("/automation-token", requireAuth, async (req: AuthRequest, re
 
 // Generate new automation token for current user
 settingsRouter.post("/automation-token", requireAuth, async (req: AuthRequest, res) => {
-  const payload = { sub: req.userId! };
+  const user = await prisma.user.findUnique({ where: { id: req.userId! }, select: { tokenVersion: true } });
+  const payload = { sub: req.userId!, tv: user!.tokenVersion };
   const token = jwt.sign(payload, env.jwtSecret); // No expiration for automation
-  
+
   // Update user with new token
   await prisma.user.update({
     where: { id: req.userId! },
     data: { automationToken: token }
   });
-  
+
   res.json({ token });
+});
+
+// Invalidate every JWT issued so far (login + automation) by bumping tokenVersion.
+// The token used to call this endpoint stops working too — the client must log in again.
+settingsRouter.post("/logout-all-devices", requireAuth, async (req: AuthRequest, res) => {
+  await prisma.user.update({
+    where: { id: req.userId! },
+    data: { tokenVersion: { increment: 1 } },
+  });
+  res.json({ ok: true });
 });
 
 const aiProviderSchema = z.object({

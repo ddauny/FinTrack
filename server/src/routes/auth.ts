@@ -31,10 +31,6 @@ interface ErrorResponse {
   error: string;
 }
 
-interface OkResponse {
-  ok: boolean;
-}
-
 const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
@@ -64,13 +60,8 @@ authRouter.post("/login", authLimiter, async (req: Request, res: Response<LoginR
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return res.status(401).json({ error: "Invalid credentials" });
-  const token = jwt.sign({ sub: user.id, email: user.email }, env.jwtSecret, { expiresIn: "7d" });
+  const token = jwt.sign({ sub: user.id, email: user.email, tv: user.tokenVersion }, env.jwtSecret, { expiresIn: "7d" });
   return res.json({ token });
-});
-
-authRouter.post("/forgot-password", async (_req: Request, res: Response<OkResponse>) => {
-  // Placeholder: SDD lists endpoint; actual email reset flow out of scope for MVP
-  return res.json({ ok: true });
 });
 
 

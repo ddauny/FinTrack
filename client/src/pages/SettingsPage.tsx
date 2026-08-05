@@ -590,6 +590,18 @@ export function SettingsPage() {
             >
               Sign Out
             </button>
+            <button
+              onClick={async () => {
+                if (confirm('This signs out every device using this account (including this one, and any automation token). Continue?')) {
+                  await api.settings.logoutAllDevices()
+                  localStorage.removeItem('token')
+                  navigate('/login')
+                }
+              }}
+              className="btn-danger whitespace-nowrap"
+            >
+              Sign Out Everywhere
+            </button>
           </div>
         </section>
 
