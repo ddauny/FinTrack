@@ -64,7 +64,7 @@ Subscriptions
  Spotify          € 9,99 / mese                     [Riattiva] [Elimina]
 ```
 
-Row fields: label (`notes` if set, else category name — mirrors how `TransactionsPage` already falls back), category name (small badge, using category color), account name, `amount` + human frequency label, `nextDate` (formatted `dd MMM`; omitted for paused rows since it's stale), monthly-equivalent contribution (active rows only), action buttons.
+Row fields: label (`notes` if set, else category name — mirrors how `TransactionsPage` already falls back), category name (plain text badge — `Category` has no `color` field, unlike `SavingsGoal`), account name, `amount` + human frequency label, `nextDate` (formatted `dd MMM`; omitted for paused rows since it's stale), monthly-equivalent contribution (active rows only), action buttons.
 
 Empty state (no active or paused Expense recurring transactions at all): message + link to `/transactions` to create the first one — reuses the existing `EmptyState` pattern (each page currently defines its own small `EmptyState`/`LoadingSpinner`; this page follows the same per-page convention rather than extracting a shared component, consistent with the current codebase).
 
