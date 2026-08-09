@@ -39,3 +39,6 @@ nginx.conf.template
 script-linux.md
 
 /backups/
+
+# Git worktrees (scratch, per-plan)
+.worktrees/
