@@ -1,5 +1,5 @@
 // client/src/pages/SubscriptionsPage.tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import type { Account, Category } from '../types'
 import { formatEUR, formatDateDMY } from '../lib/format'
@@ -43,8 +43,10 @@ export function SubscriptionsPage() {
   const [loading, setLoading] = useState(true)
   const [showPaused, setShowPaused] = useState(false)
 
+  const isFirstLoad = useRef(true)
+
   const load = () => {
-    setLoading(true)
+    if (isFirstLoad.current) setLoading(true)
     Promise.all([
       api.recurringTransactions.list(),
       api.categories.list(),
@@ -53,21 +55,36 @@ export function SubscriptionsPage() {
       setItems((recurring as RecurringExpense[]).filter(r => r.type === 'Expense'))
       setCategoryMap(Object.fromEntries((categories as Category[]).map(c => [c.id, c])))
       setAccountMap(Object.fromEntries((accounts as Account[]).map(a => [a.id, a])))
-    }).catch(console.error).finally(() => setLoading(false))
+    }).catch(console.error).finally(() => {
+      isFirstLoad.current = false
+      setLoading(false)
+    })
   }
   useEffect(load, [])
 
   const handlePause = async (id: number) => {
-    await api.recurringTransactions.update(id, { isActive: false })
+    try {
+      await api.recurringTransactions.update(id, { isActive: false })
+    } catch (e) {
+      console.error(e)
+    }
     load()
   }
   const handleReactivate = async (id: number) => {
-    await api.recurringTransactions.update(id, { isActive: true })
+    try {
+      await api.recurringTransactions.update(id, { isActive: true })
+    } catch (e) {
+      console.error(e)
+    }
     load()
   }
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this subscription? This cannot be undone.')) return
-    await api.recurringTransactions.remove(id)
+    try {
+      await api.recurringTransactions.remove(id)
+    } catch (e) {
+      console.error(e)
+    }
     load()
   }
 
@@ -102,8 +119,10 @@ export function SubscriptionsPage() {
 
         <div className="space-y-2">
           <h2 className="text-lg font-bold text-stone-900 dark:text-white">Active ({active.length})</h2>
-          {active.length === 0 ? (
+          {active.length === 0 && paused.length === 0 ? (
             <EmptyState message="No active subscriptions. Create a recurring expense from the Transactions page to see it here." />
+          ) : active.length === 0 ? (
+            <EmptyState message="No active subscriptions. Reactivate one below." />
           ) : (
             <div className="bg-white dark:bg-stone-800 rounded-2xl shadow-sm border border-stone-200 dark:border-stone-700 divide-y divide-stone-200 dark:divide-stone-700">
               {active.map(r => (
