@@ -59,6 +59,7 @@ export function TopNav() {
             {link('/monthly-summary', 'Monthly Summary')}
             {link('/reports', 'Reports')}
             {link('/forecast', 'Forecast')}
+            {link('/subscriptions', 'Subscriptions')}
             {link('/settings', 'Settings')}
             <div className="w-px h-6 bg-stone-200 dark:bg-stone-700 mx-2"></div>
             <div className="flex items-center gap-1">
@@ -118,6 +119,7 @@ export function TopNav() {
               {mobileLink('/monthly-summary', 'Monthly Summary')}
               {mobileLink('/reports', 'Reports')}
               {mobileLink('/forecast', 'Forecast')}
+              {mobileLink('/subscriptions', 'Subscriptions')}
               {mobileLink('/settings', 'Settings')}
               <div className="border-t border-stone-200 my-2"></div>
               <button

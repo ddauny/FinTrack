@@ -9,6 +9,7 @@ import { MonthlySummaryPage } from './pages/MonthlySummaryPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ForecastPage } from './pages/ForecastPage'
+import { SubscriptionsPage } from './pages/SubscriptionsPage'
 import { TopNav } from './components/TopNav'
 import { PrivacyProvider } from './contexts/PrivacyContext'
 
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="/reports" element={<PrivateRoute><ReportsPage /></PrivateRoute>} />
             <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
             <Route path="/forecast" element={<PrivateRoute><ForecastPage /></PrivateRoute>} />
+            <Route path="/subscriptions" element={<PrivateRoute><SubscriptionsPage /></PrivateRoute>} />
           </Routes>
         </div>
       </div>
