@@ -42,3 +42,4 @@ script-linux.md
 
 # Git worktrees (scratch, per-plan)
 .worktrees/
+.superpowers/
