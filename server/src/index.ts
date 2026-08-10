@@ -1,4 +1,5 @@
 import express from "express";
+import "express-async-errors";
 import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
@@ -37,6 +38,12 @@ app.use("/api/external-income-sources", externalIncomeSourcesRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Not Found" });
+});
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error(err);
+  res.status(500).json({ error: "Internal server error" });
 });
 
 app.listen(env.port, () => {

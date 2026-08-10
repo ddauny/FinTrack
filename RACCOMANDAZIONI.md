@@ -3,7 +3,7 @@
 Analisi del codebase (server Express/Prisma + client React) al 2026-08-05.
 Ogni punto è ancorato a un file/riga concreto, non a un principio generico. Ordinate per impatto.
 
-**Stato**: i punti 1-6 sono stati sistemati (branch `security-fixes`, mergiato in `marco`). Il resto è ancora da fare.
+**Stato**: i punti 1-6 sono stati sistemati (branch `security-fixes`, mergiato in `marco`). Punto 7 sistemato. Il resto è ancora da fare.
 
 ## Sicurezza
 
@@ -36,10 +36,10 @@ Analisi iniziale sbagliata: avevo concluso che nessun middleware lo controllasse
 
 ## Affidabilità
 
-### 7. Nessun error handler globale + quasi nessun try/catch nelle route
-`server/src/index.ts` non registra middleware d'errore (`app.use((err, req, res, next) => ...)`), e questi file non contengono un solo `try {`: `accounts.ts`, `assets.ts`, `auth.ts`, `budgets.ts`, `categories.ts`, `tags.ts`.
-Express 4 (qui in uso, non Express 5) **non** cattura automaticamente le eccezioni/rejection lanciate in handler `async`. Se una query Prisma fallisce (connessione persa, vincolo violato, ecc.) dentro una di queste route, la promise rejecta, nessuno la gestisce, e la richiesta resta appesa: il client vede la fetch bloccata fino al proprio timeout invece di un 500 pulito. Il gestore globale `process.on("unhandledRejection")` (`server/src/index.ts:8-10`) si limita a loggare, non risponde mai al client.
-**Fix**: un wrapper `asyncHandler(fn)` che fa `.catch(next)` intorno a ogni handler async, più un error middleware finale in `index.ts` che risponde `500 { error }`. Una modifica in un solo posto (il wrapper) copre tutte le route, coerente con "fix una volta dove passano tutti i chiamanti".
+### ✅ 7. Nessun error handler globale + quasi nessun try/catch nelle route — FIXATO
+`server/src/index.ts` non registrava middleware d'errore (`app.use((err, req, res, next) => ...)`), e questi file non contenevano un solo `try {`: `accounts.ts`, `assets.ts`, `auth.ts`, `budgets.ts`, `categories.ts`, `tags.ts`.
+Express 4 (qui in uso, non Express 5) **non** cattura automaticamente le eccezioni/rejection lanciate in handler `async`. Se una query Prisma falliva (connessione persa, vincolo violato, ecc.) dentro una di queste route, la promise rejectava, nessuno la gestiva, e la richiesta restava appesa: il client vedeva la fetch bloccata fino al proprio timeout invece di un 500 pulito. Il gestore globale `process.on("unhandledRejection")` (`server/src/index.ts:11-13`) si limitava a loggare, senza mai rispondere al client.
+**Fix applicato**: invece di avvolgere manualmente ogni singolo handler async in tutti i file route (~80 handler in 13 file), aggiunta la dipendenza `express-async-errors` (zero-dep, patcha `Router`/`Layer` di Express affinché ogni rejection in un handler async chiami automaticamente `next(err)`) — un solo `import "express-async-errors"` in cima a `server/src/index.ts`, prima della registrazione delle route. Aggiunto un error middleware finale in `index.ts` che logga e risponde `500 { error: "Internal server error" }`. Copre automaticamente anche le route future, senza bisogno di ricordarsi di avvolgere ogni nuovo handler. Self-check: `server/src/errorHandling.test.ts` (`npm test` in `server/`, usa `node:test`, nessuna nuova dipendenza di test).
 
 ## Test & CI
 
@@ -59,7 +59,7 @@ Solo `.env.dev` (non versionato, giustamente) esiste. Le variabili richieste (`P
 ## Priorità consigliata
 
 1. ~~**JWT_SECRET fail-fast in produzione** (punto 1) — rischio più alto, fix di poche righe.~~ ✅ fatto
-2. **Error handler globale + asyncHandler** (punto 7) — stabilità, fix concentrato.
+2. ~~**Error handler globale** (punto 7) — stabilità, fix concentrato.~~ ✅ fatto
 3. ~~**Rate limiting su login ed extract** (punto 2) — costo/abuso.~~ ✅ fatto
 4. **`.env.example`** (punto 9) — previene la causa del punto 1.
 5. Il resto (test/CI) è utile ma non urgente per un'app self-hosted a uso personale/familiare.
