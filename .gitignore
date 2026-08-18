@@ -21,6 +21,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Scratch
+TODO_ISSUES.md
+
 # Editor/OS
 .DS_Store
 .vscode/

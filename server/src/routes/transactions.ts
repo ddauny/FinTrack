@@ -253,7 +253,7 @@ transactionsRouter.post(
   "/addExpenseFromShortcut",
   requireAuth, // <-- RIUTILIZZIAMO L'AUTENTICAZIONE!
   async (req: AuthRequest, res) => {
-    
+
     // 3. VALIDAZIONE con Zod (Sicurezza contro dati malformati)
     console.log("PAYLOAD RICEVUTO:", req.body); // STAMPA IL PAYLOAD
     const parse = shortcutExpenseSchema.safeParse(req.body);
@@ -265,68 +265,7 @@ transactionsRouter.post(
     // 4. LOGICA DI BUSINESS (Categoria di default)
     // Dobbiamo trovare una categoria "di servizio" (es. "Da categorizzare")
     // che sia di tipo "Expense" e appartenga a questo utente.
-    
-    const userId = req.userId!; // Ottenuto da requireAuth
-    const defaultCategoryName = "Da categorizzare"; // O "Uncategorized"
 
-    let defaultCategory = await prisma.category.findFirst({
-      where: {
-        userId: userId,
-        name: defaultCategoryName,
-        type: "Expense",
-      },
-    });
-
-    // Se non esiste, creala al volo
-    if (!defaultCategory) {
-      defaultCategory = await prisma.category.create({
-        data: {
-          userId: userId,
-          name: defaultCategoryName,
-          type: "Expense",
-        },
-      });
-    }
-
-    // 5. CREAZIONE TRANSAZIONE (Sicuro grazie a Prisma)
-    try {
-      const item = await prisma.transaction.create({
-        data: {
-          userId: userId,
-          accountId: data.userId,
-          categoryId: defaultCategory.id, // <-- Usiamo l'ID della categoria di default
-          date: new Date(), // <-- Usiamo la data odierna
-          amount: data.amount,
-          type: "Expense", // <-- Tipo fisso, come da nome endpoint
-          notes: data.notes,
-        },
-      });
-
-      res.status(201).json(item);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Could not create transaction" });
-    }
-  }
-);
-
-transactionsRouter.post(
-  "/addExpenseFromShortcut",
-  requireAuth, // <-- RIUTILIZZIAMO L'AUTENTICAZIONE!
-  async (req: AuthRequest, res) => {
-    
-    // 3. VALIDAZIONE con Zod (Sicurezza contro dati malformati)
-    console.log("PAYLOAD RICEVUTO:", req.body); // STAMPA IL PAYLOAD
-    const parse = shortcutExpenseSchema.safeParse(req.body);
-    if (!parse.success) {
-      return res.status(400).json({ error: "Invalid payload", details: parse.error });
-    }
-    const data = parse.data;
-
-    // 4. LOGICA DI BUSINESS (Categoria di default)
-    // Dobbiamo trovare una categoria "di servizio" (es. "Da categorizzare")
-    // che sia di tipo "Expense" e appartenga a questo utente.
-    
     const userId = req.userId!; // Ottenuto da requireAuth
     const defaultCategoryName = "Da categorizzare"; // O "Uncategorized"
 
