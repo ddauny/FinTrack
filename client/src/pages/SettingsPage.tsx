@@ -211,6 +211,7 @@ export function SettingsPage() {
   const [aiSaving, setAiSaving] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
   const [showAiKey, setShowAiKey] = useState(false)
+  const [showExternalIncomeToken, setShowExternalIncomeToken] = useState(false)
   const [externalIncomeSources, setExternalIncomeSources] = useState<ExternalIncomeSource[]>([])
   const [showExternalIncomeModal, setShowExternalIncomeModal] = useState(false)
   const [editingExternalIncomeId, setEditingExternalIncomeId] = useState<number | null>(null)
@@ -266,6 +267,17 @@ export function SettingsPage() {
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
+  // Same 401 -> logout/redirect handling as the shared api client, since this
+  // page talks to endpoints not yet wired into lib/api.ts.
+  async function authedFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+    const res = await fetch(input, init)
+    if (res.status === 401) {
+      localStorage.removeItem('token')
+      if (location.pathname !== '/login') location.href = '/login'
+    }
+    return res
+  }
+
   function selectAiPreset(name: string) {
     const preset = AI_PROVIDER_PRESETS[name]
     setAiForm(f => ({ ...f, provider: name, baseUrl: preset.baseUrl, model: preset.model }))
@@ -302,7 +314,7 @@ export function SettingsPage() {
     const [p, c, g, r, accounts, tokenData, tagsData, externalSources, aiProviderConfig] = await Promise.all([
       api.settings.profile(),
       api.categories.list(),
-      fetch('/api/asset-groups', { headers: tokenHeader() }).then(r => r.json()),
+      authedFetch('/api/asset-groups', { headers: tokenHeader() }).then(r => r.json()),
       api.recurringTransactions.list(),
       api.accounts.list(),
       api.settings.getAutomationToken(),
@@ -342,7 +354,7 @@ export function SettingsPage() {
     [newGroups[index], newGroups[targetIndex]] = [newGroups[targetIndex], newGroups[index]]
     setGroups(newGroups)
 
-    await fetch('/api/asset-groups/reorder', {
+    await authedFetch('/api/asset-groups/reorder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...tokenHeader() },
       body: JSON.stringify({ groupIds: newGroups.map(g => g.id) })
@@ -369,7 +381,7 @@ export function SettingsPage() {
     })
     setGroups(newGroups)
 
-    await fetch('/api/asset-items/reorder', {
+    await authedFetch('/api/asset-items/reorder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...tokenHeader() },
       body: JSON.stringify({ itemIds: items.map(it => it.id) })
@@ -506,7 +518,7 @@ export function SettingsPage() {
   // Export functions
   async function exportTransactions() {
     try {
-      const response = await fetch('/api/settings/export/transactions', {
+      const response = await authedFetch('/api/settings/export/transactions', {
         headers: tokenHeader()
       })
       const blob = await response.blob()
@@ -526,7 +538,7 @@ export function SettingsPage() {
 
   async function exportAssets() {
     try {
-      const response = await fetch('/api/settings/export/assets', {
+      const response = await authedFetch('/api/settings/export/assets', {
         headers: tokenHeader()
       })
       const blob = await response.blob()
@@ -1246,7 +1258,7 @@ export function SettingsPage() {
                                 onClick: async () => {
                                   const ok = confirm(`Delete category "${c.name}"?`)
                                   if (!ok) return
-                                  const res = await fetch(`/api/categories/${c.id}`, { method: 'DELETE', headers: tokenHeader() })
+                                  const res = await authedFetch(`/api/categories/${c.id}`, { method: 'DELETE', headers: tokenHeader() })
                                   if (res.status === 409) {
                                     alert('Category in use by transactions')
                                     return
@@ -1382,7 +1394,7 @@ export function SettingsPage() {
                           onClick: async () => {
                             const ok = confirm(`Delete group "${g.name}" and all its items?`)
                             if (!ok) return
-                            await fetch(`/api/asset-groups/${g.id}`, { method: 'DELETE', headers: tokenHeader() })
+                            await authedFetch(`/api/asset-groups/${g.id}`, { method: 'DELETE', headers: tokenHeader() })
                             setActiveGroupId(null)
                             refresh()
                           }
@@ -1451,7 +1463,7 @@ export function SettingsPage() {
                                 onClick: async () => {
                                   const ok = confirm(`Remove bond data from "${it.name}"?`)
                                   if (!ok) return
-                                  await fetch(`/api/asset-items/${it.id}/bond-data`, { method: 'DELETE', headers: tokenHeader() })
+                                  await authedFetch(`/api/asset-items/${it.id}/bond-data`, { method: 'DELETE', headers: tokenHeader() })
                                   refresh()
                                 }
                               }] : []),
@@ -1462,7 +1474,7 @@ export function SettingsPage() {
                                 onClick: async () => {
                                   const ok = confirm(`Delete item "${it.name}"?`)
                                   if (!ok) return
-                                  await fetch(`/api/asset-items/${it.id}`, { method: 'DELETE', headers: tokenHeader() })
+                                  await authedFetch(`/api/asset-items/${it.id}`, { method: 'DELETE', headers: tokenHeader() })
                                   refresh()
                                 }
                               }
@@ -1483,7 +1495,7 @@ export function SettingsPage() {
                                   onChange={(e) => setDepreciationValues(prev => ({ ...prev, [it.id]: e.target.value }))}
                                   onBlur={async () => {
                                     const value = depreciationValues[it.id] ? Number(depreciationValues[it.id]) : null
-                                    await fetch(`/api/asset-items/${it.id}`, {
+                                    await authedFetch(`/api/asset-items/${it.id}`, {
                                       method: 'PUT',
                                       headers: { 'Content-Type': 'application/json', ...tokenHeader() },
                                       body: JSON.stringify({ depreciationAmount: value })
@@ -1529,7 +1541,7 @@ export function SettingsPage() {
                                           onChange={(e) => setDepreciationValues(prev => ({ ...prev, [ch.id]: e.target.value }))}
                                           onBlur={async () => {
                                             const value = depreciationValues[ch.id] ? Number(depreciationValues[ch.id]) : null
-                                            await fetch(`/api/asset-items/${ch.id}`, {
+                                            await authedFetch(`/api/asset-items/${ch.id}`, {
                                               method: 'PUT',
                                               headers: { 'Content-Type': 'application/json', ...tokenHeader() },
                                               body: JSON.stringify({ depreciationAmount: value })
@@ -1550,7 +1562,7 @@ export function SettingsPage() {
                                         onClick={async () => {
                                           const ok = confirm(`Delete child item "${ch.name}"?`)
                                           if (!ok) return
-                                          await fetch(`/api/asset-items/${ch.id}`, { method: 'DELETE', headers: tokenHeader() })
+                                          await authedFetch(`/api/asset-items/${ch.id}`, { method: 'DELETE', headers: tokenHeader() })
                                           refresh()
                                         }}
                                         className="text-stone-400 hover:text-red-500 transition-colors p-0.5"
@@ -1778,12 +1790,22 @@ export function SettingsPage() {
               {externalIncomeForm.authType !== 'NONE' && (
                 <div>
                   <label className="block text-xs text-stone-500 dark:text-stone-400 mb-1">Auth Token / Key</label>
-                  <input
-                    value={externalIncomeForm.authToken}
-                    onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, authToken: e.target.value })}
-                    placeholder="Token or API key"
-                    className="w-full border p-2.5 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showExternalIncomeToken ? "text" : "password"}
+                      value={externalIncomeForm.authToken}
+                      onChange={(e) => setExternalIncomeForm({ ...externalIncomeForm, authToken: e.target.value })}
+                      placeholder="Token or API key"
+                      className="w-full border p-2.5 pr-12 rounded-md bg-white dark:bg-stone-700 border-stone-300 dark:border-stone-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowExternalIncomeToken(!showExternalIncomeToken)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs rounded bg-stone-200 dark:bg-stone-600 hover:bg-stone-300 dark:hover:bg-stone-500 transition-colors"
+                    >
+                      {showExternalIncomeToken ? '🙈' : '👁️'}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -2012,7 +2034,7 @@ export function SettingsPage() {
                 <button
                   onClick={async () => {
                     if (!groupForm.name) return
-                    await fetch('/api/asset-groups', {
+                    await authedFetch('/api/asset-groups', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', ...tokenHeader() },
                       body: JSON.stringify({ name: groupForm.name })
@@ -2305,19 +2327,19 @@ export function SettingsPage() {
                       }
 
                       if (editingItem) {
-                        await fetch(`/api/asset-items/${editingItem.id}`, {
+                        await authedFetch(`/api/asset-items/${editingItem.id}`, {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json', ...tokenHeader() },
                           body: JSON.stringify(payload)
                         })
                       } else if (addingChildToItemId) {
-                        await fetch(`/api/asset-items/${addingChildToItemId}/children`, {
+                        await authedFetch(`/api/asset-items/${addingChildToItemId}/children`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', ...tokenHeader() },
                           body: JSON.stringify(payload)
                         })
                       } else {
-                        await fetch(`/api/asset-groups/${showItemModalForGroup}/items`, {
+                        await authedFetch(`/api/asset-groups/${showItemModalForGroup}/items`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json', ...tokenHeader() },
                           body: JSON.stringify(payload)
