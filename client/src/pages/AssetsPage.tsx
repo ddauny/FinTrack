@@ -41,7 +41,8 @@ export function AssetsPage() {
   const [isFullScreen, setIsFullScreen] = useState(false)
 
   async function refresh() {
-    const res = await fetch('/api/asset-groups', { headers: tokenHeader() })
+    const res = await authedFetch('/api/asset-groups', { headers: tokenHeader() })
+    if (!res.ok) return
     const data = await res.json()
     setGroups(data)
     const set = new Set<string>()
@@ -93,6 +94,17 @@ export function AssetsPage() {
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
+  // Same 401 -> logout/redirect handling as the shared api client, since this
+  // page talks to endpoints not yet wired into lib/api.ts.
+  async function authedFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+    const res = await fetch(input, init)
+    if (res.status === 401) {
+      localStorage.removeItem('token')
+      if (location.pathname !== '/login') location.href = '/login'
+    }
+    return res
+  }
+
   function monthKey(d: Date) {
     const yyyy = d.getUTCFullYear()
     const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
@@ -119,7 +131,7 @@ export function AssetsPage() {
 
   async function toggleHidden(item: Item) {
     try {
-      await fetch(`/api/asset-items/${item.id}`, {
+      await authedFetch(`/api/asset-items/${item.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...tokenHeader() },
         body: JSON.stringify({ hidden: !item.hidden })
@@ -150,12 +162,12 @@ export function AssetsPage() {
   }
 
   async function collapseItem(item: Item) {
-    await fetch(`/api/asset-items/${item.id}/collapse`, { method: 'POST', headers: { ...tokenHeader() } })
+    await authedFetch(`/api/asset-items/${item.id}/collapse`, { method: 'POST', headers: { ...tokenHeader() } })
     await refresh()
   }
 
   async function expandItem(item: Item) {
-    await fetch(`/api/asset-items/${item.id}/expand`, { method: 'POST', headers: { ...tokenHeader() } })
+    await authedFetch(`/api/asset-items/${item.id}/expand`, { method: 'POST', headers: { ...tokenHeader() } })
     await refresh()
   }
 
@@ -234,7 +246,7 @@ export function AssetsPage() {
     if (existingVal && existingVal.note) payload.note = existingVal.note
 
     try {
-      await fetch(`/api/asset-items/${itemId}/valuations`, {
+      await authedFetch(`/api/asset-items/${itemId}/valuations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...tokenHeader() },
         body: JSON.stringify(payload)
@@ -281,7 +293,7 @@ export function AssetsPage() {
     const existingVal = item?.valuations?.find(v => new Date(v.month).toISOString().slice(0, 10) === month)
     if (existingVal && existingVal.note) payload.note = existingVal.note
     try {
-      await fetch(`/api/asset-items/${itemId}/valuations`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...tokenHeader() }, body: JSON.stringify(payload) })
+      await authedFetch(`/api/asset-items/${itemId}/valuations`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...tokenHeader() }, body: JSON.stringify(payload) })
       await refresh()
     } catch (err) {
       console.error('Error saving valuation:', err)
@@ -407,7 +419,7 @@ export function AssetsPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/asset-items/${itemId}/valuations`, {
+      const res = await authedFetch(`/api/asset-items/${itemId}/valuations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...tokenHeader() },
         body: JSON.stringify(payload)
@@ -439,7 +451,7 @@ export function AssetsPage() {
     const g = groups.find(x => x.id === groupId)
     if (!g) return
     try {
-      await fetch(`/api/asset-groups/${groupId}/hide-all`, {
+      await authedFetch(`/api/asset-groups/${groupId}/hide-all`, {
         method: 'POST',
         headers: { ...tokenHeader() }
       })
@@ -451,7 +463,7 @@ export function AssetsPage() {
 
   async function showAllHidden() {
     try {
-      await fetch(`/api/asset-items/show-all`, {
+      await authedFetch(`/api/asset-items/show-all`, {
         method: 'POST',
         headers: { ...tokenHeader() }
       })
@@ -496,7 +508,7 @@ export function AssetsPage() {
     const mk = monthKey(nxt)
     if (!months.includes(mk)) {
       try {
-        await fetch('/api/asset-valuations/apply-depreciation', {
+        await authedFetch('/api/asset-valuations/apply-depreciation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...tokenHeader() },
           body: JSON.stringify({ month: mk })
@@ -859,7 +871,7 @@ export function AssetsPage() {
                     onClick={async (e) => {
                       e.stopPropagation();
                       if (confirm(`Delete all valuations for ${new Date(m).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}?`)) {
-                        await fetch(`/api/asset-valuations?month=${encodeURIComponent(m)}`, { method: 'DELETE', headers: { ...tokenHeader() } })
+                        await authedFetch(`/api/asset-valuations?month=${encodeURIComponent(m)}`, { method: 'DELETE', headers: { ...tokenHeader() } })
                         setManualMonths(prev => {
                           const newSet = new Set(prev)
                           newSet.delete(m)
