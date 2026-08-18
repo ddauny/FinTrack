@@ -45,6 +45,8 @@ budgetsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
 budgetsRouter.post("/", requireAuth, async (req: AuthRequest, res) => {
   const parse = upsertSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
+  const category = await prisma.category.findFirst({ where: { id: parse.data.categoryId, userId: req.userId! } });
+  if (!category) return res.status(404).json({ error: "Category not found" });
   const item = await prisma.budget.create({ data: { ...parse.data, userId: req.userId! } });
   res.status(201).json(item);
 });
@@ -53,6 +55,8 @@ budgetsRouter.put("/:id", requireAuth, async (req: AuthRequest, res) => {
   const id = Number(req.params.id);
   const parse = upsertSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
+  const category = await prisma.category.findFirst({ where: { id: parse.data.categoryId, userId: req.userId! } });
+  if (!category) return res.status(404).json({ error: "Category not found" });
   const updated = await prisma.budget.updateMany({ where: { id, userId: req.userId! }, data: parse.data });
   if (updated.count === 0) return res.status(404).json({ error: "Not found" });
   const item = await prisma.budget.findUnique({ where: { id } });

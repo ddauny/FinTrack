@@ -216,9 +216,12 @@ transactionsRouter.post("/", requireAuth, async (req: AuthRequest, res) => {
   const parse = createSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const data = parse.data;
-  // Infer type from category
-  const category = await prisma.category.findUnique({ where: { id: data.categoryId } });
-  const type = category?.type || "Expense";
+  // Infer type from category, and verify accountId/categoryId belong to this user
+  const category = await prisma.category.findFirst({ where: { id: data.categoryId, userId: req.userId! } });
+  if (!category) return res.status(404).json({ error: "Category not found" });
+  const account = await prisma.account.findFirst({ where: { id: data.accountId, userId: req.userId! } });
+  if (!account) return res.status(404).json({ error: "Account not found" });
+  const type = category.type || "Expense";
   const item = await prisma.transaction.create({
     data: {
       userId: req.userId!,
@@ -289,6 +292,9 @@ transactionsRouter.post(
     }
 
     // 5. CREAZIONE TRANSAZIONE (Sicuro grazie a Prisma)
+    const account = await prisma.account.findFirst({ where: { id: data.userId, userId } });
+    if (!account) return res.status(404).json({ error: "Account not found" });
+
     try {
       const item = await prisma.transaction.create({
         data: {
@@ -407,6 +413,9 @@ transactionsRouter.post(
     }
 
     // 5. CREAZIONE TRANSAZIONE (Sicuro grazie a Prisma)
+    const account = await prisma.account.findFirst({ where: { id: data.userId, userId } });
+    if (!account) return res.status(404).json({ error: "Account not found" });
+
     try {
       const item = await prisma.transaction.create({
         data: {
@@ -433,11 +442,14 @@ transactionsRouter.put("/:id", requireAuth, async (req: AuthRequest, res) => {
   const parse = createSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: "Invalid payload" });
   const data = parse.data;
-  const category = await prisma.category.findUnique({ where: { id: data.categoryId } });
-  const type = category?.type || "Expense";
-  // Verify ownership
+  // Verify ownership of the transaction and of the referenced account/category
   const existing = await prisma.transaction.findFirst({ where: { id, userId: req.userId! } });
   if (!existing) return res.status(404).json({ error: "Not found" });
+  const category = await prisma.category.findFirst({ where: { id: data.categoryId, userId: req.userId! } });
+  if (!category) return res.status(404).json({ error: "Category not found" });
+  const account = await prisma.account.findFirst({ where: { id: data.accountId, userId: req.userId! } });
+  if (!account) return res.status(404).json({ error: "Account not found" });
+  const type = category.type || "Expense";
   const item = await prisma.transaction.update({
     where: { id },
     data: {
