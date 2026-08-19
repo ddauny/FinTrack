@@ -129,6 +129,19 @@ export function AssetsPage() {
     return !(group.items || []).some(it => it.parentItemId === item.id)
   }
 
+  // Total net worth per month, shared by the three footer rows below instead
+  // of each of them re-running the same groups/items reduce per month.
+  const netWorthByMonth = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const m of months) {
+      map[m] = groups.reduce((sum, g) => {
+        const roots = (g.items || []).filter(it => !it.parentItemId)
+        return sum + roots.reduce((acc, it) => acc + valueFor(it, m, true), 0)
+      }, 0)
+    }
+    return map
+  }, [months, groups])
+
   async function toggleHidden(item: Item) {
     try {
       await authedFetch(`/api/asset-items/${item.id}`, {
@@ -1034,11 +1047,7 @@ export function AssetsPage() {
                 Total Net Worth
               </td>
               {months.map(m => {
-                const v = groups.reduce((sum, g) => {
-                  const roots = (g.items || []).filter(it => !it.parentItemId)
-                  const s = roots.reduce((acc, it) => acc + valueFor(it, m, true), 0)
-                  return sum + s
-                }, 0)
+                const v = netWorthByMonth[m] ?? 0
                 return <td key={m} className="p-4 text-center font-bold text-sm tabular-nums bg-stone-100 text-stone-900 dark:bg-stone-900 dark:text-white shadow-[inset_1px_0_0_0_#e5e7eb] dark:shadow-[inset_1px_0_0_0_#1e293b]">
                   {v ? <PrivacyNumber value={v}>{formatEUR(v)}</PrivacyNumber> : ''}
                 </td>
@@ -1049,17 +1058,9 @@ export function AssetsPage() {
                 Growth (Amount)
               </td>
               {months.map((m, i) => {
-                const curr = groups.reduce((sum, g) => {
-                  const roots = (g.items || []).filter(it => !it.parentItemId)
-                  const s = roots.reduce((acc, it) => acc + valueFor(it, m, true), 0)
-                  return sum + s
-                }, 0)
+                const curr = netWorthByMonth[m] ?? 0
                 const prevKey = months[i + 1]
-                const prev = prevKey ? groups.reduce((sum, g) => {
-                  const roots = (g.items || []).filter(it => !it.parentItemId)
-                  const s = roots.reduce((acc, it) => acc + valueFor(it, prevKey, true), 0)
-                  return sum + s
-                }, 0) : 0
+                const prev = prevKey ? (netWorthByMonth[prevKey] ?? 0) : 0
                 const diff = prevKey ? (curr - prev) : 0
                 const isPos = diff > 0
                 return <td key={m} className={`p-3 text-center font-medium text-xs tabular-nums bg-stone-50 dark:bg-stone-800 shadow-[inset_1px_0_0_0_#e5e7eb] dark:shadow-[inset_1px_0_0_0_#334155] ${isPos ? 'text-emerald-600 dark:text-emerald-400' : (diff < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-stone-600 dark:text-stone-300')}`}>
@@ -1072,17 +1073,9 @@ export function AssetsPage() {
                 Growth (%)
               </td>
               {months.map((m, i) => {
-                const curr = groups.reduce((sum, g) => {
-                  const roots = (g.items || []).filter(it => !it.parentItemId)
-                  const s = roots.reduce((acc, it) => acc + valueFor(it, m, true), 0)
-                  return sum + s
-                }, 0)
+                const curr = netWorthByMonth[m] ?? 0
                 const prevKey = months[i + 1]
-                const prev = prevKey ? groups.reduce((sum, g) => {
-                  const roots = (g.items || []).filter(it => !it.parentItemId)
-                  const s = roots.reduce((acc, it) => acc + valueFor(it, prevKey, true), 0)
-                  return sum + s
-                }, 0) : 0
+                const prev = prevKey ? (netWorthByMonth[prevKey] ?? 0) : 0
                 const pct = prevKey && prev !== 0 ? ((curr - prev) / prev) * 100 : 0
 
                 // Heatmap logic for text color instead of background
