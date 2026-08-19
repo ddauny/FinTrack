@@ -928,19 +928,24 @@ transactionsRouter.patch("/bulk-update-tags", requireAuth, async (req: AuthReque
     if (tagCount !== tagIds.length) return res.status(400).json({ error: "Some tags not found" });
   }
 
-  // Update each transaction's tags (additive — merges with existing)
-  let updated = 0;
-  for (const txnId of ids) {
-    const txn = await prisma.transaction.findFirst({ where: { id: txnId, userId } });
-    if (!txn) continue;
-    await prisma.transaction.update({
-      where: { id: txnId },
-      data: { tags: { connect: tagIds.map(id => ({ id })) } },
-    });
-    updated++;
+  // Update each transaction's tags (additive — merges with existing).
+  // One query to resolve which of the requested ids the user actually owns,
+  // then all the per-row `tags: connect` updates run batched in a single
+  // transaction instead of an ownership-check-then-update round trip per id.
+  const owned = await prisma.transaction.findMany({ where: { id: { in: ids }, userId }, select: { id: true } });
+  const ownedIds = owned.map(t => t.id);
+  if (ownedIds.length > 0) {
+    await prisma.$transaction(
+      ownedIds.map(id =>
+        prisma.transaction.update({
+          where: { id },
+          data: { tags: { connect: tagIds.map(id => ({ id })) } },
+        })
+      )
+    );
   }
 
-  res.json({ updated });
+  res.json({ updated: ownedIds.length });
 });
 
 transactionsRouter.patch("/bulk-update-category", requireAuth, async (req: AuthRequest, res) => {
