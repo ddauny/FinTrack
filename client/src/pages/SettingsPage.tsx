@@ -583,7 +583,13 @@ export function SettingsPage() {
             />
             <button
               onClick={async () => {
-                await api.settings.updateProfile({ email, password: password || undefined })
+                try {
+                  await api.settings.updateProfile({ email, password: password || undefined })
+                } catch (e) {
+                  console.error(e)
+                  alert('Failed to save profile changes')
+                  return
+                }
                 setPassword('')
                 refresh()
               }}

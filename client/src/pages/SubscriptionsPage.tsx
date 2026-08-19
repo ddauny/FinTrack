@@ -67,6 +67,8 @@ export function SubscriptionsPage() {
       await api.recurringTransactions.update(id, { isActive: false })
     } catch (e) {
       console.error(e)
+      alert('Failed to pause subscription')
+      return
     }
     load()
   }
@@ -75,6 +77,8 @@ export function SubscriptionsPage() {
       await api.recurringTransactions.update(id, { isActive: true })
     } catch (e) {
       console.error(e)
+      alert('Failed to reactivate subscription')
+      return
     }
     load()
   }
@@ -84,6 +88,8 @@ export function SubscriptionsPage() {
       await api.recurringTransactions.remove(id)
     } catch (e) {
       console.error(e)
+      alert('Failed to delete subscription')
+      return
     }
     load()
   }

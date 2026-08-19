@@ -323,7 +323,13 @@ function SavingsGoalsTab({ dark, hideNumbers }: { dark: boolean; hideNumbers: bo
 
     const handleDelete = async (id: number) => {
         if (!confirm('Delete this savings goal?')) return
-        await api.savingsGoals.remove(id)
+        try {
+            await api.savingsGoals.remove(id)
+        } catch (e) {
+            console.error(e)
+            alert('Failed to delete savings goal')
+            return
+        }
         loadGoals()
     }
 
