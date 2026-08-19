@@ -81,6 +81,7 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
     const searchTerm = searchQuery.trim();
     console.log('Searching for:', searchTerm);
     
+    const searchAmount = parseFloat(searchTerm);
     where.OR = [
       // Search in category name
       {
@@ -98,12 +99,8 @@ transactionsRouter.get("/", requireAuth, async (req: AuthRequest, res) => {
           mode: 'insensitive'
         }
       },
-      // Search in amount (convert to string for partial matching)
-      {
-        amount: {
-          equals: parseFloat(searchTerm) || undefined
-        }
-      }
+      // Search in amount, only when the term actually parses to a number
+      ...(Number.isNaN(searchAmount) ? [] : [{ amount: { equals: searchAmount } }])
     ];
   }
 
