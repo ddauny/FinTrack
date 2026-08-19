@@ -47,6 +47,68 @@ function parseRange(q: any) {
   return { start, end }; // Ritorna oggetti Date pronti per Prisma
 }
 
+// --- Shared helpers for the asset-growth/comparison/allocation reports below,
+// which all fetch the same asset-group tree and aggregate it by month. ---
+
+type Valuation = { month: Date; value: any };
+type ItemWithValuations = { parentItemId: number | null; valuations: Valuation[]; children: { valuations: Valuation[] }[] };
+type AssetGroupWithItems = { name: string; items: ItemWithValuations[] };
+
+function fetchAssetGroupsWithValuations(userId: number, start: Date, end: Date) {
+  return prisma.assetGroup.findMany({
+    where: { userId },
+    include: {
+      items: {
+        include: {
+          valuations: { where: { month: { gte: start, lte: end } }, orderBy: { month: 'asc' } },
+          children: { include: { valuations: { where: { month: { gte: start, lte: end } } } } }
+        }
+      }
+    }
+  });
+}
+
+function monthKey(d: Date): string {
+  return d.toISOString().split('T')[0].substring(0, 7);
+}
+
+// All unique YYYY-MM months with a valuation anywhere in the group tree.
+function collectMonths(assetGroups: AssetGroupWithItems[]): string[] {
+  const set = new Set<string>();
+  assetGroups.forEach(group => {
+    group.items.forEach(item => {
+      item.valuations.forEach(v => set.add(monthKey(v.month)));
+      item.children.forEach(child => child.valuations.forEach(v => set.add(monthKey(v.month))));
+    });
+  });
+  return Array.from(set).sort();
+}
+
+// Sum of a group's root items (+ their children) for a given month.
+function groupTotalForMonth(group: AssetGroupWithItems, monthStr: string): number {
+  let total = 0;
+  group.items.filter(i => !i.parentItemId).forEach(item => {
+    const val = item.valuations.find(v => monthKey(v.month) === monthStr);
+    if (val) total += Number(val.value);
+    item.children.forEach(child => {
+      const childVal = child.valuations.find(v => monthKey(v.month) === monthStr);
+      if (childVal) total += Number(childVal.value);
+    });
+  });
+  return total;
+}
+
+// Drop months where every series is 0 (e.g. before any valuation existed).
+function filterAllZeroMonths(months: string[], series: { name: string; data: number[] }[]) {
+  const validIndices = months
+    .map((_, i) => (series.some(s => s.data[i] > 0) ? i : -1))
+    .filter(i => i !== -1);
+  return {
+    months: validIndices.map(i => months[i]),
+    series: series.map(s => ({ name: s.name, data: validIndices.map(i => s.data[i]) })),
+  };
+}
+
 // Funzione maybeCsv invariata (con miglioramento escaping)
 function maybeCsv(req: any, res: any, rows: any[], headers: string[]) {
   if (String(req.query.format).toLowerCase() === "csv") {
@@ -229,73 +291,17 @@ reportsRouter.get("/asset-growth-trend", requireAuth, async (req: AuthRequest, r
   try {
     const userId = req.userId!;
     const { start, end } = parseRange(req.query);
-    
-    const assetGroups = await prisma.assetGroup.findMany({
-      where: { userId },
-      include: {
-        items: {
-          include: {
-            valuations: {
-              where: {
-                month: { gte: start, lte: end }
-              },
-              orderBy: { month: 'asc' }
-            },
-            children: {
-              include: {
-                valuations: {
-                  where: {
-                    month: { gte: start, lte: end }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-    
-    // Raccogli tutti i mesi unici
-    const monthsSet = new Set<string>();
-    assetGroups.forEach(group => {
-      group.items.forEach(item => {
-        item.valuations.forEach(v => {
-          monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
-        });
-        item.children.forEach(child => {
-          child.valuations.forEach(v => {
-            monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
-          });
-        });
-      });
-    });
-    
-    const months = Array.from(monthsSet).sort();
-    
-    // Calcola il valore totale per ogni mese
-    const result = months.map(monthStr => {
-      let total = 0;
-      assetGroups.forEach(group => {
-        group.items.filter(i => !i.parentItemId).forEach(item => {
-          const val = item.valuations.find(v => 
-            v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
-          );
-          if (val) {
-            total += Number(val.value);
-          }
-          // Aggiungi figli
-          item.children.forEach(child => {
-            const childVal = child.valuations.find(v =>
-              v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
-            );
-            if (childVal) total += Number(childVal.value);
-          });
-        });
-      });
-      
-      return { month: monthStr, value: total };
-    }).filter(item => item.value > 0); // Filtra mesi con valore 0
-    
+
+    const assetGroups = await fetchAssetGroupsWithValuations(userId, start, end);
+    const months = collectMonths(assetGroups);
+
+    const result = months
+      .map(monthStr => ({
+        month: monthStr,
+        value: assetGroups.reduce((sum, g) => sum + groupTotalForMonth(g, monthStr), 0),
+      }))
+      .filter(item => item.value > 0); // Filtra mesi con valore 0
+
     return res.json(result);
   } catch (error) {
     console.error('Error in asset-growth-trend:', error);
@@ -385,89 +391,17 @@ reportsRouter.get("/asset-group-comparison", requireAuth, async (req: AuthReques
   try {
     const userId = req.userId!;
     const { start, end } = parseRange(req.query);
-    
-    const assetGroups = await prisma.assetGroup.findMany({
-      where: { userId },
-      include: {
-        items: {
-          include: {
-            valuations: {
-              where: {
-                month: { gte: start, lte: end }
-              },
-              orderBy: { month: 'asc' }
-            },
-            children: {
-              include: {
-                valuations: {
-                  where: {
-                    month: { gte: start, lte: end }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-    
-    // Raccogli tutti i mesi
-    const monthsSet = new Set<string>();
-    assetGroups.forEach(group => {
-      group.items.forEach(item => {
-        item.valuations.forEach(v => {
-          monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
-        });
-        item.children.forEach(child => {
-          child.valuations.forEach(v => {
-            monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
-          });
-        });
-      });
-    });
-    
-    const months = Array.from(monthsSet).sort();
-    
-    // Crea serie per ogni gruppo
-    const series = assetGroups.map(group => {
-      const data = months.map(monthStr => {
-        let total = 0;
-        group.items.filter(i => !i.parentItemId).forEach(item => {
-          const val = item.valuations.find(v => 
-            v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
-          );
-          if (val) total += Number(val.value);
-          
-          item.children.forEach(child => {
-            const childVal = child.valuations.find(v =>
-              v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
-            );
-            if (childVal) total += Number(childVal.value);
-          });
-        });
-        return total;
-      });
-      
-      return {
-        name: group.name,
-        data
-      };
-    });
 
-    // Filtra i mesi in cui TUTTI i gruppi hanno valore 0
-    const validMonthIndices = months
-      .map((_, index) => {
-        const hasValue = series.some(s => s.data[index] > 0);
-        return hasValue ? index : -1;
-      })
-      .filter(i => i !== -1);
+    const assetGroups = await fetchAssetGroupsWithValuations(userId, start, end);
+    const months = collectMonths(assetGroups);
 
-    const filteredMonths = validMonthIndices.map(i => months[i]);
-    const filteredSeries = series.map(s => ({
-      name: s.name,
-      data: validMonthIndices.map(i => s.data[i])
+    const series = assetGroups.map(group => ({
+      name: group.name,
+      data: months.map(monthStr => groupTotalForMonth(group, monthStr)),
     }));
-    
+
+    const { months: filteredMonths, series: filteredSeries } = filterAllZeroMonths(months, series);
+
     return res.json({ months: filteredMonths, series: filteredSeries });
   } catch (error) {
     console.error('Error in asset-group-comparison:', error);
@@ -526,17 +460,15 @@ reportsRouter.get("/top-assets-evolution", requireAuth, async (req: AuthRequest,
     const monthsSet = new Set<string>();
     topAssets.forEach(asset => {
       asset.valuations.forEach(v => {
-        monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
+        monthsSet.add(monthKey(v.month));
       });
     });
     const months = Array.from(monthsSet).sort();
-    
+
     // Crea serie per ogni asset
     const series = topAssets.map(asset => {
       const data = months.map(monthStr => {
-        const val = asset.valuations.find(v =>
-          v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
-        );
+        const val = asset.valuations.find(v => monthKey(v.month) === monthStr);
         return val ? Number(val.value) : 0;
       });
       
@@ -546,20 +478,8 @@ reportsRouter.get("/top-assets-evolution", requireAuth, async (req: AuthRequest,
       };
     });
 
-    // Filtra i mesi in cui TUTTI gli asset hanno valore 0
-    const validMonthIndices = months
-      .map((_, index) => {
-        const hasValue = series.some(s => s.data[index] > 0);
-        return hasValue ? index : -1;
-      })
-      .filter(i => i !== -1);
+    const { months: filteredMonths, series: filteredSeries } = filterAllZeroMonths(months, series);
 
-    const filteredMonths = validMonthIndices.map(i => months[i]);
-    const filteredSeries = series.map(s => ({
-      name: s.name,
-      data: validMonthIndices.map(i => s.data[i])
-    }));
-    
     return res.json({ months: filteredMonths, series: filteredSeries });
   } catch (error) {
     console.error('Error in top-assets-evolution:', error);
@@ -572,78 +492,17 @@ reportsRouter.get("/asset-allocation-changes", requireAuth, async (req: AuthRequ
   try {
     const userId = req.userId!;
     const { start, end } = parseRange(req.query);
-    
-    const assetGroups = await prisma.assetGroup.findMany({
-      where: { userId },
-      include: {
-        items: {
-          include: {
-            valuations: {
-              where: {
-                month: { gte: start, lte: end }
-              },
-              orderBy: { month: 'asc' }
-            },
-            children: {
-              include: {
-                valuations: {
-                  where: {
-                    month: { gte: start, lte: end }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-    
-    // Raccogli tutti i mesi unici
-    const monthsSet = new Set<string>();
-    assetGroups.forEach(group => {
-      group.items.forEach(item => {
-        item.valuations.forEach(v => {
-          monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
-        });
-        item.children.forEach(child => {
-          child.valuations.forEach(v => {
-            monthsSet.add(v.month.toISOString().split('T')[0].substring(0, 7));
-          });
-        });
-      });
-    });
-    
-    const months = Array.from(monthsSet).sort();
-    
+
+    const assetGroups = await fetchAssetGroupsWithValuations(userId, start, end);
+    const months = collectMonths(assetGroups);
+
     // Calcola il valore totale e per gruppo per ogni mese
     const monthlyData = months.map(monthStr => {
-      let total = 0;
       const groups: { [key: string]: number } = {};
-      
       assetGroups.forEach(group => {
-        let groupTotal = 0;
-        
-        group.items.filter(i => !i.parentItemId).forEach(item => {
-          const val = item.valuations.find(v => 
-            v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
-          );
-          if (val) {
-            groupTotal += Number(val.value);
-          }
-          
-          // Aggiungi figli
-          item.children.forEach(child => {
-            const childVal = child.valuations.find(v =>
-              v.month.toISOString().split('T')[0].substring(0, 7) === monthStr
-            );
-            if (childVal) groupTotal += Number(childVal.value);
-          });
-        });
-        
-        groups[group.name] = groupTotal;
-        total += groupTotal;
+        groups[group.name] = groupTotalForMonth(group, monthStr);
       });
-      
+      const total = Object.values(groups).reduce((sum, v) => sum + v, 0);
       return { month: monthStr, total, groups };
     });
     

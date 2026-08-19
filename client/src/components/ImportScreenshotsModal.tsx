@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import type { ExtractedTransaction, Category } from '../types'
@@ -27,6 +27,12 @@ export function ImportScreenshotsModal({ categories, onClose, onImported }: Prop
   const includedItems = useMemo(() => items.filter(i => i.included), [items])
   const totalAmount = useMemo(() => includedItems.reduce((s, i) => s + i.amount, 0), [includedItems])
 
+  // Revoke object URLs before replacing them, and on unmount, so previews
+  // don't leak for the life of the tab as screenshots are added/removed.
+  const previewsRef = useRef<string[]>([])
+  useEffect(() => { previewsRef.current = previews })
+  useEffect(() => () => { previewsRef.current.forEach(url => URL.revokeObjectURL(url)) }, [])
+
   function addFiles(newFiles: FileList | File[]) {
     const accepted = Array.from(newFiles).filter(f =>
       ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(f.type)
@@ -38,12 +44,14 @@ export function ImportScreenshotsModal({ categories, onClose, onImported }: Prop
     setError(null)
     const merged = [...files, ...accepted].slice(0, 20)
     setFiles(merged)
+    previews.forEach(url => URL.revokeObjectURL(url))
     setPreviews(merged.map(f => URL.createObjectURL(f)))
   }
 
   function removeFile(idx: number) {
     const merged = files.filter((_, i) => i !== idx)
     setFiles(merged)
+    previews.forEach(url => URL.revokeObjectURL(url))
     setPreviews(merged.map(f => URL.createObjectURL(f)))
   }
 
