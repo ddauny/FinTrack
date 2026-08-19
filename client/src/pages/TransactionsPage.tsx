@@ -151,6 +151,10 @@ export function TransactionsPage() {
   const initialAutoRefreshSkipped = useRef(false)
   const initialLoadDone = useRef(false)
   const initialFetchStarted = useRef(false)
+  // Bumped whenever filters/sort change, so in-flight fetches issued before
+  // the change (e.g. an infinite-scroll append) can detect they're stale and
+  // avoid overwriting the newer, filter-matching results.
+  const filterGenerationRef = useRef(0)
   const [categories, setCategories] = useState<any[]>([])
   const [showImportModal, setShowImportModal] = useState(false)
   const [form, setForm] = useState<any>({ date: new Date().toISOString().slice(0, 10), amount: 0, accountId: '', categoryId: '', notes: '', isRecurring: false, frequency: 'MONTHLY', endDate: '' })
@@ -183,7 +187,7 @@ export function TransactionsPage() {
   const pageSize = 20
 
   async function fetchPage(p: number, mode: 'replace' | 'append' = 'replace') {
-    if (loading) return
+    const generation = filterGenerationRef.current
     setLoading(true)
     let query = `?page=${p}&limit=${pageSize}&sortBy=${sortBy}&order=${order}`
 
@@ -223,6 +227,11 @@ export function TransactionsPage() {
     }
 
     const res: any = await api.transactions.list(query)
+    if (generation !== filterGenerationRef.current) {
+      // Filters changed while this request was in flight; discard the stale response.
+      setLoading(false)
+      return
+    }
     // Defensive client-side filter: if txnType (or type in URL) is set, ensure we only
     // display transactions matching that type. This guards against server-side misses.
     let receivedItems = res.items || []
@@ -356,6 +365,7 @@ export function TransactionsPage() {
       return
     }
 
+    filterGenerationRef.current++ // invalidate any fetches already in flight
     setPage(1); // Reset to first page when filters change
     setItems([]); // Clear existing items to prevent duplicates
     // Force refresh with new parameters
@@ -440,42 +450,48 @@ export function TransactionsPage() {
     if (!form.categoryId) { alert('Please select a category.'); return }
     const acctId = await ensureAccountId()
 
-    if (form.isRecurring) {
-      // Create recurring transaction
-      const recurringPayload = {
-        accountId: acctId,
-        categoryId: form.categoryId,
-        amount: Number(form.amount),
-        type: categoryMap[form.categoryId]?.type || 'Expense',
-        notes: form.notes,
-        frequency: form.frequency,
-        startDate: form.date,
-        endDate: form.endDate || undefined
-      }
-      const recurringTransaction = await api.recurringTransactions.create(recurringPayload)
+    try {
+      if (form.isRecurring) {
+        // Create recurring transaction
+        const recurringPayload = {
+          accountId: acctId,
+          categoryId: form.categoryId,
+          amount: Number(form.amount),
+          type: categoryMap[form.categoryId]?.type || 'Expense',
+          notes: form.notes,
+          frequency: form.frequency,
+          startDate: form.date,
+          endDate: form.endDate || undefined
+        }
+        const recurringTransaction = await api.recurringTransactions.create(recurringPayload)
 
-      // Create the first transaction immediately with link to recurring transaction
-      const firstTransactionPayload = {
-        date: form.date,
-        amount: Number(form.amount),
-        accountId: acctId,
-        categoryId: form.categoryId,
-        notes: form.notes,
-        recurringTransactionId: recurringTransaction.id
+        // Create the first transaction immediately with link to recurring transaction
+        const firstTransactionPayload = {
+          date: form.date,
+          amount: Number(form.amount),
+          accountId: acctId,
+          categoryId: form.categoryId,
+          notes: form.notes,
+          recurringTransactionId: recurringTransaction.id
+        }
+        await api.transactions.create(firstTransactionPayload)
+      } else {
+        // Create/update normal transaction (exclude recurring fields)
+        const payload = {
+          date: form.date,
+          amount: Number(form.amount),
+          accountId: acctId,
+          categoryId: form.categoryId,
+          notes: form.notes,
+          tagIds: formTagIds
+        }
+        if (editingId) await api.transactions.update(editingId, payload)
+        else await api.transactions.create(payload)
       }
-      await api.transactions.create(firstTransactionPayload)
-    } else {
-      // Create/update normal transaction (exclude recurring fields)
-      const payload = {
-        date: form.date,
-        amount: Number(form.amount),
-        accountId: acctId,
-        categoryId: form.categoryId,
-        notes: form.notes,
-        tagIds: formTagIds
-      }
-      if (editingId) await api.transactions.update(editingId, payload)
-      else await api.transactions.create(payload)
+    } catch (error) {
+      console.error('Error saving transaction:', error)
+      alert('Error saving transaction')
+      return
     }
 
     setShowModal(false)
