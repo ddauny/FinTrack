@@ -414,7 +414,7 @@ export function AssetsPage() {
     console.log('note:', note)
     console.log('payload:', payload)
 
-    if (!payload.value || !payload.month) {
+    if (payload.value == null || !payload.month) {
       alert("Value or month is missing");
       return;
     }
